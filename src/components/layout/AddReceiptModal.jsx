@@ -1,0 +1,139 @@
+import { useState, useRef } from 'react';
+import { Camera, Upload, FileText, X } from 'lucide-react';
+import { useAppStore } from '../../store/appStore';
+import { storageService } from '../../services/storage';
+import Modal from '../common/Modal';
+import ReceiptForm from '../receipts/ReceiptForm';
+import ReceiptUpload from '../receipts/ReceiptUpload';
+
+export default function AddReceiptModal() {
+    const addReceiptModalOpen = useAppStore((state) => state.addReceiptModalOpen);
+    const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
+    const currentUser = useAppStore((state) => state.currentUser);
+    const showToast = useAppStore((state) => state.showToast);
+    const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
+    const fileInputRef = useRef(null);
+
+    const handleClose = () => {
+        setMode(null);
+        setAddReceiptModalOpen(false);
+    };
+
+    const handleSave = async (receiptData) => {
+        if (!currentUser) return;
+
+        try {
+            await storageService.createReceipt({
+                ...receiptData,
+                userId: currentUser.userId
+            });
+            showToast('Receipt saved successfully', 'success');
+            handleClose();
+            // Reload the page to show new receipt
+            window.location.reload();
+        } catch (err) {
+            showToast('Failed to save receipt', 'error');
+        }
+    };
+
+    const handleCameraClick = () => {
+        setMode('camera');
+    };
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setMode('upload');
+        }
+    };
+
+    const handleManualClick = () => {
+        setMode('manual');
+    };
+
+    if (mode === 'camera' || mode === 'upload') {
+        return (
+            <ReceiptUpload
+                isOpen={addReceiptModalOpen}
+                onClose={handleClose}
+                mode={mode}
+                onSwitchToManual={handleManualClick}
+            />
+        );
+    }
+
+    if (mode === 'manual') {
+        return (
+            <Modal
+                isOpen={addReceiptModalOpen}
+                onClose={handleClose}
+                title="Add Receipt Manually"
+                size="lg"
+            >
+                <ReceiptForm onSave={handleSave} onClose={handleClose} />
+            </Modal>
+        );
+    }
+
+    return (
+        <Modal
+            isOpen={addReceiptModalOpen}
+            onClose={handleClose}
+            title="Add Receipt"
+        >
+            <div className="space-y-4">
+                <button
+                    onClick={handleCameraClick}
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
+                        <Camera size={24} style={{ color: '#00573f' }} />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="font-medium text-gray-900">Take Photo</h3>
+                        <p className="text-sm text-gray-500">Capture receipt with camera</p>
+                    </div>
+                </button>
+
+                <button
+                    onClick={handleUploadClick}
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
+                        <Upload size={24} style={{ color: '#00573f' }} />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="font-medium text-gray-900">Upload Image</h3>
+                        <p className="text-sm text-gray-500">Select image from device</p>
+                    </div>
+                </button>
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                />
+
+                <button
+                    onClick={handleManualClick}
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
+                        <FileText size={24} style={{ color: '#00573f' }} />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="font-medium text-gray-900">Enter Manually</h3>
+                        <p className="text-sm text-gray-500">Type receipt details</p>
+                    </div>
+                </button>
+            </div>
+        </Modal>
+    );
+}
+
