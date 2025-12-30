@@ -174,7 +174,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
                                 Capture
                             </button>
                             <button
-                                onClick={stopCamera}
+                                onClick={handleClose}
                                 className="btn btn-secondary"
                             >
                                 Cancel
