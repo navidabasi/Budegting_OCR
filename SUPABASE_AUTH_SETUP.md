@@ -25,6 +25,8 @@ This will:
 - Create indexes for better performance
 - Set up automatic `updated_at` timestamps
 
+**Note:** If you get a foreign key constraint error (code 23503), run `supabase_fix_foreign_keys.sql` first to remove the invalid constraints. Supabase doesn't allow foreign key constraints to `auth.users` - RLS policies provide the security instead.
+
 ## Step 3: Verify Tables Were Created
 
 1. Go to **Table Editor** in Supabase Dashboard

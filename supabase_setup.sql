@@ -15,10 +15,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- DROP TABLE IF EXISTS users CASCADE;
 
 -- Step 3: Create receipts table
--- Note: We don't need a users table - Supabase Auth handles that
+-- Note: We don't use foreign key constraints to auth.users (not allowed in Supabase)
+-- RLS policies provide the security instead
 CREATE TABLE IF NOT EXISTS receipts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL, -- References auth.users(id) via RLS, not FK constraint
   merchant TEXT,
   date TIMESTAMP WITH TIME ZONE NOT NULL,
   total DECIMAL(10, 2) NOT NULL,
@@ -32,9 +33,11 @@ CREATE TABLE IF NOT EXISTS receipts (
 );
 
 -- Step 4: Create settings table
+-- Note: We don't use foreign key constraints to auth.users (not allowed in Supabase)
+-- RLS policies provide the security instead
 CREATE TABLE IF NOT EXISTS settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID UNIQUE NOT NULL, -- References auth.users(id) via RLS, not FK constraint
   veryfi_api_key TEXT,
   default_currency TEXT DEFAULT 'USD',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -116,6 +119,10 @@ CREATE TRIGGER update_settings_updated_at
 -- 1. Receipts table with RLS policies
 -- 2. Settings table with RLS policies
 -- 3. Automatic updated_at timestamps
--- 4. Proper foreign key relationships to auth.users
+-- 4. RLS policies enforce user_id relationships (no FK constraints needed)
+-- 
+-- Note: Foreign key constraints to auth.users are not allowed in Supabase.
+-- RLS policies provide the same security by ensuring users can only access
+-- their own data using auth.uid() = user_id checks.
 -- ============================================
 

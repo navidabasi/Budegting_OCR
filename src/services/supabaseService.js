@@ -3,8 +3,25 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Debug logging (works in both dev and production)
+console.log('[Supabase Config]', {
+    url: supabaseUrl ? '✅ Set' : '❌ Missing',
+    key: supabaseAnonKey ? '✅ Set' : '❌ Missing',
+    urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'N/A',
+    envMode: import.meta.env.MODE,
+    allViteEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
+});
+
 if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase credentials not found. Cloud sync will be disabled.');
+    console.error('❌ Supabase credentials not found. Cloud sync will be disabled.');
+    console.error('Environment check:', {
+        VITE_SUPABASE_URL: supabaseUrl ? 'exists' : 'undefined',
+        VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'exists' : 'undefined',
+        allEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')),
+        mode: import.meta.env.MODE,
+        prod: import.meta.env.PROD,
+        dev: import.meta.env.DEV
+    });
 }
 
 // Create Supabase client
@@ -12,9 +29,12 @@ let supabase = null;
 try {
     if (supabaseUrl && supabaseAnonKey) {
         supabase = createClient(supabaseUrl, supabaseAnonKey);
+        console.log('✅ Supabase client created successfully');
+    } else {
+        console.error('❌ Supabase client not created - missing credentials');
     }
 } catch (error) {
-    console.error('Failed to create Supabase client:', error);
+    console.error('❌ Failed to create Supabase client:', error);
 }
 
 export { supabase };
@@ -22,8 +42,32 @@ export { supabase };
 // Auth helper functions
 export const authHelpers = {
     async signUp(email, password) {
-        if (!supabase) throw new Error('Supabase not configured');
-        
+        if (!supabase) {
+            // Provide detailed error message for debugging
+            const missingUrl = !supabaseUrl;
+            const missingKey = !supabaseAnonKey;
+
+            let errorMsg = 'Supabase not configured. ';
+            if (missingUrl && missingKey) {
+                errorMsg += 'Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing. ';
+            } else if (missingUrl) {
+                errorMsg += 'VITE_SUPABASE_URL is missing. ';
+            } else if (missingKey) {
+                errorMsg += 'VITE_SUPABASE_ANON_KEY is missing. ';
+            } else {
+                errorMsg += 'Supabase client failed to initialize. ';
+            }
+            errorMsg += 'Please check your environment variables in Vercel project settings.';
+
+            console.error('Supabase signUp error:', {
+                hasUrl: !!supabaseUrl,
+                hasKey: !!supabaseAnonKey,
+                envKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
+            });
+
+            throw new Error(errorMsg);
+        }
+
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -34,8 +78,13 @@ export const authHelpers = {
     },
 
     async signIn(email, password) {
-        if (!supabase) throw new Error('Supabase not configured');
-        
+        if (!supabase) {
+            const errorMsg = !supabaseUrl || !supabaseAnonKey
+                ? 'Supabase credentials not found. Please check your environment variables.'
+                : 'Supabase client failed to initialize.';
+            throw new Error(errorMsg);
+        }
+
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -46,15 +95,19 @@ export const authHelpers = {
     },
 
     async signOut() {
-        if (!supabase) throw new Error('Supabase not configured');
-        
+        if (!supabase) {
+            // Don't throw error on signout if Supabase isn't configured
+            console.warn('Supabase not configured, skipping signout');
+            return;
+        }
+
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
     },
 
     async getSession() {
         if (!supabase) return null;
-        
+
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
             console.error('Error getting session:', error);
@@ -65,7 +118,7 @@ export const authHelpers = {
 
     async getUser() {
         if (!supabase) return null;
-        
+
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) {
             console.error('Error getting user:', error);
@@ -76,7 +129,7 @@ export const authHelpers = {
 
     onAuthStateChange(callback) {
         if (!supabase) return { data: { subscription: null }, error: new Error('Supabase not configured') };
-        
+
         return supabase.auth.onAuthStateChange(callback);
     }
 };
@@ -90,7 +143,7 @@ export const supabaseService = {
     // User operations
     async createUser(userData) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('users')
             .insert([{
@@ -106,7 +159,7 @@ export const supabaseService = {
 
     async getUserByEmail(email) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('users')
             .select('*')
@@ -119,7 +172,7 @@ export const supabaseService = {
 
     async getUserById(id) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('users')
             .select('*')
@@ -133,7 +186,7 @@ export const supabaseService = {
     // Receipt operations
     async createReceipt(receipt) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('receipts')
             .insert([{
@@ -156,7 +209,7 @@ export const supabaseService = {
 
     async getReceiptsByUserId(userId) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
@@ -169,7 +222,7 @@ export const supabaseService = {
 
     async getReceiptById(id) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
@@ -182,7 +235,7 @@ export const supabaseService = {
 
     async updateReceipt(id, updates) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('receipts')
             .update({
@@ -205,7 +258,7 @@ export const supabaseService = {
 
     async deleteReceipt(id) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { error } = await supabase
             .from('receipts')
             .delete()
@@ -217,7 +270,7 @@ export const supabaseService = {
     // Settings operations
     async saveSettings(userId, settings) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('settings')
             .upsert({
@@ -237,7 +290,7 @@ export const supabaseService = {
 
     async getSettings(userId) {
         if (!supabase) throw new Error('Supabase not configured');
-        
+
         const { data, error } = await supabase
             .from('settings')
             .select('*')
@@ -289,7 +342,7 @@ export const supabaseService = {
     // Sync operations
     async syncReceiptsToCloud(userId, localReceipts) {
         if (!supabase) return { synced: 0, errors: [] };
-        
+
         const errors = [];
         let synced = 0;
 
@@ -321,7 +374,7 @@ export const supabaseService = {
 
     async syncReceiptsFromCloud(userId) {
         if (!supabase) return [];
-        
+
         try {
             const receipts = await this.getReceiptsByUserId(userId);
             return receipts;

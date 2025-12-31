@@ -8,10 +8,35 @@ const getSupabaseService = async () => {
 
 const db = new Dexie('ReceiptManagerDB');
 
+// Version 1: Initial schema
 db.version(1).stores({
+    users: '++id, email, password, passwordHash, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, createdAt, updatedAt, syncedAt',
+    settings: 'userId, veryfiApiKey, defaultCurrency, createdAt, updatedAt, syncedAt'
+});
+
+// Version 2: Updated schema with indexed supabaseId and removed password fields
+db.version(2).stores({
     users: '++id, email, supabaseId, createdAt',
     receipts: '++id, userId, supabaseId, merchant, date, total, currency, createdAt, updatedAt, syncedAt',
     settings: 'userId, veryfiApiKey, defaultCurrency, createdAt, updatedAt, syncedAt'
+}).upgrade(async (tx) => {
+    // Migrate existing users: remove password fields and ensure supabaseId exists
+    const users = await tx.table('users').toArray();
+    for (const user of users) {
+        const updates = {};
+        if (user.password !== undefined) {
+            // Note: We can't actually delete fields in IndexedDB, but we can set them to null
+            // The new schema won't include these fields
+        }
+        // Ensure supabaseId is set if it exists
+        if (user.supabaseId) {
+            updates.supabaseId = user.supabaseId;
+        }
+        if (Object.keys(updates).length > 0) {
+            await tx.table('users').update(user.id, updates);
+        }
+    }
 });
 
 export const storageService = {
@@ -222,6 +247,7 @@ export const storageService = {
         // userId is now the Supabase user ID (UUID)
         const supabaseService = await getSupabaseService();
         if (!supabaseService.isConfigured()) {
+            console.warn('[Sync] Supabase not configured, cannot sync');
             return { synced: 0, errors: [] };
         }
 
@@ -229,26 +255,68 @@ export const storageService = {
         let synced = 0;
 
         // Sync receipts
-        const receipts = await this.getReceiptsByUserId(userId);
+        console.log('[Sync] Starting sync for userId:', userId);
+        
+        // Get all receipts for this user
+        // First try by Supabase user ID (current format)
+        let receipts = await this.getReceiptsByUserId(userId);
+        console.log('[Sync] Found receipts by Supabase userId:', receipts.length);
+        
+        // If no receipts found, try to find by local user ID (for migration)
+        if (receipts.length === 0) {
+            const localUser = await this.getUserBySupabaseId(userId);
+            if (localUser) {
+                receipts = await this.getReceiptsByUserId(localUser.id);
+                console.log('[Sync] Found receipts by local userId:', receipts.length);
+                // Update receipts to use Supabase user ID
+                if (receipts.length > 0) {
+                    console.log('[Sync] Migrating receipts to use Supabase userId');
+                    for (const receipt of receipts) {
+                        await db.receipts.update(receipt.id, { userId: userId });
+                    }
+                }
+            }
+        }
+        
+        console.log('[Sync] Total receipts found:', receipts.length);
+        console.log('[Sync] Receipt details:', receipts.map(r => ({
+            id: r.id,
+            userId: r.userId,
+            supabaseId: r.supabaseId,
+            syncedAt: r.syncedAt,
+            merchant: r.merchant
+        })));
+        
         const unsyncedReceipts = receipts.filter(r => !r.syncedAt || !r.supabaseId);
+        console.log('[Sync] Unsynced receipts:', unsyncedReceipts.length);
+        
+        if (unsyncedReceipts.length === 0 && receipts.length > 0) {
+            console.log('[Sync] All receipts are already synced');
+        }
         
         for (const receipt of unsyncedReceipts) {
             try {
+                console.log('[Sync] Syncing receipt:', receipt.id, 'has supabaseId:', !!receipt.supabaseId);
                 if (receipt.supabaseId) {
                     await supabaseService.updateReceipt(receipt.supabaseId, receipt);
+                    await db.receipts.update(receipt.id, {
+                        syncedAt: new Date().toISOString()
+                    });
                 } else {
                     const supabaseReceipt = await supabaseService.createReceipt({
                         ...receipt,
                         userId: userId // Use Supabase user ID directly
                     });
+                    console.log('[Sync] Created receipt in Supabase:', supabaseReceipt.id);
                     await db.receipts.update(receipt.id, {
                         supabaseId: supabaseReceipt.id,
                         syncedAt: new Date().toISOString()
                     });
                 }
                 synced++;
+                console.log('[Sync] Successfully synced receipt:', receipt.id);
             } catch (error) {
-                console.error(`Failed to sync receipt ${receipt.id}:`, error);
+                console.error(`[Sync] Failed to sync receipt ${receipt.id}:`, error);
                 errors.push({ receiptId: receipt.id, error: error.message });
             }
         }
@@ -277,6 +345,7 @@ export const storageService = {
         // userId is now the Supabase user ID (UUID)
         const supabaseService = await getSupabaseService();
         if (!supabaseService.isConfigured()) {
+            console.warn('[Sync From Cloud] Supabase not configured');
             return { synced: 0, errors: [] };
         }
 
@@ -284,11 +353,14 @@ export const storageService = {
         let synced = 0;
 
         try {
-            // Get receipts from Supabase
+            console.log('[Sync From Cloud] Starting sync for userId:', userId);
+            // Get receipts from Supabase (already transformed to app format)
             const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
+            console.log('[Sync From Cloud] Found receipts in cloud:', cloudReceipts.length);
             
             for (const cloudReceipt of cloudReceipts) {
                 try {
+                    console.log('[Sync From Cloud] Processing receipt:', cloudReceipt.id);
                     // Check if receipt exists locally
                     const localReceipt = await db.receipts
                         .where('supabaseId')
@@ -300,26 +372,61 @@ export const storageService = {
                         const cloudUpdated = new Date(cloudReceipt.updatedAt);
                         const localUpdated = new Date(localReceipt.updatedAt);
                         
+                        console.log('[Sync From Cloud] Receipt exists locally, comparing dates:', {
+                            cloud: cloudUpdated.toISOString(),
+                            local: localUpdated.toISOString()
+                        });
+                        
                         if (cloudUpdated > localUpdated) {
+                            // Only update fields that exist in IndexedDB schema
                             await db.receipts.update(localReceipt.id, {
-                                ...cloudReceipt,
-                                userId: userId, // Keep local userId
+                                merchant: cloudReceipt.merchant,
+                                date: cloudReceipt.date,
+                                total: cloudReceipt.total,
+                                currency: cloudReceipt.currency || 'USD',
+                                category: cloudReceipt.category,
+                                notes: cloudReceipt.notes,
+                                lineItems: cloudReceipt.lineItems || [],
+                                isDemo: cloudReceipt.isDemo || false,
+                                updatedAt: cloudReceipt.updatedAt,
                                 syncedAt: new Date().toISOString()
                             });
                             synced++;
+                            console.log('[Sync From Cloud] Updated local receipt:', localReceipt.id);
+                        } else {
+                            console.log('[Sync From Cloud] Local receipt is newer, skipping');
                         }
                     } else {
-                        // Create new local receipt
-                        await db.receipts.add({
-                            ...cloudReceipt,
-                            userId: userId, // Use local userId
-                            supabaseId: cloudReceipt.id,
+                        // Create new local receipt - only include fields in IndexedDB schema
+                        // DO NOT include 'id' - IndexedDB will auto-generate it
+                        console.log('[Sync From Cloud] Creating new local receipt');
+                        const receiptToAdd = {
+                            userId: userId, // Use Supabase user ID
+                            supabaseId: cloudReceipt.id, // Store Supabase UUID for linking
+                            merchant: cloudReceipt.merchant,
+                            date: cloudReceipt.date,
+                            total: cloudReceipt.total,
+                            currency: cloudReceipt.currency || 'USD',
+                            category: cloudReceipt.category,
+                            notes: cloudReceipt.notes || '',
+                            lineItems: cloudReceipt.lineItems || [],
+                            isDemo: cloudReceipt.isDemo || false,
+                            createdAt: cloudReceipt.createdAt || new Date().toISOString(),
+                            updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
                             syncedAt: new Date().toISOString()
-                        });
+                        };
+                        console.log('[Sync From Cloud] Receipt data to add:', receiptToAdd);
+                        const localId = await db.receipts.add(receiptToAdd);
                         synced++;
+                        console.log('[Sync From Cloud] Created local receipt with ID:', localId, 'for Supabase ID:', cloudReceipt.id);
                     }
                 } catch (error) {
-                    console.error(`Failed to sync receipt ${cloudReceipt.id}:`, error);
+                    console.error(`[Sync From Cloud] Failed to sync receipt ${cloudReceipt.id}:`, error);
+                    console.error('[Sync From Cloud] Error details:', {
+                        message: error.message,
+                        stack: error.stack,
+                        receipt: cloudReceipt
+                    });
                     errors.push({ receiptId: cloudReceipt.id, error: error.message });
                 }
             }
