@@ -203,17 +203,22 @@ export default function SettingsPage() {
                         placeholder="Enter your Veryfi API key"
                         {...register('veryfiApiKey')}
                     />
-                    <p className="text-xs text-gray-500">
-                        Add your Veryfi API key to enable OCR features. You can get a free API key at{' '}
-                        <a
-                            href="https://www.veryfi.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 hover:underline"
-                        >
-                            veryfi.com
-                        </a>
-                    </p>
+                        <p className="text-xs text-gray-500 mb-2">
+                            Add your Veryfi API credentials to enable OCR features. You can get a free API key at{' '}
+                            <a
+                                href="https://www.veryfi.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary-600 hover:underline"
+                            >
+                                veryfi.com
+                            </a>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            <strong>Format:</strong> Enter as <code className="bg-gray-100 px-1 rounded">USERNAME:API_KEY</code> or <code className="bg-gray-100 px-1 rounded">CLIENT_ID:USERNAME:API_KEY</code>
+                            <br />
+                            Find these in Veryfi Dashboard → API Settings → Keys
+                        </p>
                     <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save API Key'}
                     </Button>

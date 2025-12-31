@@ -37,29 +37,42 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Parse API key - format: CLIENT_ID:API_KEY or USERNAME:API_KEY
+        // Parse API key - format: CLIENT_ID:USERNAME:API_KEY or USERNAME:API_KEY
+        // Veryfi requires:
+        // - CLIENT-ID header: Client ID
+        // - AUTHORIZATION header: apikey USERNAME:API_KEY
         const apiKeyParts = apiKey.split(':');
-        const firstPart = apiKeyParts[0] || ''; // Could be CLIENT_ID or USERNAME
-        const apiKeyValue = apiKeyParts[1] || apiKeyParts[0] || apiKey;
+        
+        let clientId, username, apiKeyValue;
+        
+        if (apiKeyParts.length === 3) {
+            // Format: CLIENT_ID:USERNAME:API_KEY
+            clientId = apiKeyParts[0];
+            username = apiKeyParts[1];
+            apiKeyValue = apiKeyParts[2];
+        } else if (apiKeyParts.length === 2) {
+            // Format: USERNAME:API_KEY (CLIENT_ID provided separately or same as username)
+            username = apiKeyParts[0];
+            apiKeyValue = apiKeyParts[1];
+            clientId = username; // Use username as client ID if not provided separately
+        } else {
+            return res.status(400).json({ 
+                error: 'Invalid API key format. Expected USERNAME:API_KEY or CLIENT_ID:USERNAME:API_KEY' 
+            });
+        }
+
+        if (!username || !apiKeyValue) {
+            return res.status(400).json({ 
+                error: 'Username and API key are required' 
+            });
+        }
 
         // Prepare headers for Veryfi API
         const headers = {
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'CLIENT-ID': clientId,
+            'AUTHORIZATION': `apikey ${username}:${apiKeyValue}`
         };
-
-        // Add CLIENT-ID header (required)
-        if (firstPart && apiKeyParts.length > 1) {
-            headers['CLIENT-ID'] = firstPart;
-        }
-
-        // Add AUTHORIZATION header
-        // Veryfi expects: apikey USERNAME:API_KEY or apikey CLIENT_ID:API_KEY
-        // Since user provided CLIENT_ID:API_KEY, we'll use that format
-        if (apiKeyParts.length > 1) {
-            headers['AUTHORIZATION'] = `apikey ${firstPart}:${apiKeyValue}`;
-        } else {
-            headers['AUTHORIZATION'] = `apikey ${apiKeyValue}`;
-        }
 
         // Convert base64 file to buffer
         const fileBuffer = Buffer.from(file, 'base64');
@@ -82,8 +95,8 @@ export default async function handler(req, res) {
         headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
 
         console.log('[Veryfi Proxy] Making request to Veryfi API...', {
-            hasClientId: !!firstPart,
-            clientIdLength: firstPart.length,
+            hasClientId: !!clientId,
+            clientIdLength: clientId.length,
             hasApiKey: !!apiKeyValue,
             apiKeyLength: apiKeyValue.length,
             fileSize: fileBuffer.length,
@@ -91,13 +104,15 @@ export default async function handler(req, res) {
         });
 
         // Make request to Veryfi API
-        // Try both singular and plural endpoints
+        // Try the documents endpoint (plural)
         let veryfiUrl = 'https://api.veryfi.com/api/v8/partner/documents';
         
-        console.log('[Veryfi Proxy] Request headers:', {
-            'CLIENT-ID': headers['CLIENT-ID'] ? 'Set' : 'Missing',
-            'AUTHORIZATION': headers['AUTHORIZATION'] ? 'Set' : 'Missing',
-            'Content-Type': headers['Content-Type']
+        console.log('[Veryfi Proxy] Request details:', {
+            url: veryfiUrl,
+            'CLIENT-ID': headers['CLIENT-ID'],
+            'AUTHORIZATION': headers['AUTHORIZATION'] ? `${headers['AUTHORIZATION'].substring(0, 20)}...` : 'Missing',
+            'Content-Type': headers['Content-Type'],
+            fileSize: fileBuffer.length
         });
         
         const response = await fetch(veryfiUrl, {
