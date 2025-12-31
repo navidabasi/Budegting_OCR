@@ -120,22 +120,47 @@ export const storageService = {
         
         // Try to sync to Supabase if configured
         const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured() && receipt?.supabaseId) {
+        if (supabaseService.isConfigured() && receipt) {
             try {
-                await supabaseService.updateReceipt(receipt.supabaseId, {
-                    ...receipt,
-                    ...updates
-                });
+                if (receipt.supabaseId) {
+                    // Receipt exists in Supabase, update it
+                    await supabaseService.updateReceipt(receipt.supabaseId, {
+                        ...receipt,
+                        ...updates
+                    });
+                    // Update local receipt with synced timestamp
+                    await db.receipts.update(id, {
+                        ...updates,
+                        updatedAt: new Date().toISOString(),
+                        syncedAt: new Date().toISOString()
+                    });
+                } else {
+                    // Receipt doesn't exist in Supabase yet, create it first
+                    const supabaseReceipt = await supabaseService.createReceipt({
+                        ...receipt,
+                        ...updates,
+                        userId: receipt.userId
+                    });
+                    // Update local receipt with Supabase ID and synced timestamp
+                    await db.receipts.update(id, {
+                        ...updates,
+                        supabaseId: supabaseReceipt.id,
+                        updatedAt: new Date().toISOString(),
+                        syncedAt: new Date().toISOString()
+                    });
+                }
+                return; // Successfully synced, return early
             } catch (error) {
-                console.error('Failed to update receipt in Supabase:', error);
+                console.error('Failed to sync receipt update to Supabase:', error);
                 // Continue with local update even if Supabase fails
             }
         }
 
+        // Local update (if Supabase not configured or sync failed)
         await db.receipts.update(id, {
             ...updates,
             updatedAt: new Date().toISOString(),
-            syncedAt: receipt?.supabaseId ? new Date().toISOString() : null
+            syncedAt: receipt?.supabaseId ? receipt.syncedAt : null // Keep existing syncedAt or null
         });
     },
 
@@ -150,6 +175,7 @@ export const storageService = {
             } catch (error) {
                 console.error('Failed to delete receipt from Supabase:', error);
                 // Continue with local deletion even if Supabase fails
+                // The receipt will be deleted locally and can be cleaned up later via manual sync
             }
         }
 
