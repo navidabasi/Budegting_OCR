@@ -50,11 +50,14 @@ export default function SettingsPage() {
 
         setLoading(true);
         try {
-            await storageService.setVeryfiApiKey(currentUser.userId, data.veryfiApiKey?.trim() || '');
-            setApiKey(data.veryfiApiKey?.trim() || '');
+            const apiKeyValue = data.veryfiApiKey?.trim() || '';
+            await storageService.setVeryfiApiKey(currentUser.userId, apiKeyValue);
+            setApiKey(apiKeyValue);
+            setValue('veryfiApiKey', apiKeyValue);
             showToast('API key saved successfully', 'success');
         } catch (err) {
-            showToast('Failed to save API key', 'error');
+            console.error('Error saving API key:', err);
+            showToast(`Failed to save API key: ${err.message || 'Unknown error'}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -183,8 +186,19 @@ export default function SettingsPage() {
 
     const handleLogout = async () => {
         if (confirm('Are you sure you want to logout?')) {
-            await logout();
-            window.location.href = '/login';
+            try {
+                // Call logout which will clear state and sign out from Supabase
+                await logout();
+                // Small delay to ensure state is cleared
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // Redirect to login
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Error during logout:', error);
+                // Still redirect even if logout fails - clear state manually
+                localStorage.removeItem('receipt-manager-storage');
+                window.location.href = '/login';
+            }
         }
     };
 

@@ -206,34 +206,41 @@ export const storageService = {
         }
 
         // Try to sync to Supabase in background (don't block on this)
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured() && supabaseUserId) {
-            // Use a timeout to prevent hanging
-            const syncPromise = supabaseService.saveSettings(supabaseUserId, settings)
-                .then(async () => {
-                    // Update syncedAt if sync succeeds
-                    const localSettings = existing || await db.settings.where('userId').equals(userId).first();
-                    if (localSettings) {
-                        return db.settings.update(localSettings.id, {
-                            syncedAt: new Date().toISOString()
-                        });
-                    }
-                })
-                .catch((error) => {
-                    console.error('Failed to save settings in Supabase:', error);
-                    // Don't throw - local save already succeeded
+        // Wrap in try-catch to ensure it never throws and blocks the local save
+        try {
+            const supabaseService = await getSupabaseService();
+            if (supabaseService.isConfigured() && supabaseUserId) {
+                // Use a timeout to prevent hanging
+                const syncPromise = supabaseService.saveSettings(supabaseUserId, settings)
+                    .then(async () => {
+                        // Update syncedAt if sync succeeds
+                        const localSettings = existing || await db.settings.where('userId').equals(userId).first();
+                        if (localSettings) {
+                            return db.settings.update(localSettings.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Failed to save settings in Supabase:', error);
+                        // Don't throw - local save already succeeded
+                    });
+                
+                // Don't await - let it run in background
+                // But add a timeout to prevent hanging
+                Promise.race([
+                    syncPromise,
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Sync timeout')), 10000)
+                    )
+                ]).catch(() => {
+                    // Timeout or error - that's okay, local save already succeeded
                 });
-            
-            // Don't await - let it run in background
-            // But add a timeout to prevent hanging
-            Promise.race([
-                syncPromise,
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Sync timeout')), 10000)
-                )
-            ]).catch(() => {
-                // Timeout or error - that's okay, local save already succeeded
-            });
+            }
+        } catch (error) {
+            // If Supabase service fails to load or any other error, just log it
+            // Local save already succeeded, so don't throw
+            console.error('Error setting up Supabase sync (local save succeeded):', error);
         }
     },
 
