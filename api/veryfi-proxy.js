@@ -82,12 +82,12 @@ export default async function handler(req, res) {
         headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
 
         console.log('[Veryfi Proxy] Making request to Veryfi API...', {
-            hasClientId: !!clientId,
-            clientIdLength: clientId.length,
+            hasClientId: !!firstPart,
+            clientIdLength: firstPart.length,
             hasApiKey: !!apiKeyValue,
             apiKeyLength: apiKeyValue.length,
             fileSize: fileBuffer.length,
-            endpoint: 'https://api.veryfi.com/api/v8/partner/document'
+            endpoint: 'https://api.veryfi.com/api/v8/partner/documents'
         });
 
         // Make request to Veryfi API
