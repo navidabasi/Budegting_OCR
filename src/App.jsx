@@ -30,6 +30,12 @@ function App() {
     const showToast = useAppStore((state) => state.showToast);
     const syncIntervalRef = useRef(null);
     const lastSyncRef = useRef(null);
+    const showToastRef = useRef(showToast);
+    
+    // Keep showToast ref updated
+    useEffect(() => {
+        showToastRef.current = showToast;
+    }, [showToast]);
 
     // Auto-sync from cloud function
     const syncFromCloud = async (userId, silent = true) => {
@@ -87,6 +93,20 @@ function App() {
                                     userId: session.user.id,
                                     email: session.user.email
                                 });
+                                
+                                // Force sync from cloud on sign in
+                                try {
+                                    const result = await storageService.syncAllFromCloud(session.user.id);
+                                    if (result.synced > 0) {
+                                        showToastRef.current(`Synced ${result.synced} item${result.synced > 1 ? 's' : ''} from cloud`, 'success');
+                                        // Trigger refresh
+                                        window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                                        window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                                    }
+                                } catch (syncError) {
+                                    console.error('Failed to sync from cloud on sign in:', syncError);
+                                    // Don't show error to user, sync will retry automatically
+                                }
                             } else if (event === 'SIGNED_OUT') {
                                 setCurrentUser(null);
                             }

@@ -218,9 +218,16 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
                         </div>
                         {error && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                                <p className="text-sm text-red-800">{error}</p>
-                                <p className="text-xs text-red-600 mt-1">
-                                    You can still add this receipt manually.
+                                <p className="text-sm text-red-800 font-medium">{error}</p>
+                                <p className="text-xs text-red-600 mt-2">
+                                    {error.includes('CORS') || error.includes('Network error') ? (
+                                        <>
+                                            <strong>Note:</strong> Veryfi API may block direct browser requests. 
+                                            This is a security limitation. You can still add receipts manually.
+                                        </>
+                                    ) : (
+                                        'You can still add this receipt manually.'
+                                    )}
                                 </p>
                             </div>
                         )}

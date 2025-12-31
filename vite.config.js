@@ -35,6 +35,15 @@ export default defineConfig({
     ],
     optimizeDeps: {
         include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'dexie', 'zustand']
+    },
+    server: {
+        proxy: {
+            '/api': {
+                target: 'http://localhost:3000',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, '/api')
+            }
+        }
     }
 })
 

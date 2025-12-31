@@ -4,39 +4,76 @@ export const veryfiApi = {
             throw new Error('Veryfi API key is required. Please add it in Settings.');
         }
 
-        const formData = new FormData();
-        formData.append('file', imageFile);
-
         try {
-            const response = await fetch('https://api.veryfi.com/api/v8/partner/document', {
+            console.log('[Veryfi API] Processing receipt via proxy...', {
+                fileSize: imageFile.size,
+                fileName: imageFile.name
+            });
+
+            // Convert file to base64 for sending to proxy
+            const base64File = await this.fileToBase64(imageFile);
+
+            // Use proxy endpoint to avoid CORS issues
+            // In development, use local proxy; in production, use Vercel function
+            const proxyUrl = import.meta.env.DEV 
+                ? '/api/veryfi-proxy'  // Local dev (if using Vite proxy)
+                : '/api/veryfi-proxy'; // Production (Vercel serverless function)
+
+            const response = await fetch(proxyUrl, {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
-                    'CLIENT-ID': apiKey.split(':')[0] || '',
-                    'AUTHORIZATION': `apikey ${apiKey.split(':')[1] || apiKey}`
+                    'Content-Type': 'application/json'
                 },
-                body: formData
+                body: JSON.stringify({
+                    apiKey: apiKey,
+                    file: base64File
+                })
             });
+
+            console.log('[Veryfi API] Proxy response status:', response.status, response.statusText);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                
                 if (response.status === 401) {
-                    throw new Error('Invalid API key. Please check your Veryfi API credentials.');
+                    throw new Error('Invalid API key. Please check your Veryfi API credentials (CLIENT_ID:API_KEY format).');
+                } else if (response.status === 403) {
+                    throw new Error('Access forbidden. Please check your API key permissions in Veryfi dashboard.');
                 } else if (response.status === 429) {
                     throw new Error('API rate limit exceeded. Please try again later.');
                 } else {
-                    throw new Error(errorData.error_message || `API error: ${response.statusText}`);
+                    throw new Error(errorData.error || errorData.error_message || `API error (${response.status}): ${response.statusText}`);
                 }
             }
 
             const data = await response.json();
+            console.log('[Veryfi API] Success! Received data:', data);
             return this.parseVeryfiResponse(data);
         } catch (error) {
-            if (error.message.includes('API key') || error.message.includes('rate limit')) {
+            console.error('[Veryfi API] Request failed:', error);
+            
+            if (error.message.includes('API key') || 
+                error.message.includes('rate limit') || 
+                error.message.includes('forbidden')) {
                 throw error;
             }
+            
             throw new Error(`Failed to process receipt: ${error.message}`);
         }
+    },
+
+    // Helper function to convert file to base64
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                // Remove data URL prefix (data:image/jpeg;base64,)
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
     },
 
     parseVeryfiResponse(data) {
