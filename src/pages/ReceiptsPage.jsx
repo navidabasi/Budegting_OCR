@@ -25,6 +25,18 @@ export default function ReceiptsPage() {
         loadReceipts();
     }, [currentUser]);
 
+    // Listen for refresh event when data is synced from cloud
+    useEffect(() => {
+        const handleRefresh = () => {
+            loadReceipts();
+        };
+
+        window.addEventListener('refreshReceipts', handleRefresh);
+        return () => {
+            window.removeEventListener('refreshReceipts', handleRefresh);
+        };
+    }, []);
+
     useEffect(() => {
         applyFilters();
         // eslint-disable-next-line react-hooks/exhaustive-deps
