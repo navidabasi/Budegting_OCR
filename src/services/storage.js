@@ -187,23 +187,13 @@ export const storageService = {
         // userId is now the Supabase user ID (UUID)
         const supabaseUserId = userId;
 
-        // Try to sync to Supabase if configured
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured() && supabaseUserId) {
-            try {
-                await supabaseService.saveSettings(supabaseUserId, settings);
-            } catch (error) {
-                console.error('Failed to save settings in Supabase:', error);
-                // Continue with local save even if Supabase fails
-            }
-        }
-
+        // Save locally first (fast, always works)
         const existing = await db.settings.where('userId').equals(userId).first();
         if (existing) {
             await db.settings.update(existing.id, {
                 ...settings,
                 updatedAt: new Date().toISOString(),
-                syncedAt: supabaseUserId ? new Date().toISOString() : null
+                syncedAt: null // Will be updated if Supabase sync succeeds
             });
         } else {
             await db.settings.add({
@@ -211,7 +201,38 @@ export const storageService = {
                 ...settings,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                syncedAt: supabaseUserId ? new Date().toISOString() : null
+                syncedAt: null // Will be updated if Supabase sync succeeds
+            });
+        }
+
+        // Try to sync to Supabase in background (don't block on this)
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && supabaseUserId) {
+            // Use a timeout to prevent hanging
+            const syncPromise = supabaseService.saveSettings(supabaseUserId, settings)
+                .then(() => {
+                    // Update syncedAt if sync succeeds
+                    const localSettings = existing || await db.settings.where('userId').equals(userId).first();
+                    if (localSettings) {
+                        return db.settings.update(localSettings.id, {
+                            syncedAt: new Date().toISOString()
+                        });
+                    }
+                })
+                .catch((error) => {
+                    console.error('Failed to save settings in Supabase:', error);
+                    // Don't throw - local save already succeeded
+                });
+            
+            // Don't await - let it run in background
+            // But add a timeout to prevent hanging
+            Promise.race([
+                syncPromise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Sync timeout')), 10000)
+                )
+            ]).catch(() => {
+                // Timeout or error - that's okay, local save already succeeded
             });
         }
     },
