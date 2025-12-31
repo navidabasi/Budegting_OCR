@@ -4,12 +4,20 @@
 export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     // Handle preflight
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
+    }
+
+    // Test endpoint - GET request to verify function is working
+    if (req.method === 'GET') {
+        return res.status(200).json({ 
+            message: 'Veryfi proxy is working!',
+            timestamp: new Date().toISOString()
+        });
     }
 
     // Only allow POST requests
@@ -29,9 +37,9 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Parse API key - format: CLIENT_ID:API_KEY or just API_KEY
+        // Parse API key - format: CLIENT_ID:API_KEY or USERNAME:API_KEY
         const apiKeyParts = apiKey.split(':');
-        const clientId = apiKeyParts[0] || '';
+        const firstPart = apiKeyParts[0] || ''; // Could be CLIENT_ID or USERNAME
         const apiKeyValue = apiKeyParts[1] || apiKeyParts[0] || apiKey;
 
         // Prepare headers for Veryfi API
@@ -39,19 +47,24 @@ export default async function handler(req, res) {
             'Accept': 'application/json'
         };
 
-        // Add CLIENT-ID header if we have it
-        if (clientId && apiKeyParts.length > 1) {
-            headers['CLIENT-ID'] = clientId;
+        // Add CLIENT-ID header (required)
+        if (firstPart && apiKeyParts.length > 1) {
+            headers['CLIENT-ID'] = firstPart;
         }
 
         // Add AUTHORIZATION header
-        headers['AUTHORIZATION'] = `apikey ${apiKeyValue}`;
+        // Veryfi expects: apikey USERNAME:API_KEY or apikey CLIENT_ID:API_KEY
+        // Since user provided CLIENT_ID:API_KEY, we'll use that format
+        if (apiKeyParts.length > 1) {
+            headers['AUTHORIZATION'] = `apikey ${firstPart}:${apiKeyValue}`;
+        } else {
+            headers['AUTHORIZATION'] = `apikey ${apiKeyValue}`;
+        }
 
         // Convert base64 file to buffer
         const fileBuffer = Buffer.from(file, 'base64');
         
         // Create multipart/form-data for Veryfi API
-        // Using a simpler approach that works in Node.js
         const boundary = `----WebKitFormBoundary${Date.now()}`;
         const CRLF = '\r\n';
         
@@ -67,17 +80,41 @@ export default async function handler(req, res) {
         const formDataBuffer = Buffer.concat([textPart, fileBuffer, endBoundary]);
 
         headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
-        // Don't set Content-Length manually, let fetch handle it
+
+        console.log('[Veryfi Proxy] Making request to Veryfi API...', {
+            hasClientId: !!clientId,
+            clientIdLength: clientId.length,
+            hasApiKey: !!apiKeyValue,
+            apiKeyLength: apiKeyValue.length,
+            fileSize: fileBuffer.length,
+            endpoint: 'https://api.veryfi.com/api/v8/partner/document'
+        });
 
         // Make request to Veryfi API
-        const response = await fetch('https://api.veryfi.com/api/v8/partner/document', {
+        // Try both singular and plural endpoints
+        let veryfiUrl = 'https://api.veryfi.com/api/v8/partner/documents';
+        
+        console.log('[Veryfi Proxy] Request headers:', {
+            'CLIENT-ID': headers['CLIENT-ID'] ? 'Set' : 'Missing',
+            'AUTHORIZATION': headers['AUTHORIZATION'] ? 'Set' : 'Missing',
+            'Content-Type': headers['Content-Type']
+        });
+        
+        const response = await fetch(veryfiUrl, {
             method: 'POST',
             headers: headers,
             body: formDataBuffer
         });
 
+        console.log('[Veryfi Proxy] Veryfi API response:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
+        });
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+            console.error('[Veryfi Proxy] Veryfi API error:', errorData);
             
             if (response.status === 401) {
                 return res.status(401).json({ 
@@ -95,9 +132,10 @@ export default async function handler(req, res) {
         }
 
         const data = await response.json();
+        console.log('[Veryfi Proxy] Success!');
         return res.status(200).json(data);
     } catch (error) {
-        console.error('Veryfi proxy error:', error);
+        console.error('[Veryfi Proxy] Error:', error);
         return res.status(500).json({ 
             error: `Failed to process receipt: ${error.message}` 
         });
