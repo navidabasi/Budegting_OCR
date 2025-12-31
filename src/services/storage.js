@@ -9,7 +9,7 @@ const getSupabaseService = async () => {
 const db = new Dexie('ReceiptManagerDB');
 
 db.version(1).stores({
-    users: '++id, email, password, passwordHash, supabaseId, createdAt',
+    users: '++id, email, supabaseId, createdAt',
     receipts: '++id, userId, supabaseId, merchant, date, total, currency, createdAt, updatedAt, syncedAt',
     settings: 'userId, veryfiApiKey, defaultCurrency, createdAt, updatedAt, syncedAt'
 });
@@ -17,28 +17,22 @@ db.version(1).stores({
 export const storageService = {
     // User operations
     async createUser(userData) {
-        let supabaseId = null;
+        // userData should contain: email, supabaseId (or supabaseUserId)
+        const supabaseUserId = userData.supabaseId || userData.supabaseUserId;
         
-        // Try to create user in Supabase if configured
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured()) {
-            try {
-                const supabaseUser = await supabaseService.createUser({
-                    email: userData.email,
-                    passwordHash: userData.passwordHash
-                });
-                supabaseId = supabaseUser.id;
-            } catch (error) {
-                console.error('Failed to create user in Supabase:', error);
-                // Continue with local creation even if Supabase fails
-            }
+        if (!supabaseUserId) {
+            throw new Error('Supabase user ID is required');
+        }
+
+        // Check if user already exists
+        const existing = await db.users.where('supabaseId').equals(supabaseUserId).first();
+        if (existing) {
+            return existing.id;
         }
 
         const id = await db.users.add({
             email: userData.email,
-            password: userData.password, // Keep for backward compatibility
-            passwordHash: userData.passwordHash,
-            supabaseId,
+            supabaseId: supabaseUserId,
             createdAt: new Date().toISOString()
         });
         return id;
@@ -52,23 +46,25 @@ export const storageService = {
         return await db.users.get(id);
     },
 
+    async getUserBySupabaseId(supabaseId) {
+        return await db.users.where('supabaseId').equals(supabaseId).first();
+    },
+
     // Receipt operations
     async createReceipt(receipt) {
+        // receipt.userId should be the Supabase user ID (UUID)
         let supabaseId = null;
         
         // Try to sync to Supabase if configured
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured()) {
             try {
-                // Get user to find Supabase ID
-                const user = await this.getUserById(receipt.userId);
-                if (user?.supabaseId) {
-                    const supabaseReceipt = await supabaseService.createReceipt({
-                        ...receipt,
-                        userId: user.supabaseId // Use Supabase user ID
-                    });
-                    supabaseId = supabaseReceipt.id;
-                }
+                // receipt.userId is already the Supabase user ID
+                const supabaseReceipt = await supabaseService.createReceipt({
+                    ...receipt,
+                    userId: receipt.userId // This is already the Supabase user ID
+                });
+                supabaseId = supabaseReceipt.id;
             } catch (error) {
                 console.error('Failed to create receipt in Supabase:', error);
                 // Continue with local creation even if Supabase fails
@@ -137,9 +133,8 @@ export const storageService = {
 
     // Settings operations
     async saveSettings(userId, settings) {
-        // Get user to find Supabase ID
-        const user = await this.getUserById(userId);
-        const supabaseUserId = user?.supabaseId;
+        // userId is now the Supabase user ID (UUID)
+        const supabaseUserId = userId;
 
         // Try to sync to Supabase if configured
         const supabaseService = await getSupabaseService();
@@ -224,14 +219,9 @@ export const storageService = {
 
     // Sync operations
     async syncAllToCloud(userId) {
+        // userId is now the Supabase user ID (UUID)
         const supabaseService = await getSupabaseService();
         if (!supabaseService.isConfigured()) {
-            return { synced: 0, errors: [] };
-        }
-
-        const user = await this.getUserById(userId);
-        if (!user?.supabaseId) {
-            console.warn('User does not have Supabase ID, cannot sync');
             return { synced: 0, errors: [] };
         }
 
@@ -247,7 +237,10 @@ export const storageService = {
                 if (receipt.supabaseId) {
                     await supabaseService.updateReceipt(receipt.supabaseId, receipt);
                 } else {
-                    const supabaseReceipt = await supabaseService.createReceipt(receipt);
+                    const supabaseReceipt = await supabaseService.createReceipt({
+                        ...receipt,
+                        userId: userId // Use Supabase user ID directly
+                    });
                     await db.receipts.update(receipt.id, {
                         supabaseId: supabaseReceipt.id,
                         syncedAt: new Date().toISOString()
@@ -264,10 +257,13 @@ export const storageService = {
         try {
             const settings = await this.getSettings(userId);
             if (settings) {
-                await supabaseService.saveSettings(user.supabaseId, settings);
-                await db.settings.update(settings.id, {
-                    syncedAt: new Date().toISOString()
-                });
+                await supabaseService.saveSettings(userId, settings);
+                const existing = await db.settings.where('userId').equals(userId).first();
+                if (existing) {
+                    await db.settings.update(existing.id, {
+                        syncedAt: new Date().toISOString()
+                    });
+                }
             }
         } catch (error) {
             console.error('Failed to sync settings:', error);
@@ -278,14 +274,9 @@ export const storageService = {
     },
 
     async syncAllFromCloud(userId) {
+        // userId is now the Supabase user ID (UUID)
         const supabaseService = await getSupabaseService();
         if (!supabaseService.isConfigured()) {
-            return { synced: 0, errors: [] };
-        }
-
-        const user = await this.getUserById(userId);
-        if (!user?.supabaseId) {
-            console.warn('User does not have Supabase ID, cannot sync');
             return { synced: 0, errors: [] };
         }
 
@@ -294,7 +285,7 @@ export const storageService = {
 
         try {
             // Get receipts from Supabase
-            const cloudReceipts = await supabaseService.getReceiptsByUserId(user.supabaseId);
+            const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
             
             for (const cloudReceipt of cloudReceipts) {
                 try {
@@ -334,7 +325,7 @@ export const storageService = {
             }
 
             // Sync settings
-            const cloudSettings = await supabaseService.getSettings(user.supabaseId);
+            const cloudSettings = await supabaseService.getSettings(userId);
             if (cloudSettings) {
                 await this.saveSettings(userId, cloudSettings);
                 synced++;

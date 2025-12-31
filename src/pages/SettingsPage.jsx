@@ -181,9 +181,9 @@ export default function SettingsPage() {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         if (confirm('Are you sure you want to logout?')) {
-            logout();
+            await logout();
             window.location.href = '/login';
         }
     };

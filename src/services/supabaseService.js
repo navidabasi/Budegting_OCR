@@ -19,6 +19,68 @@ try {
 
 export { supabase };
 
+// Auth helper functions
+export const authHelpers = {
+    async signUp(email, password) {
+        if (!supabase) throw new Error('Supabase not configured');
+        
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+
+        if (error) throw error;
+        return data;
+    },
+
+    async signIn(email, password) {
+        if (!supabase) throw new Error('Supabase not configured');
+        
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (error) throw error;
+        return data;
+    },
+
+    async signOut() {
+        if (!supabase) throw new Error('Supabase not configured');
+        
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+    },
+
+    async getSession() {
+        if (!supabase) return null;
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+            console.error('Error getting session:', error);
+            return null;
+        }
+        return session;
+    },
+
+    async getUser() {
+        if (!supabase) return null;
+        
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+            console.error('Error getting user:', error);
+            return null;
+        }
+        return user;
+    },
+
+    onAuthStateChange(callback) {
+        if (!supabase) return { data: { subscription: null }, error: new Error('Supabase not configured') };
+        
+        return supabase.auth.onAuthStateChange(callback);
+    }
+};
+
 export const supabaseService = {
     // Check if Supabase is configured
     isConfigured() {

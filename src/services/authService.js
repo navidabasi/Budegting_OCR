@@ -1,21 +1,10 @@
 import { storageService } from './storage';
 import { validateEmail } from '../utils/helpers';
 
-// Lazy load supabaseService to avoid blocking initial load
-const getSupabaseService = async () => {
+// Lazy load Supabase auth helpers to avoid blocking initial load
+const getAuthHelpers = async () => {
     const module = await import('./supabaseService');
-    return module.supabaseService;
-};
-
-// Dynamic import for bcryptjs to avoid browser bundling issues
-const getBcrypt = async () => {
-    try {
-        const bcrypt = await import('bcryptjs');
-        return bcrypt.default || bcrypt;
-    } catch (error) {
-        console.error('Failed to load bcryptjs:', error);
-        throw new Error('Password hashing library failed to load');
-    }
+    return module.authHelpers;
 };
 
 export const authService = {
@@ -32,47 +21,40 @@ export const authService = {
             throw new Error('Password must be at least 6 characters');
         }
 
-        // Check if user already exists locally
-        const existingLocalUser = await storageService.getUserByEmail(email);
-        if (existingLocalUser) {
-            throw new Error('User with this email already exists');
-        }
-
-        // Check if user exists in Supabase
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured()) {
-            try {
-                const existingCloudUser = await supabaseService.getUserByEmail(email);
-                if (existingCloudUser) {
-                    throw new Error('User with this email already exists');
-                }
-            } catch (error) {
-                // Ignore "not found" errors (PGRST116)
-                if (error.code !== 'PGRST116' && !error.message.includes('already exists')) {
-                    console.error('Error checking Supabase:', error);
-                } else if (error.message.includes('already exists')) {
-                    throw error;
-                }
+        // Use Supabase Auth to create user
+        const authHelpers = await getAuthHelpers();
+        
+        try {
+            const { user, session } = await authHelpers.signUp(email, password);
+            
+            if (!user) {
+                throw new Error('Failed to create user account');
             }
+
+            // Save user info locally for offline access
+            await storageService.createUser({
+                email: user.email,
+                supabaseId: user.id,
+                supabaseUserId: user.id // Store Supabase user ID
+            });
+
+            // Save API key if provided (using Supabase user ID)
+            if (veryfiApiKey && user.id) {
+                await storageService.setVeryfiApiKey(user.id, veryfiApiKey);
+            }
+
+            return {
+                userId: user.id,
+                email: user.email,
+                session: session
+            };
+        } catch (error) {
+            // Handle Supabase Auth errors
+            if (error.message.includes('already registered') || error.message.includes('already exists')) {
+                throw new Error('User with this email already exists');
+            }
+            throw error;
         }
-
-        // Hash password
-        const bcrypt = await getBcrypt();
-        const passwordHash = await bcrypt.hash(password, 10);
-
-        // Create user (will sync to Supabase if configured)
-        const userId = await storageService.createUser({
-            email,
-            password, // Keep for backward compatibility during migration
-            passwordHash
-        });
-
-        // Save API key if provided
-        if (veryfiApiKey) {
-            await storageService.setVeryfiApiKey(userId, veryfiApiKey);
-        }
-
-        return { userId, email };
     },
 
     async login(email, password) {
@@ -80,65 +62,63 @@ export const authService = {
             throw new Error('Email and password are required');
         }
 
-        // Try to find user locally first
-        let user = await storageService.getUserByEmail(email);
+        // Use Supabase Auth to sign in
+        const authHelpers = await getAuthHelpers();
         
-        // If not found locally and Supabase is configured, try to sync from cloud
-        const supabaseService = await getSupabaseService();
-        if (!user && supabaseService.isConfigured()) {
-            try {
-                const cloudUser = await supabaseService.getUserByEmail(email);
-                if (cloudUser) {
-                    // User exists in cloud but not locally - this shouldn't happen normally
-                    // but we'll handle it gracefully
-                    throw new Error('User account found in cloud but not synced locally. Please try again.');
-                }
-            } catch (error) {
-                // Ignore "not found" errors, but throw other errors
-                if (error.message.includes('not synced locally')) {
-                    throw error;
-                }
-                // Otherwise, continue with local-only login
-            }
-        }
-
-        if (!user) {
-            throw new Error('Invalid email or password');
-        }
-
-        // Check password
-        let passwordValid = false;
-        
-        // If user has passwordHash, use bcrypt
-        if (user.passwordHash) {
-            const bcrypt = await getBcrypt();
-            passwordValid = await bcrypt.compare(password, user.passwordHash);
-        } else if (user.password) {
-            // Legacy: compare plain text (for existing users)
-            passwordValid = user.password === password;
+        try {
+            const { user, session } = await authHelpers.signIn(email, password);
             
-            // Migrate to hashed password (we'll need to update via storageService)
-            // This is a one-time migration that happens on login
-            if (passwordValid) {
-                const bcrypt = await getBcrypt();
-                const passwordHash = await bcrypt.hash(password, 10);
-                // Note: We'll need to add an updateUser method to storageService for this
-                // For now, we'll just validate the password
+            if (!user) {
+                throw new Error('Invalid email or password');
             }
-        }
 
-        if (!passwordValid) {
-            throw new Error('Invalid email or password');
-        }
+            // Save user info locally for offline access (if not already saved)
+            const localUser = await storageService.getUserByEmail(email);
+            if (!localUser) {
+                await storageService.createUser({
+                    email: user.email,
+                    supabaseId: user.id,
+                    supabaseUserId: user.id
+                });
+            }
 
-        return {
-            userId: user.id,
-            email: user.email
-        };
+            return {
+                userId: user.id,
+                email: user.email,
+                session: session
+            };
+        } catch (error) {
+            // Handle Supabase Auth errors
+            if (error.message.includes('Invalid login credentials') || 
+                error.message.includes('Email not confirmed')) {
+                throw new Error('Invalid email or password');
+            }
+            throw error;
+        }
+    },
+
+    async logout() {
+        const authHelpers = await getAuthHelpers();
+        try {
+            await authHelpers.signOut();
+        } catch (error) {
+            console.error('Error signing out:', error);
+            // Continue with logout even if Supabase signout fails
+        }
     },
 
     async getUser(userId) {
         return await storageService.getUserById(userId);
+    },
+
+    async getCurrentSession() {
+        const authHelpers = await getAuthHelpers();
+        return await authHelpers.getSession();
+    },
+
+    async getCurrentUser() {
+        const authHelpers = await getAuthHelpers();
+        return await authHelpers.getUser();
     }
 };
 

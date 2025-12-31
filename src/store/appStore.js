@@ -22,12 +22,22 @@ export const useAppStore = create(
             // Actions
             setCurrentUser: (user) => set({ currentUser: user, isAuthenticated: !!user }),
 
-            logout: () => set({
-                currentUser: null,
-                isAuthenticated: false,
-                sidebarOpen: false,
-                addReceiptModalOpen: false
-            }),
+            logout: async () => {
+                // Sign out from Supabase
+                try {
+                    const { authService } = await import('../services/authService');
+                    await authService.logout();
+                } catch (error) {
+                    console.error('Error during logout:', error);
+                }
+                
+                set({
+                    currentUser: null,
+                    isAuthenticated: false,
+                    sidebarOpen: false,
+                    addReceiptModalOpen: false
+                });
+            },
 
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
