@@ -210,7 +210,7 @@ export const storageService = {
         if (supabaseService.isConfigured() && supabaseUserId) {
             // Use a timeout to prevent hanging
             const syncPromise = supabaseService.saveSettings(supabaseUserId, settings)
-                .then(() => {
+                .then(async () => {
                     // Update syncedAt if sync succeeds
                     const localSettings = existing || await db.settings.where('userId').equals(userId).first();
                     if (localSettings) {
