@@ -50,17 +50,30 @@ export default async function handler(req, res) {
         // Convert base64 file to buffer
         const fileBuffer = Buffer.from(file, 'base64');
         
-        // Create FormData for Veryfi API
-        // Use native FormData (available in Node.js 18+)
-        const formData = new FormData();
-        const blob = new Blob([fileBuffer], { type: 'image/jpeg' });
-        formData.append('file', blob, 'receipt.jpg');
+        // Create multipart/form-data for Veryfi API
+        // Using a simpler approach that works in Node.js
+        const boundary = `----WebKitFormBoundary${Date.now()}`;
+        const CRLF = '\r\n';
+        
+        let formDataBody = '';
+        formDataBody += `--${boundary}${CRLF}`;
+        formDataBody += `Content-Disposition: form-data; name="file"; filename="receipt.jpg"${CRLF}`;
+        formDataBody += `Content-Type: image/jpeg${CRLF}`;
+        formDataBody += CRLF;
+        
+        // Combine text and binary data
+        const textPart = Buffer.from(formDataBody);
+        const endBoundary = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+        const formDataBuffer = Buffer.concat([textPart, fileBuffer, endBoundary]);
+
+        headers['Content-Type'] = `multipart/form-data; boundary=${boundary}`;
+        // Don't set Content-Length manually, let fetch handle it
 
         // Make request to Veryfi API
         const response = await fetch('https://api.veryfi.com/api/v8/partner/document', {
             method: 'POST',
             headers: headers,
-            body: formData
+            body: formDataBuffer
         });
 
         if (!response.ok) {

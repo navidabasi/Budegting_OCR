@@ -20,7 +20,7 @@ Vercel serverless function that:
 
 1. **The `api/veryfi-proxy.js` file is automatically deployed** when you push to Vercel
 2. Vercel will automatically detect the `api/` folder and create serverless functions
-3. The function will be available at: `https://your-domain.vercel.app/api/veryfi-proxy`
+3. The function will be agvailable at: `https://your-domain.vercel.app/api/veryfi-proxy`
 
 ### For Local Development:
 
