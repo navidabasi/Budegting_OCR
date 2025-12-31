@@ -32,6 +32,9 @@ export default defineConfig({
                 globPatterns: ['**/*.{js,css,html,ico,png,svg}']
             }
         })
-    ]
+    ],
+    optimizeDeps: {
+        include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'dexie', 'zustand']
+    }
 })
 

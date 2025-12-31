@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { LogOut, Database, Key, DollarSign } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, UploadCloud, DownloadCloud } from 'lucide-react';
 
 export default function SettingsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -21,6 +21,8 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(false);
     const [loadingCurrency, setLoadingCurrency] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState(null);
 
     useEffect(() => {
         loadSettings();
@@ -127,6 +129,58 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSyncToCloud = async () => {
+        if (!currentUser) return;
+
+        setSyncing(true);
+        setSyncStatus(null);
+        try {
+            const result = await storageService.syncAllToCloud(currentUser.userId);
+            if (result.errors.length > 0) {
+                showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
+                setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
+            } else {
+                showToast(`Successfully synced ${result.synced} items to cloud`, 'success');
+                setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
+            }
+        } catch (err) {
+            console.error('Sync error:', err);
+            showToast('Failed to sync to cloud', 'error');
+            setSyncStatus({ type: 'error', message: 'Sync failed' });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const handleSyncFromCloud = async () => {
+        if (!currentUser) return;
+
+        if (!confirm('This will download data from cloud and may overwrite local changes. Continue?')) {
+            return;
+        }
+
+        setSyncing(true);
+        setSyncStatus(null);
+        try {
+            const result = await storageService.syncAllFromCloud(currentUser.userId);
+            if (result.errors.length > 0) {
+                showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
+                setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
+            } else {
+                showToast(`Successfully synced ${result.synced} items from cloud`, 'success');
+                setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
+                // Reload the page to show synced data
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        } catch (err) {
+            console.error('Sync error:', err);
+            showToast('Failed to sync from cloud', 'error');
+            setSyncStatus({ type: 'error', message: 'Sync failed' });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const handleLogout = () => {
         if (confirm('Are you sure you want to logout?')) {
             logout();
@@ -201,6 +255,45 @@ export default function SettingsPage() {
                         {loadingCurrency ? 'Saving...' : 'Save Currency'}
                     </Button>
                 </form>
+            </div>
+
+            <div className="card">
+                <div className="flex items-center gap-3 mb-4">
+                    <Cloud className="text-primary-600" size={20} />
+                    <h3 className="font-semibold">Cloud Sync</h3>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                    Sync your data with the cloud to access it from multiple devices
+                </p>
+                <div className="space-y-2">
+                    <Button
+                        variant="primary"
+                        onClick={handleSyncToCloud}
+                        disabled={syncing}
+                        className="w-full flex items-center justify-center gap-2"
+                    >
+                        <UploadCloud size={18} />
+                        {syncing ? 'Syncing...' : 'Sync to Cloud'}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={handleSyncFromCloud}
+                        disabled={syncing}
+                        className="w-full flex items-center justify-center gap-2"
+                    >
+                        <DownloadCloud size={18} />
+                        {syncing ? 'Syncing...' : 'Sync from Cloud'}
+                    </Button>
+                    {syncStatus && (
+                        <p className={`text-xs mt-2 ${
+                            syncStatus.type === 'success' ? 'text-green-600' :
+                            syncStatus.type === 'warning' ? 'text-yellow-600' :
+                            'text-red-600'
+                        }`}>
+                            {syncStatus.message}
+                        </p>
+                    )}
+                </div>
             </div>
 
             <div className="card">

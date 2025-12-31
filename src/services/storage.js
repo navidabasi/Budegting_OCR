@@ -1,19 +1,44 @@
 import Dexie from 'dexie';
 
+// Lazy load supabaseService to avoid blocking initial load
+const getSupabaseService = async () => {
+    const module = await import('./supabaseService');
+    return module.supabaseService;
+};
+
 const db = new Dexie('ReceiptManagerDB');
 
 db.version(1).stores({
-    users: '++id, email, password, createdAt',
-    receipts: '++id, userId, merchant, date, total, createdAt, updatedAt',
-    settings: 'userId, veryfiApiKey, defaultCurrency, createdAt, updatedAt'
+    users: '++id, email, password, passwordHash, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, createdAt, updatedAt, syncedAt',
+    settings: 'userId, veryfiApiKey, defaultCurrency, createdAt, updatedAt, syncedAt'
 });
 
 export const storageService = {
     // User operations
     async createUser(userData) {
+        let supabaseId = null;
+        
+        // Try to create user in Supabase if configured
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            try {
+                const supabaseUser = await supabaseService.createUser({
+                    email: userData.email,
+                    passwordHash: userData.passwordHash
+                });
+                supabaseId = supabaseUser.id;
+            } catch (error) {
+                console.error('Failed to create user in Supabase:', error);
+                // Continue with local creation even if Supabase fails
+            }
+        }
+
         const id = await db.users.add({
             email: userData.email,
-            password: userData.password, // In production, hash this
+            password: userData.password, // Keep for backward compatibility
+            passwordHash: userData.passwordHash,
+            supabaseId,
             createdAt: new Date().toISOString()
         });
         return id;
@@ -29,10 +54,34 @@ export const storageService = {
 
     // Receipt operations
     async createReceipt(receipt) {
+        let supabaseId = null;
+        
+        // Try to sync to Supabase if configured
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            try {
+                // Get user to find Supabase ID
+                const user = await this.getUserById(receipt.userId);
+                if (user?.supabaseId) {
+                    const supabaseReceipt = await supabaseService.createReceipt({
+                        ...receipt,
+                        userId: user.supabaseId // Use Supabase user ID
+                    });
+                    supabaseId = supabaseReceipt.id;
+                }
+            } catch (error) {
+                console.error('Failed to create receipt in Supabase:', error);
+                // Continue with local creation even if Supabase fails
+            }
+        }
+
         const id = await db.receipts.add({
             ...receipt,
+            supabaseId,
+            currency: receipt.currency || 'USD',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            syncedAt: supabaseId ? new Date().toISOString() : null
         });
         return id;
     },
@@ -46,30 +95,77 @@ export const storageService = {
     },
 
     async updateReceipt(id, updates) {
+        const receipt = await db.receipts.get(id);
+        
+        // Try to sync to Supabase if configured
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && receipt?.supabaseId) {
+            try {
+                await supabaseService.updateReceipt(receipt.supabaseId, {
+                    ...receipt,
+                    ...updates
+                });
+            } catch (error) {
+                console.error('Failed to update receipt in Supabase:', error);
+                // Continue with local update even if Supabase fails
+            }
+        }
+
         await db.receipts.update(id, {
             ...updates,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            syncedAt: receipt?.supabaseId ? new Date().toISOString() : null
         });
     },
 
     async deleteReceipt(id) {
+        const receipt = await db.receipts.get(id);
+        
+        // Try to delete from Supabase if configured
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && receipt?.supabaseId) {
+            try {
+                await supabaseService.deleteReceipt(receipt.supabaseId);
+            } catch (error) {
+                console.error('Failed to delete receipt from Supabase:', error);
+                // Continue with local deletion even if Supabase fails
+            }
+        }
+
         await db.receipts.delete(id);
     },
 
     // Settings operations
     async saveSettings(userId, settings) {
+        // Get user to find Supabase ID
+        const user = await this.getUserById(userId);
+        const supabaseUserId = user?.supabaseId;
+
+        // Try to sync to Supabase if configured
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && supabaseUserId) {
+            try {
+                await supabaseService.saveSettings(supabaseUserId, settings);
+            } catch (error) {
+                console.error('Failed to save settings in Supabase:', error);
+                // Continue with local save even if Supabase fails
+            }
+        }
+
         const existing = await db.settings.where('userId').equals(userId).first();
         if (existing) {
             await db.settings.update(existing.id, {
                 ...settings,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                syncedAt: supabaseUserId ? new Date().toISOString() : null
             });
         } else {
             await db.settings.add({
                 userId,
                 ...settings,
                 createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                syncedAt: supabaseUserId ? new Date().toISOString() : null
             });
         }
     },
@@ -109,8 +205,146 @@ export const storageService = {
         const receipts = await this.getReceiptsByUserId(userId);
         const demoReceipts = receipts.filter(r => r.isDemo === true);
         if (demoReceipts.length > 0) {
+            // Delete from Supabase if configured
+            const supabaseService = await getSupabaseService();
+            if (supabaseService.isConfigured()) {
+                for (const receipt of demoReceipts) {
+                    if (receipt.supabaseId) {
+                        try {
+                            await supabaseService.deleteReceipt(receipt.supabaseId);
+                        } catch (error) {
+                            console.error(`Failed to delete demo receipt ${receipt.id} from Supabase:`, error);
+                        }
+                    }
+                }
+            }
             await db.receipts.bulkDelete(demoReceipts.map(r => r.id));
         }
+    },
+
+    // Sync operations
+    async syncAllToCloud(userId) {
+        const supabaseService = await getSupabaseService();
+        if (!supabaseService.isConfigured()) {
+            return { synced: 0, errors: [] };
+        }
+
+        const user = await this.getUserById(userId);
+        if (!user?.supabaseId) {
+            console.warn('User does not have Supabase ID, cannot sync');
+            return { synced: 0, errors: [] };
+        }
+
+        const errors = [];
+        let synced = 0;
+
+        // Sync receipts
+        const receipts = await this.getReceiptsByUserId(userId);
+        const unsyncedReceipts = receipts.filter(r => !r.syncedAt || !r.supabaseId);
+        
+        for (const receipt of unsyncedReceipts) {
+            try {
+                if (receipt.supabaseId) {
+                    await supabaseService.updateReceipt(receipt.supabaseId, receipt);
+                } else {
+                    const supabaseReceipt = await supabaseService.createReceipt(receipt);
+                    await db.receipts.update(receipt.id, {
+                        supabaseId: supabaseReceipt.id,
+                        syncedAt: new Date().toISOString()
+                    });
+                }
+                synced++;
+            } catch (error) {
+                console.error(`Failed to sync receipt ${receipt.id}:`, error);
+                errors.push({ receiptId: receipt.id, error: error.message });
+            }
+        }
+
+        // Sync settings
+        try {
+            const settings = await this.getSettings(userId);
+            if (settings) {
+                await supabaseService.saveSettings(user.supabaseId, settings);
+                await db.settings.update(settings.id, {
+                    syncedAt: new Date().toISOString()
+                });
+            }
+        } catch (error) {
+            console.error('Failed to sync settings:', error);
+            errors.push({ type: 'settings', error: error.message });
+        }
+
+        return { synced, errors };
+    },
+
+    async syncAllFromCloud(userId) {
+        const supabaseService = await getSupabaseService();
+        if (!supabaseService.isConfigured()) {
+            return { synced: 0, errors: [] };
+        }
+
+        const user = await this.getUserById(userId);
+        if (!user?.supabaseId) {
+            console.warn('User does not have Supabase ID, cannot sync');
+            return { synced: 0, errors: [] };
+        }
+
+        const errors = [];
+        let synced = 0;
+
+        try {
+            // Get receipts from Supabase
+            const cloudReceipts = await supabaseService.getReceiptsByUserId(user.supabaseId);
+            
+            for (const cloudReceipt of cloudReceipts) {
+                try {
+                    // Check if receipt exists locally
+                    const localReceipt = await db.receipts
+                        .where('supabaseId')
+                        .equals(cloudReceipt.id)
+                        .first();
+
+                    if (localReceipt) {
+                        // Update local receipt if cloud is newer
+                        const cloudUpdated = new Date(cloudReceipt.updatedAt);
+                        const localUpdated = new Date(localReceipt.updatedAt);
+                        
+                        if (cloudUpdated > localUpdated) {
+                            await db.receipts.update(localReceipt.id, {
+                                ...cloudReceipt,
+                                userId: userId, // Keep local userId
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        }
+                    } else {
+                        // Create new local receipt
+                        await db.receipts.add({
+                            ...cloudReceipt,
+                            userId: userId, // Use local userId
+                            supabaseId: cloudReceipt.id,
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    }
+                } catch (error) {
+                    console.error(`Failed to sync receipt ${cloudReceipt.id}:`, error);
+                    errors.push({ receiptId: cloudReceipt.id, error: error.message });
+                }
+            }
+
+            // Sync settings
+            const cloudSettings = await supabaseService.getSettings(user.supabaseId);
+            if (cloudSettings) {
+                await this.saveSettings(userId, cloudSettings);
+                synced++;
+            }
+        } catch (error) {
+            console.error('Failed to sync from cloud:', error);
+            errors.push({ type: 'sync', error: error.message });
+        }
+
+        return { synced, errors };
     }
 };
 
