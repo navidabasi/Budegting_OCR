@@ -46,17 +46,29 @@ export default function SettingsPage() {
     };
 
     const onSaveApiKey = async (data) => {
-        if (!currentUser) return;
+        if (!currentUser) {
+            showToast('User not logged in', 'error');
+            return;
+        }
+
+        if (!currentUser.userId) {
+            showToast('Invalid user ID', 'error');
+            console.error('currentUser:', currentUser);
+            return;
+        }
 
         setLoading(true);
         try {
             const apiKeyValue = data.veryfiApiKey?.trim() || '';
-            await storageService.setVeryfiApiKey(currentUser.userId, apiKeyValue);
+            // Ensure userId is a string
+            const userId = String(currentUser.userId);
+            await storageService.setVeryfiApiKey(userId, apiKeyValue);
             setApiKey(apiKeyValue);
             setValue('veryfiApiKey', apiKeyValue);
             showToast('API key saved successfully', 'success');
         } catch (err) {
             console.error('Error saving API key:', err);
+            console.error('currentUser:', currentUser);
             showToast(`Failed to save API key: ${err.message || 'Unknown error'}`, 'error');
         } finally {
             setLoading(false);

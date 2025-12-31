@@ -184,6 +184,17 @@ export const storageService = {
 
     // Settings operations
     async saveSettings(userId, settings) {
+        // Validate userId
+        if (!userId || typeof userId !== 'string') {
+            throw new Error(`Invalid userId: ${userId}. Expected a non-empty string.`);
+        }
+
+        // Validate and sanitize settings
+        const sanitizedSettings = {
+            veryfiApiKey: settings.veryfiApiKey ? String(settings.veryfiApiKey) : null,
+            defaultCurrency: settings.defaultCurrency ? String(settings.defaultCurrency) : 'USD'
+        };
+
         // userId is now the Supabase user ID (UUID)
         const supabaseUserId = userId;
 
@@ -191,14 +202,14 @@ export const storageService = {
         const existing = await db.settings.where('userId').equals(userId).first();
         if (existing) {
             await db.settings.update(existing.id, {
-                ...settings,
+                ...sanitizedSettings,
                 updatedAt: new Date().toISOString(),
                 syncedAt: null // Will be updated if Supabase sync succeeds
             });
         } else {
             await db.settings.add({
-                userId,
-                ...settings,
+                userId: String(userId), // Ensure it's a string
+                ...sanitizedSettings,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 syncedAt: null // Will be updated if Supabase sync succeeds
@@ -211,7 +222,7 @@ export const storageService = {
             const supabaseService = await getSupabaseService();
             if (supabaseService.isConfigured() && supabaseUserId) {
                 // Use a timeout to prevent hanging
-                const syncPromise = supabaseService.saveSettings(supabaseUserId, settings)
+                const syncPromise = supabaseService.saveSettings(supabaseUserId, sanitizedSettings)
                     .then(async () => {
                         // Update syncedAt if sync succeeds
                         const localSettings = existing || await db.settings.where('userId').equals(userId).first();
