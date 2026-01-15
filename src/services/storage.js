@@ -62,7 +62,7 @@ export const storageService = {
     async createUser(userData) {
         // userData should contain: email, supabaseId (or supabaseUserId)
         const supabaseUserId = userData.supabaseId || userData.supabaseUserId;
-        
+
         if (!supabaseUserId) {
             throw new Error('Supabase user ID is required');
         }
@@ -96,7 +96,7 @@ export const storageService = {
     // Receipt operations
     async createReceipt(receipt) {
         // receipt.userId should be the Supabase user ID (UUID)
-        
+
         // Save locally FIRST (fast, always works)
         const id = await db.receipts.add({
             ...receipt,
@@ -106,7 +106,7 @@ export const storageService = {
             updatedAt: new Date().toISOString(),
             syncedAt: null
         });
-        
+
         // Try to sync to Supabase in background (don't block on this)
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured()) {
@@ -116,7 +116,7 @@ export const storageService = {
                     ...receipt,
                     userId: receipt.userId
                 }),
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
                 )
             ]).then(async (supabaseReceipt) => {
@@ -130,9 +130,9 @@ export const storageService = {
                 console.warn('[Storage] Background sync failed (will retry later):', error.message);
                 // Receipt is saved locally, can be synced later
             });
-            
+
             // Don't await - let it run in background
-            syncPromise.catch(() => {}); // Prevent unhandled rejection
+            syncPromise.catch(() => { }); // Prevent unhandled rejection
         }
 
         return id;
@@ -151,22 +151,22 @@ export const storageService = {
         if (!receipt) {
             throw new Error(`Receipt ${id} not found`);
         }
-        
+
         // Update locally FIRST (fast, always works)
         await db.receipts.update(id, {
             ...updates,
             updatedAt: new Date().toISOString()
         });
-        
+
         // Try to sync to Supabase in background (don't block on this)
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured()) {
             const syncPromise = (async () => {
                 try {
-                    const timeoutPromise = new Promise((_, reject) => 
+                    const timeoutPromise = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
                     );
-                    
+
                     if (receipt.supabaseId) {
                         // Receipt exists in Supabase, update it
                         await Promise.race([
@@ -198,9 +198,9 @@ export const storageService = {
                     console.warn('[Storage] Background sync failed (will retry later):', error.message);
                 }
             })();
-            
+
             // Don't await - let it run in background
-            syncPromise.catch(() => {}); // Prevent unhandled rejection
+            syncPromise.catch(() => { }); // Prevent unhandled rejection
         }
 
         return; // Return immediately after local update
@@ -208,16 +208,16 @@ export const storageService = {
 
     async deleteReceipt(id) {
         const receipt = await db.receipts.get(id);
-        
+
         // Delete locally FIRST (fast, always works)
         await db.receipts.delete(id);
-        
+
         // Try to delete from Supabase in background (don't block on this)
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured() && receipt?.supabaseId) {
             const syncPromise = Promise.race([
                 supabaseService.deleteReceipt(receipt.supabaseId),
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Supabase delete timed out')), 5000)
                 )
             ]).then(() => {
@@ -226,9 +226,9 @@ export const storageService = {
                 console.warn('[Storage] Background delete failed:', error.message);
                 // Receipt is deleted locally, Supabase might have orphan that can be cleaned up
             });
-            
+
             // Don't await - let it run in background
-            syncPromise.catch(() => {}); // Prevent unhandled rejection
+            syncPromise.catch(() => { }); // Prevent unhandled rejection
         }
     },
 
@@ -292,12 +292,12 @@ export const storageService = {
                         console.error('Failed to save settings in Supabase:', error);
                         // Don't throw - local save already succeeded
                     });
-                
+
                 // Don't await - let it run in background
                 // But add a timeout to prevent hanging
                 Promise.race([
                     syncPromise,
-                    new Promise((_, reject) => 
+                    new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Sync timeout')), 10000)
                     )
                 ]).catch(() => {
@@ -386,12 +386,12 @@ export const storageService = {
         try {
             const { supabase } = await import('./supabaseService');
             const authCheck = supabase.auth.getUser();
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Authentication check timed out')), 5000)
             );
-            
+
             const { data: { user }, error: authError } = await Promise.race([authCheck, timeoutPromise]);
-            
+
             if (authError || !user) {
                 throw new Error('Not authenticated. Please log in again.');
             }
@@ -401,18 +401,20 @@ export const storageService = {
                 userId = user.id;
             }
         } catch (error) {
+            const errorMessage = error?.message || error?.error || String(error);
             console.error('[Sync] Authentication check failed:', error);
-            return { synced: 0, errors: [{ type: 'auth', error: error.message || String(error) }] };
+            console.error('[Sync] Auth error details:', { message: errorMessage, fullError: error });
+            return { synced: 0, errors: [{ type: 'auth', error: errorMessage }] };
         }
 
         const errors = [];
         let synced = 0;
-        
+
         // Helper function to add timeout to promises
         const withTimeout = (promise, timeoutMs, errorMsg) => {
             return Promise.race([
                 promise,
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error(errorMsg || 'Operation timed out')), timeoutMs)
                 )
             ]);
@@ -420,13 +422,13 @@ export const storageService = {
 
         // Sync receipts
         console.log('[Sync] Starting sync for userId:', userId);
-        
+
         try {
             // Get all receipts for this user
             // First try by Supabase user ID (current format)
             let receipts = await this.getReceiptsByUserId(userId);
             console.log('[Sync] Found receipts by Supabase userId:', receipts.length);
-            
+
             // If no receipts found, try to find by local user ID (for migration)
             if (receipts.length === 0) {
                 try {
@@ -446,7 +448,7 @@ export const storageService = {
                     console.warn('[Sync] Migration check failed, continuing with existing receipts:', migrationError);
                 }
             }
-            
+
             console.log('[Sync] Total receipts found:', receipts.length);
             console.log('[Sync] Receipt details:', receipts.map(r => ({
                 id: r.id,
@@ -455,14 +457,25 @@ export const storageService = {
                 syncedAt: r.syncedAt,
                 merchant: r.merchant
             })));
-            
+
             const unsyncedReceipts = receipts.filter(r => !r.syncedAt || !r.supabaseId);
             console.log('[Sync] Unsynced receipts:', unsyncedReceipts.length);
-            
+            console.log('[Sync] Unsynced receipt details:', unsyncedReceipts.map(r => ({
+                id: r.id,
+                merchant: r.merchant,
+                hasSupabaseId: !!r.supabaseId,
+                hasSyncedAt: !!r.syncedAt,
+                userId: r.userId
+            })));
+
             if (unsyncedReceipts.length === 0 && receipts.length > 0) {
                 console.log('[Sync] All receipts are already synced');
             }
-            
+
+            if (unsyncedReceipts.length === 0) {
+                console.log('[Sync] No receipts to sync');
+            }
+
             for (const receipt of unsyncedReceipts) {
                 try {
                     console.log('[Sync] Syncing receipt:', receipt.id, 'has supabaseId:', !!receipt.supabaseId);
@@ -495,13 +508,27 @@ export const storageService = {
                     synced++;
                     console.log('[Sync] Successfully synced receipt:', receipt.id);
                 } catch (error) {
+                    const errorMessage = error?.message || error?.error || String(error);
                     console.error(`[Sync] Failed to sync receipt ${receipt.id}:`, error);
-                    errors.push({ receiptId: receipt.id, error: error.message || String(error) });
+                    console.error(`[Sync] Error details:`, {
+                        message: errorMessage,
+                        receiptId: receipt.id,
+                        receiptMerchant: receipt.merchant,
+                        fullError: error
+                    });
+                    errors.push({
+                        receiptId: receipt.id,
+                        error: errorMessage,
+                        type: 'receipt',
+                        receipt: receipt.merchant || 'Unknown'
+                    });
                 }
             }
         } catch (error) {
+            const errorMessage = error?.message || error?.error || String(error);
             console.error('[Sync] Error getting receipts:', error);
-            errors.push({ type: 'getReceipts', error: error.message || String(error) });
+            console.error('[Sync] Error details:', { message: errorMessage, fullError: error });
+            errors.push({ type: 'getReceipts', error: errorMessage });
         }
 
         // Sync settings with timeout
@@ -523,8 +550,10 @@ export const storageService = {
                 }
             }
         } catch (error) {
-            console.error('Failed to sync settings:', error);
-            errors.push({ type: 'settings', error: error.message });
+            const errorMessage = error?.message || error?.error || String(error);
+            console.error('[Sync] Failed to sync settings:', error);
+            console.error('[Sync] Settings error details:', { message: errorMessage, fullError: error });
+            errors.push({ type: 'settings', error: errorMessage });
         }
 
         return { synced, errors };
@@ -542,12 +571,12 @@ export const storageService = {
         try {
             const { supabase } = await import('./supabaseService');
             const authCheck = supabase.auth.getUser();
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Authentication check timed out')), 5000)
             );
-            
+
             const { data: { user }, error: authError } = await Promise.race([authCheck, timeoutPromise]);
-            
+
             if (authError || !user) {
                 throw new Error('Not authenticated. Please log in again.');
             }
@@ -570,7 +599,7 @@ export const storageService = {
             // Note: getReceiptsByUserId now uses auth.uid() internally for security
             const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
             console.log('[Sync From Cloud] Found receipts in cloud:', cloudReceipts.length);
-            
+
             for (const cloudReceipt of cloudReceipts) {
                 try {
                     console.log('[Sync From Cloud] Processing receipt:', cloudReceipt.id);
@@ -584,12 +613,12 @@ export const storageService = {
                         // Update local receipt if cloud is newer
                         const cloudUpdated = new Date(cloudReceipt.updatedAt);
                         const localUpdated = new Date(localReceipt.updatedAt);
-                        
+
                         console.log('[Sync From Cloud] Receipt exists locally, comparing dates:', {
                             cloud: cloudUpdated.toISOString(),
                             local: localUpdated.toISOString()
                         });
-                        
+
                         if (cloudUpdated > localUpdated) {
                             // Only update fields that exist in IndexedDB schema
                             await db.receipts.update(localReceipt.id, {

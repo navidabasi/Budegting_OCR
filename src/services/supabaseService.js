@@ -221,9 +221,22 @@ export const supabaseService = {
             .single();
 
         if (error) {
+            const errorMessage = error.message || error.details || error.hint || JSON.stringify(error);
             console.error('[Supabase createReceipt] Error:', error);
+            console.error('[Supabase createReceipt] Error code:', error.code);
+            console.error('[Supabase createReceipt] Error message:', errorMessage);
             console.error('[Supabase createReceipt] Auth user ID:', authenticatedUserId);
-            throw error;
+            console.error('[Supabase createReceipt] Receipt data:', {
+                merchant: receipt.merchant,
+                date: receipt.date,
+                total: receipt.total,
+                currency: receipt.currency,
+                hasLineItems: !!receipt.lineItems
+            });
+            // Create a more descriptive error
+            const descriptiveError = new Error(`Failed to create receipt: ${errorMessage} (Code: ${error.code || 'unknown'})`);
+            descriptiveError.originalError = error;
+            throw descriptiveError;
         }
         return data;
     },

@@ -170,8 +170,15 @@ export default function SettingsPage() {
             clearTimeout(syncTimeout); // Clear timeout if sync completes
             console.log('[Settings] Sync to cloud result:', result);
             if (result.errors.length > 0) {
-                showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
-                setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
+                // Show the first error message for debugging
+                const firstError = result.errors[0];
+                const errorMsg = firstError.error || firstError.message || 'Unknown error';
+                console.error('[Settings] Sync errors:', result.errors);
+                showToast(`Synced ${result.synced} items. ${result.errors.length} error(s): ${errorMsg}`, 'error');
+                setSyncStatus({
+                    type: 'error',
+                    message: `${result.synced} synced, ${result.errors.length} error(s): ${errorMsg}`
+                });
             } else {
                 showToast(`Successfully synced ${result.synced} items to cloud`, 'success');
                 setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
