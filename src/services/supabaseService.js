@@ -194,18 +194,20 @@ export const supabaseService = {
     async createReceipt(receipt) {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Debug: Check auth.uid() vs userId being sent
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('[Supabase createReceipt] Debug:', {
-            authUid: user?.id,
-            receiptUserId: receipt.userId,
-            match: user?.id === receipt.userId
-        });
+        // Always use the authenticated user's ID from the session (RLS requirement)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        // Use auth.uid() instead of receipt.userId to ensure RLS works
+        const authenticatedUserId = user.id;
+        console.log('[Supabase createReceipt] Using authenticated user ID:', authenticatedUserId);
 
         const { data, error } = await supabase
             .from('receipts')
             .insert([{
-                user_id: receipt.userId,
+                user_id: authenticatedUserId, // Always use auth.uid() for RLS
                 merchant: receipt.merchant,
                 date: receipt.date,
                 total: receipt.total,
@@ -220,7 +222,7 @@ export const supabaseService = {
 
         if (error) {
             console.error('[Supabase createReceipt] Error:', error);
-            console.error('[Supabase createReceipt] Sent user_id:', receipt.userId);
+            console.error('[Supabase createReceipt] Auth user ID:', authenticatedUserId);
             throw error;
         }
         return data;
@@ -229,10 +231,20 @@ export const supabaseService = {
     async getReceiptsByUserId(userId) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Always use the authenticated user's ID from the session for security
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        // Use auth.uid() to ensure RLS works and for security
+        const authenticatedUserId = user.id;
+        console.log('[Supabase getReceiptsByUserId] Using authenticated user ID:', authenticatedUserId);
+
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', authenticatedUserId) // Always use auth.uid() for RLS
             .order('date', { ascending: false });
 
         if (error) throw error;
@@ -290,13 +302,15 @@ export const supabaseService = {
     async saveSettings(userId, settings) {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Debug: Check auth.uid() vs userId being sent
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('[Supabase saveSettings] Debug:', {
-            authUid: user?.id,
-            passedUserId: userId,
-            match: user?.id === userId
-        });
+        // Always use the authenticated user's ID from the session (RLS requirement)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        // Use auth.uid() instead of passed userId to ensure RLS works
+        const authenticatedUserId = user.id;
+        console.log('[Supabase saveSettings] Using authenticated user ID:', authenticatedUserId);
 
         // Support both ocrApiKey and legacy veryfiApiKey
         const apiKey = settings.ocrApiKey !== undefined ? settings.ocrApiKey : settings.veryfiApiKey;
@@ -304,7 +318,7 @@ export const supabaseService = {
         const { data, error } = await supabase
             .from('settings')
             .upsert({
-                user_id: userId,
+                user_id: authenticatedUserId, // Always use auth.uid() for RLS
                 veryfi_api_key: apiKey, // Still using old column name for backward compatibility
                 default_currency: settings.defaultCurrency,
                 updated_at: new Date().toISOString()
@@ -316,7 +330,7 @@ export const supabaseService = {
 
         if (error) {
             console.error('[Supabase saveSettings] Error:', error);
-            console.error('[Supabase saveSettings] Sent user_id:', userId);
+            console.error('[Supabase saveSettings] Auth user ID:', authenticatedUserId);
             throw error;
         }
         return data;
@@ -325,10 +339,20 @@ export const supabaseService = {
     async getSettings(userId) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Always use the authenticated user's ID from the session for security
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        // Use auth.uid() to ensure RLS works and for security
+        const authenticatedUserId = user.id;
+        console.log('[Supabase getSettings] Using authenticated user ID:', authenticatedUserId);
+
         const { data, error } = await supabase
             .from('settings')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', authenticatedUserId) // Always use auth.uid() for RLS
             .maybeSingle(); // Use maybeSingle() to return null instead of error when not found
 
         if (error) throw error;

@@ -382,6 +382,23 @@ export const storageService = {
             return { synced: 0, errors: [] };
         }
 
+        // Verify user is authenticated before syncing
+        try {
+            const { supabase } = await import('./supabaseService');
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            if (authError || !user) {
+                throw new Error('Not authenticated. Please log in again.');
+            }
+            if (user.id !== userId) {
+                console.warn('[Sync] userId mismatch, using authenticated user ID:', user.id);
+                // Use authenticated user ID instead
+                userId = user.id;
+            }
+        } catch (error) {
+            console.error('[Sync] Authentication check failed:', error);
+            return { synced: 0, errors: [{ type: 'auth', error: error.message }] };
+        }
+
         const errors = [];
         let synced = 0;
         
@@ -506,12 +523,30 @@ export const storageService = {
             return { synced: 0, errors: [] };
         }
 
+        // Verify user is authenticated before syncing
+        try {
+            const { supabase } = await import('./supabaseService');
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            if (authError || !user) {
+                throw new Error('Not authenticated. Please log in again.');
+            }
+            if (user.id !== userId) {
+                console.warn('[Sync From Cloud] userId mismatch, using authenticated user ID:', user.id);
+                // Use authenticated user ID instead
+                userId = user.id;
+            }
+        } catch (error) {
+            console.error('[Sync From Cloud] Authentication check failed:', error);
+            return { synced: 0, errors: [{ type: 'auth', error: error.message }] };
+        }
+
         const errors = [];
         let synced = 0;
 
         try {
             console.log('[Sync From Cloud] Starting sync for userId:', userId);
             // Get receipts from Supabase (already transformed to app format)
+            // Note: getReceiptsByUserId now uses auth.uid() internally for security
             const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
             console.log('[Sync From Cloud] Found receipts in cloud:', cloudReceipts.length);
             
