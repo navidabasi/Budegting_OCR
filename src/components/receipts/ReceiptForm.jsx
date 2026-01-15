@@ -11,8 +11,8 @@ import { useAppStore } from '../../store/appStore';
 
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('USD');
-    const [selectedCurrency, setSelectedCurrency] = useState('USD');
+    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
+    const [selectedCurrency, setSelectedCurrency] = useState('EUR');
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [converting, setConverting] = useState(false);
 
@@ -33,14 +33,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             total: initialData.total?.toString() || '',
             category: initialData.category || '',
             notes: initialData.notes || '',
-            currency: initialData.currency || 'USD'
+            currency: initialData.currency || 'EUR'
         } : {
             merchant: '',
             date: new Date().toISOString().split('T')[0],
             total: '',
             category: '',
             notes: '',
-            currency: 'USD'
+            currency: 'EUR'
         }
     });
 

@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/appStore';
 // Component to display totals that may come from receipts with different currencies
 export default function CurrencyTotalDisplay({ receipts, amount }) {
     const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('USD');
+    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [hasMultipleCurrencies, setHasMultipleCurrencies] = useState(false);
 

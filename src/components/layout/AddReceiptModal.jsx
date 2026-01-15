@@ -12,10 +12,12 @@ export default function AddReceiptModal() {
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
+    const [selectedFile, setSelectedFile] = useState(null);
     const fileInputRef = useRef(null);
 
     const handleClose = () => {
         setMode(null);
+        setSelectedFile(null);
         setAddReceiptModalOpen(false);
     };
 
@@ -47,7 +49,12 @@ export default function AddReceiptModal() {
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
         if (file) {
+            setSelectedFile(file);
             setMode('upload');
+        }
+        // Reset input so the same file can be selected again if needed
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
     };
 
@@ -61,6 +68,7 @@ export default function AddReceiptModal() {
                 isOpen={addReceiptModalOpen}
                 onClose={handleClose}
                 mode={mode}
+                initialFile={selectedFile}
                 onSwitchToManual={handleManualClick}
             />
         );

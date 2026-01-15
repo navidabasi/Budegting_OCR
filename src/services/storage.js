@@ -117,7 +117,7 @@ export const storageService = {
         const id = await db.receipts.add({
             ...receipt,
             supabaseId,
-            currency: receipt.currency || 'USD',
+            currency: receipt.currency || 'EUR',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             syncedAt: supabaseId ? new Date().toISOString() : null
@@ -210,7 +210,7 @@ export const storageService = {
         // Validate and sanitize settings
         const sanitizedSettings = {
             ocrApiKey: settings.ocrApiKey ? String(settings.ocrApiKey) : (settings.veryfiApiKey ? String(settings.veryfiApiKey) : null),
-            defaultCurrency: settings.defaultCurrency ? String(settings.defaultCurrency) : 'USD'
+            defaultCurrency: settings.defaultCurrency ? String(settings.defaultCurrency) : 'EUR'
         };
 
         // userId is now the Supabase user ID (UUID)
@@ -298,7 +298,7 @@ export const storageService = {
 
     async getDefaultCurrency(userId) {
         const settings = await this.getSettings(userId);
-        return settings?.defaultCurrency || 'USD';
+        return settings?.defaultCurrency || 'EUR';
     },
 
     async setDefaultCurrency(userId, currency) {

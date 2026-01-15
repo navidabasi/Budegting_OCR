@@ -194,7 +194,7 @@ export const supabaseService = {
                 merchant: receipt.merchant,
                 date: receipt.date,
                 total: receipt.total,
-                currency: receipt.currency || 'USD',
+                currency: receipt.currency || 'EUR',
                 category: receipt.category,
                 notes: receipt.notes,
                 line_items: receipt.lineItems || [],
@@ -306,7 +306,7 @@ export const supabaseService = {
         return {
             ocrApiKey: data.veryfi_api_key, // Return as ocrApiKey for new code
             veryfiApiKey: data.veryfi_api_key, // Keep legacy name for backward compatibility
-            defaultCurrency: data.default_currency || 'USD'
+            defaultCurrency: data.default_currency || 'EUR'
         };
     },
 
@@ -318,7 +318,7 @@ export const supabaseService = {
             merchant: supabaseReceipt.merchant,
             date: supabaseReceipt.date,
             total: parseFloat(supabaseReceipt.total),
-            currency: supabaseReceipt.currency || 'USD',
+            currency: supabaseReceipt.currency || 'EUR',
             category: supabaseReceipt.category,
             notes: supabaseReceipt.notes,
             lineItems: supabaseReceipt.line_items || [],

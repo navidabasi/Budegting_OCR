@@ -1,4 +1,5 @@
-import { MERCHANT_CATEGORY_MAP, DEFAULT_CATEGORY } from '../utils/constants';
+import { MERCHANT_CATEGORY_MAP, DEFAULT_CATEGORY, DEFAULT_CURRENCY } from '../utils/constants';
+import { cleanText, parseLocalNumber, extractDateFromText, extractPricesFromText } from '../utils/helpers';
 
 export const ocrApi = {
     async processReceipt(imageFile, apiKey = null) {
@@ -76,121 +77,34 @@ export const ocrApi = {
         });
     },
 
-    // Parse a number that might use European format (comma as decimal)
-    parseNumber(str) {
-        if (!str) return 0;
-        // Remove currency symbols and whitespace
-        let cleaned = str.replace(/[€$£¥\s]/g, '').trim();
-        // Handle European format: replace comma with dot for decimal
-        // But first check if it's likely European format (has comma but no dot)
-        if (cleaned.includes(',') && !cleaned.includes('.')) {
-            cleaned = cleaned.replace(',', '.');
-        } else if (cleaned.includes(',') && cleaned.includes('.')) {
-            // Has both - likely thousands separator is one of them
-            // If comma is after dot, comma is decimal (unlikely)
-            // If dot is after comma, dot is decimal (e.g., 1.234,56 -> 1234.56)
-            const dotIndex = cleaned.lastIndexOf('.');
-            const commaIndex = cleaned.lastIndexOf(',');
-            if (commaIndex > dotIndex) {
-                // European: 1.234,56 -> 1234.56
-                cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-            } else {
-                // US: 1,234.56 -> 1234.56
-                cleaned = cleaned.replace(/,/g, '');
-            }
-        }
-        return parseFloat(cleaned) || 0;
-    },
-
-    // Split OCR text into lines - handles both \n and \t separators
-    splitIntoLines(text) {
-        // First, split by newlines
-        let lines = text.split(/\r?\n/);
-
-        // If we got very few lines but have tabs, the receipt might be tab-separated
-        if (lines.length <= 3 && text.includes('\t')) {
-            // Split by tabs and try to reconstruct logical lines
-            lines = this.reconstructLinesFromTabs(text);
-        }
-
-        return lines.filter(line => line.trim());
-    },
-
-    // Reconstruct lines from tab-separated OCR output
-    reconstructLinesFromTabs(text) {
-        const parts = text.split('\t');
-        const lines = [];
-        let currentLine = [];
-
-        // Known patterns that indicate end of a logical line
-        const lineEndPatterns = [
-            /^\d+[.,]\d{2}$/, // Price like 1.49 or 1,49
-            /^\d+[.,]\d{2}%$/, // Percentage like 22,00%
-            /\d{5}/, // Zip code
-            /^\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4}$/, // Date
-        ];
-
-        // Patterns that indicate start of a new logical section
-        const lineStartPatterns = [
-            /^[X\+\*\-]\s/, // Item markers like "X ", "+ ", "* "
-            /^DESCRIZIONE/i,
-            /^TOTAL/i,
-            /^TOT\./i,
-            /^SUBTOTAL/i,
-            /^IVA/i,
-        ];
-
-        for (let i = 0; i < parts.length; i++) {
-            const part = parts[i].trim();
-            if (!part) continue;
-
-            // Check if this part starts a new line
-            const startsNewLine = lineStartPatterns.some(p => p.test(part));
-
-            // Check if previous part ended a line (was a price)
-            const prevEndedLine = currentLine.length > 0 &&
-                lineEndPatterns.some(p => p.test(currentLine[currentLine.length - 1]));
-
-            if ((startsNewLine || prevEndedLine) && currentLine.length > 0) {
-                lines.push(currentLine.join('\t'));
-                currentLine = [];
-            }
-
-            currentLine.push(part);
-        }
-
-        // Don't forget the last line
-        if (currentLine.length > 0) {
-            lines.push(currentLine.join('\t'));
-        }
-
-        return lines;
-    },
-
     parseOcrSpaceResponse(data) {
-        // OCR.Space returns plain text, so we need to parse it
         const parsedText = data.ParsedResults?.[0]?.ParsedText || '';
-        const lines = this.splitIntoLines(parsedText);
 
-        console.log('[OCR Parser] Split into lines:', lines);
+        console.log('[OCR Parser] Raw text:', parsedText);
 
-        // Try to extract receipt information from text
+        // Split text into parts (by tabs and newlines)
+        const parts = parsedText.split(/[\t\r\n]+/).map(p => p.trim()).filter(p => p);
+
+        console.log('[OCR Parser] Split parts:', parts);
+
+        // Extract data
         const receipt = {
-            merchant: this.extractMerchant(lines, parsedText),
-            date: this.extractDate(lines, parsedText) || new Date().toISOString(),
-            total: this.extractTotal(lines, parsedText),
+            merchant: this.extractMerchant(parts),
+            date: extractDateFromText(parsedText) || new Date().toISOString(),
+            total: this.extractTotal(parts, parsedText),
+            currency: DEFAULT_CURRENCY,
             category: 'Other',
-            lineItems: this.extractLineItems(lines, parsedText),
-            notes: parsedText.substring(0, 500), // Store first 500 chars as notes
-            rawData: { parsedText, lines }
+            lineItems: this.extractLineItems(parts),
+            notes: parsedText.substring(0, 500),
+            rawData: { parsedText, parts }
         };
 
         // Suggest category based on merchant
-        if (receipt.merchant) {
+        if (receipt.merchant && receipt.merchant !== 'Unknown Merchant') {
             receipt.category = this.suggestCategory(receipt.merchant);
         }
 
-        // If no line items, create one from total
+        // If no line items but have total, create one item
         if (receipt.lineItems.length === 0 && receipt.total > 0) {
             receipt.lineItems.push({
                 name: 'Total',
@@ -200,219 +114,194 @@ export const ocrApi = {
             });
         }
 
-        console.log('[OCR Parser] Extracted receipt:', receipt);
+        console.log('[OCR Parser] Final receipt:', receipt);
         return receipt;
     },
 
-    extractMerchant(lines, fullText) {
-        // Try from structured lines first
-        for (let i = 0; i < Math.min(5, lines.length); i++) {
-            const line = lines[i].trim();
-            // Get first tab-separated part if present
-            const firstPart = line.split('\t')[0].trim();
+    extractMerchant(parts) {
+        // Skip patterns that are NOT merchant names
+        const skipPatterns = [
+            /^\d+$/, // Just numbers
+            /^\d{1,2}[\/\-\.]\d{1,2}/, // Dates
+            /^total|subtotal|tax|iva|prezzo|descrizione/i,
+            /^[X\+\*\-]\s/, // Item markers
+            /^\d+[.,]\d{2}$/, // Prices
+            /^\d+[.,]\d{2}%$/, // Percentages
+            /^partita\s*iva/i, // VAT number label
+            /^\d{11}$/, // VAT numbers
+            /^documento/i,
+            /^vendita|prestazione/i,
+            /^prezzi\s*bassi/i, // Slogans
+        ];
 
-            // Skip common non-merchant patterns
-            if (firstPart &&
-                !firstPart.match(/^\d+$/) && // Not just numbers
-                !firstPart.match(/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/) && // Not a date
-                !firstPart.match(/^total|subtotal|tax|amount|receipt|invoice|descrizione|iva|prezzo/i) && // Not a label
-                !firstPart.match(/^#\d+/) && // Not an order number
-                !firstPart.match(/^[X\+\*\-]\s/) && // Not an item marker
-                firstPart.length > 2 && firstPart.length < 50) {
-                return firstPart;
-            }
-        }
+        for (const part of parts.slice(0, 10)) {
+            const cleaned = cleanText(part);
 
-        // Fallback: try to find first reasonable text from full text
-        const tabParts = fullText.split('\t');
-        for (const part of tabParts.slice(0, 5)) {
-            const cleaned = part.trim();
-            if (cleaned &&
-                cleaned.length > 2 && cleaned.length < 50 &&
-                !cleaned.match(/^\d+$/) &&
-                !cleaned.match(/prezzi|sempre|descrizione|iva/i)) {
-                return cleaned;
-            }
+            if (!cleaned || cleaned.length < 2 || cleaned.length > 60) continue;
+
+            const shouldSkip = skipPatterns.some(p => p.test(cleaned));
+            if (shouldSkip) continue;
+
+            return cleaned;
         }
 
         return 'Unknown Merchant';
     },
 
-    extractDate(lines, fullText) {
-        // Look for date patterns in both lines and full text
-        const datePatterns = [
-            /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/,
-            /(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/,
-            /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})/
+    extractTotal(parts, fullText) {
+        // Look for total patterns
+        const totalKeywords = [
+            /tot\.?\s*parziale/i,
+            /totale/i,
+            /grand\s*total/i,
+            /total\s*due/i,
+            /amount\s*due/i,
+            /^total$/i,
+            /balance/i,
         ];
 
-        const searchText = lines.join(' ') + ' ' + fullText;
+        // Strategy 1: Find keyword followed by price
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
 
-        for (const pattern of datePatterns) {
-            const match = searchText.match(pattern);
-            if (match) {
-                try {
-                    let dateStr = match[0];
-                    const date = new Date(dateStr);
-                    if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2100) {
-                        return date.toISOString();
+            for (const keyword of totalKeywords) {
+                if (keyword.test(part)) {
+                    // Look for price in next parts
+                    for (let j = i + 1; j < Math.min(i + 3, parts.length); j++) {
+                        const priceMatch = parts[j].match(/^(\d+[.,]\d{2})$/);
+                        if (priceMatch) {
+                            const total = parseLocalNumber(priceMatch[1]);
+                            if (total > 0) {
+                                console.log('[OCR Parser] Found total:', total, 'from keyword:', part);
+                                return total;
+                            }
+                        }
                     }
-                } catch (e) {
-                    // Continue searching
-                }
-            }
-        }
-        return null;
-    },
 
-    extractTotal(lines, fullText) {
-        // Look for total patterns - handle both formats
-        const totalPatterns = [
-            // Italian patterns
-            /TOT\.?\s*PARZIALE[.\s]*(\d+[.,]\d{2})/i,
-            /TOTALE[:\s]*€?\s*(\d+[.,]\d{2})/i,
-            // English patterns
-            /(?:grand\s+)?total[:\s]*[$€]?\s*(\d+[.,]\d{2})/i,
-            /amount\s+due[:\s]*[$€]?\s*(\d+[.,]\d{2})/i,
-            /total\s+due[:\s]*[$€]?\s*(\d+[.,]\d{2})/i,
-            /balance[:\s]*[$€]?\s*(\d+[.,]\d{2})/i,
-        ];
-
-        const searchText = lines.join('\t') + '\t' + fullText;
-
-        for (const pattern of totalPatterns) {
-            const match = searchText.match(pattern);
-            if (match) {
-                const amount = this.parseNumber(match[1]);
-                if (amount > 0 && amount < 100000) {
-                    return amount;
+                    // Price might be embedded in the same part
+                    const embeddedPrice = part.match(/(\d+[.,]\d{2})/);
+                    if (embeddedPrice) {
+                        const total = parseLocalNumber(embeddedPrice[1]);
+                        if (total > 0) {
+                            console.log('[OCR Parser] Found embedded total:', total);
+                            return total;
+                        }
+                    }
                 }
             }
         }
 
-        // Fallback: find the largest price that looks like a total
-        let maxAmount = 0;
-        const pricePattern = /(\d+[.,]\d{2})/g;
-        let match;
-        while ((match = pricePattern.exec(searchText)) !== null) {
-            const amount = this.parseNumber(match[1]);
-            if (amount > maxAmount && amount < 10000) {
-                maxAmount = amount;
-            }
+        // Strategy 2: Find the largest price (usually the total)
+        const allPrices = extractPricesFromText(fullText);
+        if (allPrices.length > 0) {
+            const maxPrice = Math.max(...allPrices.map(p => p.value));
+            console.log('[OCR Parser] Using max price as total:', maxPrice);
+            return maxPrice;
         }
 
-        return maxAmount;
+        return 0;
     },
 
-    extractLineItems(lines, fullText) {
+    extractLineItems(parts) {
         const lineItems = [];
+        const seenItems = new Set();
 
-        // Pattern 1: Tab-separated with price at end
-        // e.g., "X CANDELA YANKEE C-TAP\t22,00%\t1,49"
-        for (const line of lines) {
-            const parts = line.split('\t').map(p => p.trim()).filter(p => p);
+        // Skip patterns for non-item parts
+        const skipPatterns = [
+            /^total|^tot\.|^subtotal/i,
+            /^tax|^iva$/i,
+            /^descrizione|^prezzo/i,
+            /^partita|^documento/i,
+            /^\d{5,}$/, // Long numbers (phone, VAT, etc.)
+            /via\s+|strada\s+/i, // Addresses
+            /roma|milano|napoli/i, // Cities (adjust as needed)
+        ];
 
-            if (parts.length >= 2) {
-                // Check if last part looks like a price
-                const lastPart = parts[parts.length - 1];
-                const priceMatch = lastPart.match(/^(\d+[.,]\d{2})$/);
+        // Item markers that indicate the start of a line item
+        const itemMarkers = /^[X\+\*\-]/i;
 
-                if (priceMatch) {
-                    // Get the item name (might be first part, possibly with marker removed)
-                    let name = parts[0];
+        console.log('[OCR Parser] Looking for line items in', parts.length, 'parts');
 
-                    // Remove common item markers at start
-                    name = name.replace(/^[X\+\*\-]\s*/, '').trim();
+        // Strategy: Look for pattern [MARKER + NAME] [VAT%] [PRICE]
+        for (let i = 0; i < parts.length - 1; i++) {
+            const current = parts[i];
 
-                    // Skip if it looks like a total or header
-                    if (name.toLowerCase().match(/^(tot|total|subtotal|sub-total|tax|tip|discount|change|cash|credit|debit|card|descrizione|iva|prezzo|parziale)/i)) {
-                        continue;
-                    }
+            // Check if current looks like an item (starts with marker or is followed by price)
+            const hasMarker = itemMarkers.test(current);
 
-                    // Skip very short names
-                    if (name.length < 2) continue;
+            // Look ahead for VAT% and price pattern
+            let vatIndex = -1;
+            let priceIndex = -1;
 
-                    const price = this.parseNumber(priceMatch[1]);
-                    if (price > 0 && price < 1000) {
+            for (let j = i + 1; j < Math.min(i + 4, parts.length); j++) {
+                if (parts[j].match(/^\d+[.,]\d{2}%$/)) {
+                    vatIndex = j;
+                } else if (parts[j].match(/^\d+[.,]\d{2}$/) && !parts[j].match(/%/)) {
+                    priceIndex = j;
+                    break; // Found price, stop looking
+                }
+            }
+
+            // If we found a price and current part looks like an item name
+            if (priceIndex > i) {
+                const name = cleanText(current);
+                const price = parseLocalNumber(parts[priceIndex]);
+
+                // Validate
+                if (name && name.length >= 2 && price > 0 && price < 1000) {
+                    const shouldSkip = skipPatterns.some(p => p.test(name));
+
+                    if (!shouldSkip && !seenItems.has(name.toLowerCase())) {
+                        seenItems.add(name.toLowerCase());
                         lineItems.push({
                             name: name,
                             quantity: 1,
                             price: price,
                             category: this.suggestCategory(name)
                         });
+                        console.log('[OCR Parser] Found item:', name, '=', price);
+
+                        // Skip past this item's parts
+                        i = priceIndex;
                     }
                 }
             }
         }
 
-        // Pattern 2: Inline price pattern "Item Name 1.49" or "Item Name €1,49"
+        // Strategy 2: If no items found, try simpler pattern matching
         if (lineItems.length === 0) {
-            const itemPattern = /^(.+?)\s+[$€]?\s*(\d+[.,]\d{2})\s*$/;
+            console.log('[OCR Parser] No items with strategy 1, trying strategy 2');
 
-            for (const line of lines) {
-                const match = line.match(itemPattern);
-                if (match) {
-                    let name = match[1].trim();
-                    name = name.replace(/^[X\+\*\-]\s*/, '').trim();
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
 
-                    if (name.toLowerCase().match(/^(total|subtotal|tax|tip|discount|change|cash|credit|debit|card|balance|savings|parziale)/i)) {
-                        continue;
+                // Check if this part is a price
+                const priceMatch = part.match(/^(\d+[.,]\d{2})$/);
+                if (priceMatch && i > 0) {
+                    // Look back for item name
+                    let nameIndex = i - 1;
+
+                    // Skip VAT percentage if present
+                    if (parts[nameIndex].match(/^\d+[.,]\d{2}%$/)) {
+                        nameIndex--;
                     }
 
-                    if (name.length < 2 || name.match(/^\d+$/) || name.match(/^#/)) {
-                        continue;
-                    }
+                    if (nameIndex >= 0) {
+                        const name = cleanText(parts[nameIndex]);
+                        const price = parseLocalNumber(priceMatch[1]);
 
-                    const price = this.parseNumber(match[2]);
-                    if (price > 0 && price < 1000) {
-                        lineItems.push({
-                            name: name,
-                            quantity: 1,
-                            price: price,
-                            category: this.suggestCategory(name)
-                        });
-                    }
-                }
-            }
-        }
+                        if (name && name.length >= 2 && price > 0 && price < 1000) {
+                            const shouldSkip = skipPatterns.some(p => p.test(name));
 
-        // Pattern 3: Search full text for price patterns with preceding text
-        if (lineItems.length === 0 && fullText) {
-            // Split by tabs and look for name + price pairs
-            const tabParts = fullText.split('\t');
-
-            for (let i = 0; i < tabParts.length - 1; i++) {
-                const current = tabParts[i].trim();
-                const next = tabParts[i + 1].trim();
-
-                // Check if next looks like a price
-                if (next.match(/^\d+[.,]\d{2}$/)) {
-                    // Current might be VAT percentage, check the one before
-                    if (current.match(/^\d+[.,]\d{2}%$/) && i > 0) {
-                        const name = tabParts[i - 1].trim().replace(/^[X\+\*\-]\s*/, '');
-                        if (name.length > 2 && !name.toLowerCase().match(/descrizione|iva|prezzo|total|parziale/i)) {
-                            const price = this.parseNumber(next);
-                            if (price > 0 && price < 1000) {
+                            if (!shouldSkip && !seenItems.has(name.toLowerCase())) {
+                                seenItems.add(name.toLowerCase());
                                 lineItems.push({
                                     name: name,
                                     quantity: 1,
                                     price: price,
                                     category: this.suggestCategory(name)
                                 });
-                            }
-                        }
-                    } else if (!current.match(/^\d+[.,]\d{2}%?$/) && current.length > 2) {
-                        // Current is the item name
-                        const name = current.replace(/^[X\+\*\-]\s*/, '');
-                        if (!name.toLowerCase().match(/descrizione|iva|prezzo|total|parziale|subtotal/i)) {
-                            const price = this.parseNumber(next);
-                            if (price > 0 && price < 1000) {
-                                lineItems.push({
-                                    name: name,
-                                    quantity: 1,
-                                    price: price,
-                                    category: this.suggestCategory(name)
-                                });
+                                console.log('[OCR Parser] Found item (strategy 2):', name, '=', price);
                             }
                         }
                     }
@@ -420,7 +309,7 @@ export const ocrApi = {
             }
         }
 
-        console.log('[OCR Parser] Extracted line items:', lineItems);
+        console.log('[OCR Parser] Total line items found:', lineItems.length);
         return lineItems;
     },
 

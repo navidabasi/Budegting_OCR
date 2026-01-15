@@ -13,11 +13,11 @@ export default function SettingsPage() {
     const { register, handleSubmit, setValue, formState: { errors } } = useForm();
     const { control: controlCurrency, handleSubmit: handleSubmitCurrency, reset: resetCurrency } = useForm({
         defaultValues: {
-            defaultCurrency: 'USD'
+            defaultCurrency: 'EUR'
         }
     });
     const [apiKey, setApiKey] = useState('');
-    const [defaultCurrency, setDefaultCurrency] = useState('USD');
+    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [loading, setLoading] = useState(false);
     const [loadingCurrency, setLoadingCurrency] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);

@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/appStore';
 
 export default function CurrencyDisplay({ amount, currency: receiptCurrency }) {
     const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('USD');
+    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [loading, setLoading] = useState(false);
 

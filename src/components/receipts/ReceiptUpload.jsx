@@ -6,7 +6,7 @@ import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
 
-export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwitchToManual }) {
+export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initialFile = null, onSwitchToManual }) {
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const setLoading = useAppStore((state) => state.setLoading);
@@ -15,6 +15,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
     const [imagePreview, setImagePreview] = useState(null);
     const [ocrResult, setOcrResult] = useState(null);
     const [error, setError] = useState(null);
+    const [initialFileProcessed, setInitialFileProcessed] = useState(false);
     const videoRef = useRef(null);
     const fileInputRef = useRef(null);
     const streamRef = useRef(null);
@@ -135,6 +136,30 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
             stopCamera();
         };
     }, [isOpen, mode]);
+
+    // Process initial file if provided (from AddReceiptModal file selection)
+    useEffect(() => {
+        if (isOpen && initialFile && !initialFileProcessed && mode === 'upload') {
+            setInitialFileProcessed(true);
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setImagePreview(e.target.result);
+            };
+            reader.readAsDataURL(initialFile);
+            
+            // Process the image
+            processImage(initialFile);
+        }
+    }, [isOpen, initialFile, initialFileProcessed, mode]);
+
+    // Reset initialFileProcessed when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            setInitialFileProcessed(false);
+        }
+    }, [isOpen]);
 
     if (ocrResult) {
         return (
