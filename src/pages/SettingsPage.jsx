@@ -155,9 +155,19 @@ export default function SettingsPage() {
 
         setSyncing(true);
         setSyncStatus(null);
+
+        // Add a global timeout for the entire sync operation (30 seconds)
+        const syncTimeout = setTimeout(() => {
+            console.error('[Settings] Sync operation timed out after 30 seconds');
+            showToast('Sync timed out. Please try again.', 'error');
+            setSyncStatus({ type: 'error', message: 'Sync timed out' });
+            setSyncing(false);
+        }, 30000);
+
         try {
             console.log('[Settings] Starting sync to cloud for userId:', currentUser.userId);
             const result = await storageService.syncAllToCloud(currentUser.userId);
+            clearTimeout(syncTimeout); // Clear timeout if sync completes
             console.log('[Settings] Sync to cloud result:', result);
             if (result.errors.length > 0) {
                 showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
@@ -167,8 +177,9 @@ export default function SettingsPage() {
                 setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
             }
         } catch (err) {
+            clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync to cloud error:', err);
-            showToast(`Failed to sync: ${err.message}`, 'error');
+            showToast(`Failed to sync: ${err.message || 'Unknown error'}`, 'error');
             setSyncStatus({ type: 'error', message: 'Sync failed' });
         } finally {
             setSyncing(false);
@@ -190,7 +201,7 @@ export default function SettingsPage() {
             // If confirm throws, just proceed
             console.warn('[Settings] confirm() not supported, proceeding anyway');
         }
-        
+
         if (!shouldSync) {
             console.log('[Settings] User cancelled sync from cloud');
             return;
@@ -198,9 +209,19 @@ export default function SettingsPage() {
 
         setSyncing(true);
         setSyncStatus(null);
+
+        // Add a global timeout for the entire sync operation (30 seconds)
+        const syncTimeout = setTimeout(() => {
+            console.error('[Settings] Sync from cloud operation timed out after 30 seconds');
+            showToast('Sync timed out. Please try again.', 'error');
+            setSyncStatus({ type: 'error', message: 'Sync timed out' });
+            setSyncing(false);
+        }, 30000);
+
         try {
             console.log('[Settings] Starting sync from cloud for userId:', currentUser.userId);
             const result = await storageService.syncAllFromCloud(currentUser.userId);
+            clearTimeout(syncTimeout); // Clear timeout if sync completes
             console.log('[Settings] Sync from cloud result:', result);
             if (result.errors.length > 0) {
                 showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
@@ -212,8 +233,9 @@ export default function SettingsPage() {
                 setTimeout(() => window.location.reload(), 1000);
             }
         } catch (err) {
+            clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync from cloud error:', err);
-            showToast(`Failed to sync: ${err.message}`, 'error');
+            showToast(`Failed to sync: ${err.message || 'Unknown error'}`, 'error');
             setSyncStatus({ type: 'error', message: 'Sync failed' });
         } finally {
             setSyncing(false);
@@ -222,7 +244,7 @@ export default function SettingsPage() {
 
     const handleLogout = async () => {
         console.log('[Settings] Logout clicked');
-        
+
         // Use window.confirm with fallback
         let shouldLogout = true;
         try {
@@ -231,12 +253,12 @@ export default function SettingsPage() {
             // If confirm throws, just proceed
             console.warn('[Settings] confirm() not supported, proceeding with logout');
         }
-        
+
         if (!shouldLogout) {
             console.log('[Settings] User cancelled logout');
             return;
         }
-        
+
         try {
             console.log('[Settings] Calling logout...');
             // Call logout which will clear state and sign out from Supabase
@@ -274,20 +296,20 @@ export default function SettingsPage() {
                         placeholder="Enter your OCR.Space API key (optional)"
                         {...register('ocrApiKey')}
                     />
-                        <p className="text-xs text-gray-500 mb-2">
-                            OCR works without an API key using the free tier. Add your own key for higher limits (25,000 requests/month). Get one at{' '}
-                            <a
-                                href="https://ocr.space/ocrapi"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary-600 hover:underline"
-                            >
-                                ocr.space
-                            </a>
-                        </p>
-                        <p className="text-xs text-gray-500">
-                            <strong>Note:</strong> Leave empty to use the free tier, or enter your API key for higher limits.
-                        </p>
+                    <p className="text-xs text-gray-500 mb-2">
+                        OCR works without an API key using the free tier. Add your own key for higher limits (25,000 requests/month). Get one at{' '}
+                        <a
+                            href="https://ocr.space/ocrapi"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:underline"
+                        >
+                            ocr.space
+                        </a>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                        <strong>Note:</strong> Leave empty to use the free tier, or enter your API key for higher limits.
+                    </p>
                     <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save API Key'}
                     </Button>
@@ -359,11 +381,10 @@ export default function SettingsPage() {
                         {syncing ? 'Syncing...' : 'Sync from Cloud'}
                     </Button>
                     {syncStatus && (
-                        <p className={`text-xs mt-2 ${
-                            syncStatus.type === 'success' ? 'text-green-600' :
+                        <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600' :
                             syncStatus.type === 'warning' ? 'text-yellow-600' :
-                            'text-red-600'
-                        }`}>
+                                'text-red-600'
+                            }`}>
                             {syncStatus.message}
                         </p>
                     )}
