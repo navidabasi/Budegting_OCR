@@ -16,14 +16,17 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             
             // Load existing split data if available
             if (receipt.splitData) {
-                setMethod(receipt.splitData.method || 'equal');
-                setPeople(receipt.splitData.people || 2);
+                const splitMethod = receipt.splitData.method || 'equal';
+                const splitPeople = receipt.splitData.people || 2;
+                setMethod(splitMethod);
+                setPeople(splitPeople);
+                
                 // If custom split, load existing users
-                if (receipt.splitData.method === 'custom' && receipt.splitData.users && receipt.splitData.users.length > 0) {
+                if (splitMethod === 'custom' && receipt.splitData.users && receipt.splitData.users.length > 0) {
                     setUsers(receipt.splitData.users.map(u => ({
                         name: u.name || '',
-                        amount: u.amount || 0,
-                        percentage: u.percentage || 0
+                        amount: parseFloat(u.amount) || 0,
+                        percentage: parseFloat(u.percentage) || 0
                     })));
                 } else {
                     setUsers([]);
@@ -38,14 +41,45 @@ export default function SplitManager({ receipt, onSave, onClose }) {
     }, [receipt]);
 
     useEffect(() => {
-        if (method === 'equal') {
-            // Reset users for equal split
+        // Only reset users if switching from custom to equal, not when loading existing data
+        if (method === 'equal' && users.length > 0) {
             setUsers([]);
-        } else if (method === 'custom' && users.length === 0) {
-            // Initialize with empty users
+        } else if (method === 'custom' && users.length === 0 && (!receipt?.splitData || receipt.splitData.method !== 'custom')) {
+            // Only initialize empty users if we're not loading existing custom split data
             setUsers([{ name: '', amount: 0, percentage: 0 }]);
         }
     }, [method]);
+
+    // Auto-adjust users when people count changes in custom mode
+    useEffect(() => {
+        if (method === 'custom' && people > 0) {
+            // If we have fewer users than people, add empty ones
+            if (users.length < people) {
+                const newUsers = [...users];
+                while (newUsers.length < people) {
+                    newUsers.push({ name: '', amount: 0, percentage: 0 });
+                }
+                // Recalculate remaining amounts
+                const customTotal = newUsers.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+                const remaining = total - customTotal;
+                const remainingPeople = people - newUsers.filter(u => (parseFloat(u.amount) || 0) > 0).length;
+                
+                if (remainingPeople > 0 && remaining > 0) {
+                    const perPerson = remaining / remainingPeople;
+                    newUsers.forEach((user, idx) => {
+                        if ((parseFloat(user.amount) || 0) === 0) {
+                            user.amount = perPerson;
+                            user.percentage = total > 0 ? (perPerson / total) * 100 : 0;
+                        }
+                    });
+                }
+                setUsers(newUsers);
+            } else if (users.length > people) {
+                // Remove excess users
+                setUsers(users.slice(0, people));
+            }
+        }
+    }, [people, method]);
 
     const calculateEqualSplit = () => {
         if (people <= 0) return 0;
@@ -76,11 +110,30 @@ export default function SplitManager({ receipt, onSave, onClose }) {
         const updated = [...users];
         updated[index] = { ...updated[index], [field]: value };
         
-        // If amount changed, recalculate percentage
+        // If amount changed, recalculate percentage and auto-distribute remaining
         if (field === 'amount') {
             const amount = parseFloat(value) || 0;
             updated[index].amount = amount;
             updated[index].percentage = total > 0 ? (amount / total) * 100 : 0;
+            
+            // Auto-calculate remaining amounts for other users
+            const customTotal = updated.reduce((sum, u, idx) => {
+                if (idx === index) return sum + amount;
+                return sum + (parseFloat(u.amount) || 0);
+            }, 0);
+            const remaining = total - customTotal;
+            const remainingPeople = people - updated.length;
+            
+            // Distribute remaining equally among other users (excluding the one being edited)
+            if (remainingPeople > 0 && remaining > 0) {
+                const perPerson = remaining / remainingPeople;
+                updated.forEach((user, idx) => {
+                    if (idx !== index) {
+                        user.amount = perPerson;
+                        user.percentage = total > 0 ? (perPerson / total) * 100 : 0;
+                    }
+                });
+            }
         }
         
         setUsers(updated);
@@ -232,7 +285,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                     <div key={index} className="flex gap-2 items-center p-2 border border-gray-200 rounded">
                                         <Input
                                             placeholder="Name (optional)"
-                                            value={user.name}
+                                            value={user.name || ''}
                                             onChange={(e) => handleUserChange(index, 'name', e.target.value)}
                                             className="flex-1"
                                         />
@@ -240,8 +293,9 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                             type="number"
                                             step="0.01"
                                             min="0"
+                                            max={total}
                                             placeholder="Amount"
-                                            value={user.amount || ''}
+                                            value={user.amount > 0 ? user.amount : ''}
                                             onChange={(e) => handleUserChange(index, 'amount', e.target.value)}
                                             className="w-32"
                                         />

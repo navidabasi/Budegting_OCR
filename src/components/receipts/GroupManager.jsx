@@ -70,7 +70,8 @@ export default function GroupManager({ receipts, onUpdate }) {
                     });
                 }
             }
-            await onUpdate();
+            await onUpdate(); // This will refresh receipts
+            loadGroups(); // Reload groups immediately
             setShowCreateGroup(false);
             setNewGroupName('');
             setNewGroupTags('');

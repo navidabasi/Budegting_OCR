@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Users } from 'lucide-react';
 import Input from '../common/Input';
 import Button from '../common/Button';
+import SplitManager from './SplitManager';
 import { categoryService } from '../../services/categoryService';
 import { formatCurrency } from '../../utils/helpers';
 import { storageService } from '../../services/storage';
@@ -19,6 +20,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [groups, setGroups] = useState([]);
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+    const [showSplitManager, setShowSplitManager] = useState(false);
+    const [splitData, setSplitData] = useState(null);
 
     const formatDateForInput = (dateString) => {
         if (!dateString) return new Date().toISOString().split('T')[0];
@@ -53,6 +56,12 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             groupName: ''
         }
     });
+
+    useEffect(() => {
+        if (initialData?.splitData) {
+            setSplitData(initialData.splitData);
+        }
+    }, [initialData]);
 
     useEffect(() => {
         const loadDefaultCurrency = async () => {
@@ -231,7 +240,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             transactionType: data.transactionType || 'expense',
             groupId: data.groupId || null,
             groupName: data.groupName || null,
-            groupTags: data.groupTags || []
+            groupTags: data.groupTags || [],
+            splitData: splitData || null
         };
 
         onSave(receiptData);
@@ -483,6 +493,38 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 )}
             </div>
 
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Split Receipt (optional)
+                </label>
+                <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant={splitData ? "primary" : "secondary"}
+                        onClick={() => setShowSplitManager(true)}
+                        className="flex items-center gap-2"
+                    >
+                        <Users size={18} />
+                        {splitData ? (
+                            splitData.method === 'equal' 
+                                ? `Split between ${splitData.people} people`
+                                : `Custom split (${splitData.users?.length || 0} people)`
+                        ) : 'Add Split'}
+                    </Button>
+                    {splitData && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSplitData(null);
+                            }}
+                            className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                            Remove
+                        </button>
+                    )}
+                </div>
+            </div>
+
             <div className="flex gap-2 pt-4">
                 <Button type="submit" variant="primary" className="flex-1">
                     Save Receipt
@@ -491,6 +533,22 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     Cancel
                 </Button>
             </div>
+
+            {showSplitManager && (
+                <SplitManager
+                    receipt={{
+                        ...initialData,
+                        total: parseFloat(watch('total')) || calculateTotal(),
+                        currency: watch('currency') || defaultCurrency,
+                        splitData: splitData
+                    }}
+                    onSave={(data) => {
+                        setSplitData(data);
+                        setShowSplitManager(false);
+                    }}
+                    onClose={() => setShowSplitManager(false)}
+                />
+            )}
         </form>
     );
 }
