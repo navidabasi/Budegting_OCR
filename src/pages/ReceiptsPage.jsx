@@ -57,9 +57,14 @@ export default function ReceiptsPage() {
     }, []);
 
     useEffect(() => {
+        // Check for group filter in URL
+        const groupParam = searchParams.get('group');
+        if (groupParam && groupParam !== selectedGroup) {
+            setSelectedGroup(groupParam);
+        }
         applyFilters();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear]);
+    }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear, selectedGroup]);
 
     const loadReceipts = async () => {
         if (!currentUser) return;
@@ -157,7 +162,15 @@ export default function ReceiptsPage() {
                     item.name?.toLowerCase().includes(query)
                 );
                 
-                return matchesBasic || matchesLineItems;
+                // Search in group name
+                const matchesGroup = receipt.groupName?.toLowerCase().includes(query);
+                
+                // Search in group tags
+                const matchesTags = receipt.groupTags?.some(tag => 
+                    tag.toLowerCase().includes(query)
+                );
+                
+                return matchesBasic || matchesLineItems || matchesGroup || matchesTags;
             });
         }
 

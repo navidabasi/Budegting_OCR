@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Tag, Edit2, Trash2 } from 'lucide-react';
+import { X, Plus, Tag, Edit2, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
+import { useNavigate } from 'react-router-dom';
 
 export default function GroupManager({ receipts, onUpdate }) {
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
+    const navigate = useNavigate();
     const [groups, setGroups] = useState([]);
     const [selectedReceipts, setSelectedReceipts] = useState(new Set());
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -15,6 +17,8 @@ export default function GroupManager({ receipts, onUpdate }) {
     const [newGroupTags, setNewGroupTags] = useState('');
     const [editingGroup, setEditingGroup] = useState(null);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [expandedGroups, setExpandedGroups] = useState(new Set());
+    const [selectedGroup, setSelectedGroup] = useState(null);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -267,71 +271,120 @@ export default function GroupManager({ receipts, onUpdate }) {
                     </p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {groups.map(group => (
-                        <div key={group.id} className="card">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <Tag className="text-primary-600" size={18} />
-                                    <h4 className="font-semibold">{group.name}</h4>
-                                    {group.tags.length > 0 && (
-                                        <div className="flex gap-1 flex-wrap">
-                                            {group.tags.map((tag, idx) => (
-                                                <span
-                                                    key={idx}
-                                                    className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded"
-                                                >
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => {
-                                            setEditingGroup(group);
-                                            setNewGroupName(group.name);
-                                            setNewGroupTags(group.tags.join(', '));
-                                        }}
-                                        className="p-1 text-gray-500 hover:text-gray-700"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteGroup(group.id)}
-                                        className="p-1 text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="text-sm text-gray-600 mb-3">
-                                {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
-                            </div>
-                            <div className="space-y-2">
-                                {group.receipts.map(receipt => (
-                                    <div
-                                        key={receipt.id}
-                                        className="flex items-center justify-between p-2 border border-gray-200 rounded"
-                                    >
-                                        <div>
-                                            <div className="font-medium">{receipt.merchant || 'Unknown'}</div>
-                                            <div className="text-xs text-gray-500">
-                                                {new Date(receipt.date).toLocaleDateString()}
-                                            </div>
-                                        </div>
+                <div className="space-y-2">
+                    {groups.map(group => {
+                        const isExpanded = expandedGroups.has(group.id);
+                        const isSelected = selectedGroup === group.id;
+                        
+                        return (
+                            <div 
+                                key={group.id} 
+                                className={`card cursor-pointer transition-colors ${
+                                    isSelected ? 'border-2 border-primary-500 bg-primary-50' : ''
+                                }`}
+                                onClick={() => {
+                                    if (isSelected) {
+                                        setSelectedGroup(null);
+                                    } else {
+                                        setSelectedGroup(group.id);
+                                        // Filter receipts by this group
+                                        navigate(`/receipts?group=${group.id}`);
+                                    }
+                                }}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 flex-1">
                                         <button
-                                            onClick={() => handleRemoveFromGroup(receipt.id)}
-                                            className="text-red-500 hover:text-red-700"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newExpanded = new Set(expandedGroups);
+                                                if (newExpanded.has(group.id)) {
+                                                    newExpanded.delete(group.id);
+                                                } else {
+                                                    newExpanded.add(group.id);
+                                                }
+                                                setExpandedGroups(newExpanded);
+                                            }}
+                                            className="p-1 hover:bg-gray-100 rounded"
                                         >
-                                            <X size={16} />
+                                            {isExpanded ? (
+                                                <ChevronDown size={16} className="text-gray-500" />
+                                            ) : (
+                                                <ChevronRight size={16} className="text-gray-500" />
+                                            )}
+                                        </button>
+                                        <Tag className="text-primary-600" size={18} />
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold">{group.name}</h4>
+                                            {group.tags.length > 0 && (
+                                                <div className="flex gap-1 flex-wrap mt-1">
+                                                    {group.tags.map((tag, idx) => (
+                                                        <span
+                                                            key={idx}
+                                                            className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded"
+                                                        >
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-sm text-gray-600">
+                                            {group.receipts.length} receipt{group.receipts.length !== 1 ? 's' : ''}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 ml-2" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                            onClick={() => {
+                                                setEditingGroup(group);
+                                                setNewGroupName(group.name);
+                                                setNewGroupTags(group.tags.join(', '));
+                                            }}
+                                            className="p-1 text-gray-500 hover:text-gray-700"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteGroup(group.id)}
+                                            className="p-1 text-red-500 hover:text-red-700"
+                                        >
+                                            <Trash2 size={16} />
                                         </button>
                                     </div>
-                                ))}
+                                </div>
+                                {isExpanded && (
+                                    <div className="mt-3 pt-3 border-t space-y-2">
+                                        {group.receipts.map(receipt => (
+                                            <div
+                                                key={receipt.id}
+                                                className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/receipts/${receipt.id}`);
+                                                }}
+                                            >
+                                                <div>
+                                                    <div className="font-medium">{receipt.merchant || 'Unknown'}</div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {new Date(receipt.date).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemoveFromGroup(receipt.id);
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

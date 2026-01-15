@@ -314,27 +314,32 @@ export default function ExpenseChart({ receipts }) {
                         </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                        {selectedDayReceipts.map(receipt => (
-                            <div
-                                key={receipt.id}
-                                onClick={() => navigate(`/receipts/${receipt.id}`)}
-                                className="flex flex-col p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                            >
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
-                                        <p className="font-medium text-gray-900">{receipt.merchant}</p>
-                                        {receipt.category && (
-                                            <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded" style={{ backgroundColor: '#e6f5f2', color: '#00573f' }}>
-                                                {receipt.category}
-                                            </span>
-                                        )}
+                        {selectedDayReceipts.map(receipt => {
+                            const isIncome = receipt.transactionType === 'income';
+                            return (
+                                <div
+                                    key={receipt.id}
+                                    className={`p-3 border rounded-lg cursor-pointer hover:shadow-md transition-shadow ${
+                                        isIncome 
+                                            ? 'bg-green-50 border-green-200' 
+                                            : 'bg-red-50 border-red-200'
+                                    }`}
+                                    onClick={() => navigate(`/receipts/${receipt.id}`)}
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-gray-900">{receipt.merchant}</span>
+                                        <span className={`font-bold ${
+                                            isIncome ? 'text-green-700' : 'text-red-700'
+                                        }`}>
+                                            <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
+                                        </span>
                                     </div>
+                                    {receipt.category && (
+                                        <span className="text-xs text-gray-600">{receipt.category}</span>
+                                    )}
                                 </div>
-                                <p className="font-semibold text-gray-900 mt-auto">
-                                    <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
-                                </p>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}

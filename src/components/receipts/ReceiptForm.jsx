@@ -111,7 +111,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         }
                     }
                 });
-                setGroups(Array.from(groupMap.values()));
+                const groupsList = Array.from(groupMap.values());
+                setGroups(groupsList);
+                console.log('[ReceiptForm] Loaded groups:', groupsList);
             } catch (error) {
                 console.error('Failed to load groups:', error);
             }
@@ -239,22 +241,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <Input
-                label="Merchant"
-                {...register('merchant', { required: 'Merchant name is required' })}
-                error={errors.merchant?.message}
-            />
-
-            <Input
-                label="Date"
-                type="date"
-                {...register('date', { required: 'Date is required' })}
-                error={errors.date?.message}
-            />
-
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transaction Type
+                    Transaction Type *
                 </label>
                 <div className="flex gap-2">
                     <button
@@ -280,8 +269,21 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         Income
                     </button>
                 </div>
-                <input type="hidden" {...register('transactionType')} />
+                <input type="hidden" {...register('transactionType', { value: 'expense' })} />
             </div>
+
+            <Input
+                label="Merchant"
+                {...register('merchant', { required: 'Merchant name is required' })}
+                error={errors.merchant?.message}
+            />
+
+            <Input
+                label="Date"
+                type="date"
+                {...register('date', { required: 'Date is required' })}
+                error={errors.date?.message}
+            />
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

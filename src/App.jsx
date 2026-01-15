@@ -136,10 +136,10 @@ function App() {
         // Initial sync when app loads
         syncFromCloud(currentUser.userId, true);
 
-        // Set up periodic sync (every 30 seconds)
+        // Set up periodic sync (every 5 minutes)
         syncIntervalRef.current = setInterval(() => {
             syncFromCloud(currentUser.userId, true);
-        }, 30000); // 30 seconds
+        }, 300000); // 5 minutes
 
         // Sync when user returns to the app (Page Visibility API)
         const handleVisibilityChange = () => {

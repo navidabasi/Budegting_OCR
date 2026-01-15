@@ -18,7 +18,16 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             if (receipt.splitData) {
                 setMethod(receipt.splitData.method || 'equal');
                 setPeople(receipt.splitData.people || 2);
-                setUsers(receipt.splitData.users || []);
+                // If custom split, load existing users
+                if (receipt.splitData.method === 'custom' && receipt.splitData.users && receipt.splitData.users.length > 0) {
+                    setUsers(receipt.splitData.users.map(u => ({
+                        name: u.name || '',
+                        amount: u.amount || 0,
+                        percentage: u.percentage || 0
+                    })));
+                } else {
+                    setUsers([]);
+                }
             } else {
                 // Initialize with default
                 setMethod('equal');
@@ -78,6 +87,23 @@ export default function SplitManager({ receipt, onSave, onClose }) {
     };
 
     const handleSave = () => {
+        // Validate custom split - ensure total matches
+        if (method === 'custom') {
+            const customTotal = users.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+            const difference = Math.abs(total - customTotal);
+            
+            if (difference > 0.01) { // Allow small rounding differences
+                alert(`The split amounts (${formatCurrency(customTotal, receipt?.currency || 'EUR')}) don't match the total (${formatCurrency(total, receipt?.currency || 'EUR')}). Please adjust the amounts.`);
+                return;
+            }
+            
+            // Ensure all people have amounts
+            if (users.length !== people) {
+                alert(`Please add amounts for all ${people} people.`);
+                return;
+            }
+        }
+
         const splitData = {
             method,
             people,
@@ -187,16 +213,18 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-gray-700">
-                                    Custom Amounts
+                                    Custom Amounts ({users.length} / {people})
                                 </label>
-                                <button
-                                    type="button"
-                                    onClick={handleAddUser}
-                                    className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                                >
-                                    <Plus size={16} />
-                                    Add Person
-                                </button>
+                                {users.length < people && (
+                                    <button
+                                        type="button"
+                                        onClick={handleAddUser}
+                                        className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                                    >
+                                        <Plus size={16} />
+                                        Add Person
+                                    </button>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -247,16 +275,18 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                 </div>
                             )}
 
-                            {users.length === people && remaining !== 0 && (
+                            {users.length === people && (
                                 <div className={`mt-3 p-3 rounded-lg ${
                                     Math.abs(remaining) < 0.01 
                                         ? 'bg-green-50 border border-green-200' 
-                                        : 'bg-yellow-50 border border-yellow-200'
+                                        : 'bg-red-50 border border-red-200'
                                 }`}>
-                                    <div className="text-sm font-medium">
+                                    <div className={`text-sm font-medium ${
+                                        Math.abs(remaining) < 0.01 ? 'text-green-700' : 'text-red-700'
+                                    }`}>
                                         {Math.abs(remaining) < 0.01 
                                             ? '✓ Split is balanced' 
-                                            : `⚠ Remaining: ${formatCurrency(Math.abs(remaining), receipt?.currency || 'EUR')}`}
+                                            : `⚠ Remaining: ${formatCurrency(Math.abs(remaining), receipt?.currency || 'EUR')}. Please adjust amounts to match the total.`}
                                     </div>
                                 </div>
                             )}
