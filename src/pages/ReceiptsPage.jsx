@@ -305,7 +305,14 @@ export default function ReceiptsPage() {
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Group</label>
                                 <select
                                     value={selectedGroup}
-                                    onChange={(e) => setSelectedGroup(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedGroup(e.target.value);
+                                        if (e.target.value) {
+                                            setSearchParams({ group: e.target.value });
+                                        } else {
+                                            setSearchParams({});
+                                        }
+                                    }}
                                     className="input text-sm py-2"
                                 >
                                     <option value="">All Groups</option>
@@ -313,6 +320,22 @@ export default function ReceiptsPage() {
                                         <option key={group.id} value={group.id}>{group.name}</option>
                                     ))}
                                 </select>
+                                {selectedGroup && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">
+                                            {getAvailableGroups().find(g => g.id === selectedGroup)?.name || 'Selected Group'}
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedGroup('');
+                                                    setSearchParams({});
+                                                }}
+                                                className="text-blue-700 hover:text-blue-900"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Month</label>

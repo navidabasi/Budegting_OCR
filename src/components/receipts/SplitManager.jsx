@@ -12,7 +12,8 @@ export default function SplitManager({ receipt, onSave, onClose }) {
 
     useEffect(() => {
         if (receipt) {
-            setTotal(parseFloat(receipt.total) || 0);
+            const receiptTotal = parseFloat(receipt.total) || 0;
+            setTotal(receiptTotal);
             
             // Load existing split data if available
             if (receipt.splitData) {
@@ -23,11 +24,32 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                 
                 // If custom split, load existing users
                 if (splitMethod === 'custom' && receipt.splitData.users && receipt.splitData.users.length > 0) {
-                    setUsers(receipt.splitData.users.map(u => ({
+                    const loadedUsers = receipt.splitData.users.map(u => ({
                         name: u.name || '',
                         amount: parseFloat(u.amount) || 0,
                         percentage: parseFloat(u.percentage) || 0
-                    })));
+                    }));
+                    setUsers(loadedUsers);
+                    
+                    // If we have fewer users than people, add empty ones with calculated amounts
+                    if (loadedUsers.length < splitPeople) {
+                        const customTotal = loadedUsers.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+                        const remaining = receiptTotal - customTotal;
+                        const remainingPeople = splitPeople - loadedUsers.length;
+                        
+                        if (remainingPeople > 0 && remaining > 0) {
+                            const perPerson = remaining / remainingPeople;
+                            const newUsers = [...loadedUsers];
+                            for (let i = 0; i < remainingPeople; i++) {
+                                newUsers.push({
+                                    name: '',
+                                    amount: perPerson,
+                                    percentage: receiptTotal > 0 ? (perPerson / receiptTotal) * 100 : 0
+                                });
+                            }
+                            setUsers(newUsers);
+                        }
+                    }
                 } else {
                     setUsers([]);
                 }
@@ -46,7 +68,17 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             setUsers([]);
         } else if (method === 'custom' && users.length === 0 && (!receipt?.splitData || receipt.splitData.method !== 'custom')) {
             // Only initialize empty users if we're not loading existing custom split data
-            setUsers([{ name: '', amount: 0, percentage: 0 }]);
+            // Distribute total equally among all people
+            const perPerson = total / people;
+            const initialUsers = [];
+            for (let i = 0; i < people; i++) {
+                initialUsers.push({
+                    name: '',
+                    amount: perPerson,
+                    percentage: total > 0 ? (perPerson / total) * 100 : 0
+                });
+            }
+            setUsers(initialUsers);
         }
     }, [method]);
 
@@ -99,7 +131,18 @@ export default function SplitManager({ receipt, onSave, onClose }) {
     };
 
     const handleAddUser = () => {
-        setUsers([...users, { name: '', amount: 0, percentage: 0 }]);
+        // Calculate remaining amount and distribute it to the new user
+        const customTotal = users.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+        const remaining = total - customTotal;
+        const remainingPeople = people - users.length;
+        
+        let newAmount = 0;
+        if (remainingPeople > 0 && remaining > 0) {
+            // Distribute remaining equally among remaining people (including the new one)
+            newAmount = remaining / remainingPeople;
+        }
+        
+        setUsers([...users, { name: '', amount: newAmount, percentage: total > 0 ? (newAmount / total) * 100 : 0 }]);
     };
 
     const handleRemoveUser = (index) => {
@@ -295,7 +338,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                             min="0"
                                             max={total}
                                             placeholder="Amount"
-                                            value={user.amount > 0 ? user.amount : ''}
+                                            value={user.amount > 0 ? user.amount.toString() : ''}
                                             onChange={(e) => handleUserChange(index, 'amount', e.target.value)}
                                             className="w-32"
                                         />
@@ -305,7 +348,24 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                         {users.length > 1 && (
                                             <button
                                                 type="button"
-                                                onClick={() => handleRemoveUser(index)}
+                                                onClick={() => {
+                                                    const updated = users.filter((_, i) => i !== index);
+                                                    // Recalculate remaining amounts
+                                                    const customTotal = updated.reduce((sum, u) => sum + (parseFloat(u.amount) || 0), 0);
+                                                    const remaining = total - customTotal;
+                                                    const remainingPeople = people - updated.length;
+                                                    
+                                                    if (remainingPeople > 0 && remaining > 0) {
+                                                        const perPerson = remaining / remainingPeople;
+                                                        updated.forEach((u) => {
+                                                            if ((parseFloat(u.amount) || 0) === 0) {
+                                                                u.amount = perPerson;
+                                                                u.percentage = total > 0 ? (perPerson / total) * 100 : 0;
+                                                            }
+                                                        });
+                                                    }
+                                                    setUsers(updated);
+                                                }}
                                                 className="text-red-500 hover:text-red-700"
                                             >
                                                 <X size={18} />

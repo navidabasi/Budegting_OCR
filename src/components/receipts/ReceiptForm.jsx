@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, X } from 'lucide-react';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import SplitManager from './SplitManager';
@@ -428,22 +428,43 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     Group (optional)
                 </label>
                 <div className="flex gap-2">
-                    <select
-                        {...register('groupId')}
-                        className="input flex-1"
-                        onChange={(e) => {
-                            const selectedGroup = groups.find(g => g.id === e.target.value);
-                            setValue('groupId', e.target.value || '');
-                            setValue('groupName', selectedGroup?.name || '');
-                        }}
-                    >
-                        <option value="">No group</option>
-                        {groups.map(group => (
-                            <option key={group.id} value={group.id}>
-                                {group.name}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="flex-1">
+                        {watch('groupId') && watch('groupName') && (
+                            <div className="mb-2 flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Selected:</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 text-blue-700 rounded">
+                                    {watch('groupName')}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValue('groupId', '');
+                                            setValue('groupName', '');
+                                        }}
+                                        className="text-blue-700 hover:text-blue-900"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </span>
+                            </div>
+                        )}
+                        <select
+                            {...register('groupId')}
+                            className="input"
+                            value={watch('groupId') || ''}
+                            onChange={(e) => {
+                                const selectedGroup = groups.find(g => g.id === e.target.value);
+                                setValue('groupId', e.target.value || '');
+                                setValue('groupName', selectedGroup?.name || '');
+                            }}
+                        >
+                            <option value="">No group</option>
+                            {groups.map(group => (
+                                <option key={group.id} value={group.id}>
+                                    {group.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     <Button
                         type="button"
                         variant="secondary"
@@ -468,9 +489,19 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 onClick={async () => {
                                     if (!newGroupName.trim()) return;
                                     const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                    const groupName = newGroupName.trim();
+                                    
+                                    // Add to groups list immediately
+                                    const newGroup = { id: groupId, name: groupName };
+                                    setGroups([...groups, newGroup]);
+                                    
+                                    // Set form values
                                     setValue('groupId', groupId);
-                                    setValue('groupName', newGroupName.trim());
+                                    setValue('groupName', groupName);
+                                    
+                                    // Reload groups to ensure consistency
                                     await loadGroups();
+                                    
                                     setNewGroupName('');
                                     setShowNewGroupInput(false);
                                 }}
