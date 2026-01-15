@@ -217,16 +217,20 @@ export const storageService = {
         const supabaseUserId = userId;
 
         // Save locally first (fast, always works)
+        // Note: settings table uses userId as primary key, not auto-increment id
         const existing = await db.settings.where('userId').equals(userId).first();
         if (existing) {
-            await db.settings.update(existing.id, {
+            // Update using userId as the key (it's the primary key)
+            await db.settings.put({
+                userId: String(userId),
                 ...sanitizedSettings,
+                createdAt: existing.createdAt || new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 syncedAt: null // Will be updated if Supabase sync succeeds
             });
         } else {
             await db.settings.add({
-                userId: String(userId), // Ensure it's a string
+                userId: String(userId),
                 ...sanitizedSettings,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -243,9 +247,11 @@ export const storageService = {
                 const syncPromise = supabaseService.saveSettings(supabaseUserId, sanitizedSettings)
                     .then(async () => {
                         // Update syncedAt if sync succeeds
-                        const localSettings = existing || await db.settings.where('userId').equals(userId).first();
+                        const localSettings = await db.settings.where('userId').equals(userId).first();
                         if (localSettings) {
-                            return db.settings.update(localSettings.id, {
+                            // Use put() since userId is the primary key
+                            return db.settings.put({
+                                ...localSettings,
                                 syncedAt: new Date().toISOString()
                             });
                         }
@@ -421,7 +427,9 @@ export const storageService = {
                 await supabaseService.saveSettings(userId, settings);
                 const existing = await db.settings.where('userId').equals(userId).first();
                 if (existing) {
-                    await db.settings.update(existing.id, {
+                    // Use put() since userId is the primary key
+                    await db.settings.put({
+                        ...existing,
                         syncedAt: new Date().toISOString()
                     });
                 }

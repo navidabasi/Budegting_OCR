@@ -9,39 +9,26 @@ export const ocrApi = {
                 fileName: imageFile.name
             });
 
-            // Convert file to base64 for sending to proxy
-            const base64File = await this.fileToBase64(imageFile);
+            // Try direct API call first (works in production and may work in dev)
+            // Fall back to proxy if direct call fails due to CORS
+            let data;
 
-            // Use proxy endpoint to avoid CORS issues
-            const proxyUrl = '/api/ocr-proxy';
+            try {
+                data = await this.callOcrSpaceDirect(imageFile, apiKey);
+            } catch (directError) {
+                console.log('[OCR.Space] Direct call failed, trying proxy...', directError.message);
 
-            const response = await fetch(proxyUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    apiKey: apiKey || '',
-                    file: base64File,
-                    fileName: imageFile.name || 'receipt.jpg'
-                })
-            });
-
-            console.log('[OCR.Space] Proxy response status:', response.status, response.statusText);
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-
-                if (response.status === 401) {
-                    throw new Error('Invalid API key. Please check your OCR.Space API key in Settings.');
-                } else if (response.status === 429) {
-                    throw new Error('API rate limit exceeded. Please try again later.');
-                } else {
-                    throw new Error(errorData.error || errorData.errorMessage || `API error (${response.status}): ${response.statusText}`);
+                // Try proxy as fallback
+                try {
+                    data = await this.callOcrSpaceViaProxy(imageFile, apiKey);
+                } catch (proxyError) {
+                    // If both fail, throw the more descriptive error
+                    throw new Error(directError.message.includes('CORS') || directError.message.includes('Failed to fetch')
+                        ? proxyError.message
+                        : directError.message);
                 }
             }
 
-            const data = await response.json();
             console.log('[OCR.Space] Success! Received data:', data);
 
             // Check for errors in response
@@ -61,6 +48,78 @@ export const ocrApi = {
 
             throw new Error(`Failed to process receipt: ${error.message}`);
         }
+    },
+
+    // Direct call to OCR.Space API (may fail due to CORS in browser)
+    async callOcrSpaceDirect(imageFile, apiKey) {
+        const formData = new FormData();
+        formData.append('apikey', apiKey || 'helloworld'); // helloworld is free tier test key
+        formData.append('language', 'eng');
+        formData.append('OCREngine', '2');
+        formData.append('detectOrientation', 'true');
+        formData.append('scale', 'true');
+        formData.append('isTable', 'true');
+        formData.append('file', imageFile);
+
+        const response = await fetch('https://api.ocr.space/parse/image', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('Invalid API key. Please check your OCR.Space API key in Settings.');
+            } else if (response.status === 429) {
+                throw new Error('API rate limit exceeded. Please try again later.');
+            }
+            throw new Error(`OCR API error: ${response.status} - ${errorText}`);
+        }
+
+        return await response.json();
+    },
+
+    // Call via Vercel proxy (for production or when direct call fails)
+    async callOcrSpaceViaProxy(imageFile, apiKey) {
+        const base64File = await this.fileToBase64(imageFile);
+        const proxyUrl = '/api/ocr-proxy';
+
+        const response = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                apiKey: apiKey || '',
+                file: base64File,
+                fileName: imageFile.name || 'receipt.jpg'
+            })
+        });
+
+        console.log('[OCR.Space] Proxy response status:', response.status, response.statusText);
+
+        // Try to parse response as JSON
+        let data;
+        const responseText = await response.text();
+
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('[OCR.Space] Failed to parse proxy response:', responseText.substring(0, 200));
+            throw new Error('Server returned invalid response. Please try again or use a different image.');
+        }
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('Invalid API key. Please check your OCR.Space API key in Settings.');
+            } else if (response.status === 429) {
+                throw new Error('API rate limit exceeded. Please try again later.');
+            } else {
+                throw new Error(data.error || data.errorMessage || `API error (${response.status}): ${response.statusText}`);
+            }
+        }
+
+        return data;
     },
 
     // Helper function to convert file to base64
