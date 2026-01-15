@@ -16,10 +16,18 @@ export default function CategoryChart({ receipts }) {
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
     const categoryTotals = {};
+    const categoryIncome = {};
 
     receipts.forEach(receipt => {
         const category = receipt.category || 'Other';
-        categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(receipt.total) || 0);
+        const amount = parseFloat(receipt.total) || 0;
+        const transactionType = receipt.transactionType || 'expense';
+        
+        if (transactionType === 'income') {
+            categoryIncome[category] = (categoryIncome[category] || 0) + amount;
+        } else {
+            categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+        }
     });
 
     const allCategories = Object.keys(categoryTotals);

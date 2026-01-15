@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { LogOut, Database, Key, DollarSign, Cloud } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2 } from 'lucide-react';
 
 export default function SettingsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -23,10 +23,25 @@ export default function SettingsPage() {
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
+    const [customCategories, setCustomCategories] = useState([]);
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryColor, setNewCategoryColor] = useState('#00573f');
 
     useEffect(() => {
         loadSettings();
+        loadCustomCategories();
     }, [currentUser]);
+
+    const loadCustomCategories = async () => {
+        if (!currentUser) return;
+        try {
+            const categories = await storageService.getUserCategories(currentUser.userId);
+            setCustomCategories(categories);
+        } catch (err) {
+            console.error('Failed to load custom categories:', err);
+        }
+    };
 
     const loadSettings = async () => {
         if (!currentUser) return;
@@ -374,6 +389,139 @@ export default function SettingsPage() {
                     >
                         Clear Demo Data
                     </Button>
+                </div>
+            </div>
+
+            <div className="card">
+                <div className="flex items-center gap-3 mb-4">
+                    <Tag className="text-primary-600" size={20} />
+                    <h3 className="font-semibold">Custom Categories</h3>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                    Create custom categories that sync across all your devices
+                </p>
+
+                <div className="space-y-3 mb-4">
+                    {customCategories.map(category => (
+                        <div key={category.id} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg">
+                            <div
+                                className="w-6 h-6 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: category.color || '#00573f' }}
+                            />
+                            <span className="flex-1 font-medium">{category.name}</span>
+                            <button
+                                onClick={() => {
+                                    setEditingCategory(category);
+                                    setNewCategoryName(category.name);
+                                    setNewCategoryColor(category.color || '#00573f');
+                                }}
+                                className="p-1 text-gray-500 hover:text-gray-700"
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirm(`Delete category "${category.name}"?`)) {
+                                        try {
+                                            await storageService.deleteUserCategory(category.id);
+                                            await loadCustomCategories();
+                                            showToast('Category deleted', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to delete: ${err.message}`, 'error');
+                                        }
+                                    }
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="border-t pt-4">
+                    <div className="flex gap-2 mb-2">
+                        <Input
+                            placeholder="Category name"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            className="flex-1"
+                        />
+                        <input
+                            type="color"
+                            value={newCategoryColor}
+                            onChange={(e) => setNewCategoryColor(e.target.value)}
+                            className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        {editingCategory ? (
+                            <>
+                                <Button
+                                    variant="primary"
+                                    onClick={async () => {
+                                        if (!newCategoryName.trim()) {
+                                            showToast('Category name is required', 'error');
+                                            return;
+                                        }
+                                        try {
+                                            await storageService.updateUserCategory(editingCategory.id, {
+                                                name: newCategoryName.trim(),
+                                                color: newCategoryColor
+                                            });
+                                            await loadCustomCategories();
+                                            setEditingCategory(null);
+                                            setNewCategoryName('');
+                                            setNewCategoryColor('#00573f');
+                                            showToast('Category updated', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to update: ${err.message}`, 'error');
+                                        }
+                                    }}
+                                    className="flex-1"
+                                >
+                                    Update
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setEditingCategory(null);
+                                        setNewCategoryName('');
+                                        setNewCategoryColor('#00573f');
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="primary"
+                                onClick={async () => {
+                                    if (!newCategoryName.trim()) {
+                                        showToast('Category name is required', 'error');
+                                        return;
+                                    }
+                                    if (!currentUser) return;
+                                    try {
+                                        await storageService.createUserCategory(currentUser.userId, {
+                                            name: newCategoryName.trim(),
+                                            color: newCategoryColor
+                                        });
+                                        await loadCustomCategories();
+                                        setNewCategoryName('');
+                                        setNewCategoryColor('#00573f');
+                                        showToast('Category created', 'success');
+                                    } catch (err) {
+                                        showToast(`Failed to create: ${err.message}`, 'error');
+                                    }
+                                }}
+                                className="w-full flex items-center justify-center gap-2"
+                            >
+                                <Plus size={18} />
+                                Add Category
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 

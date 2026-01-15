@@ -204,19 +204,15 @@ export const supabaseService = {
         const authenticatedUserId = user.id;
         console.log('[Supabase createReceipt] Using authenticated user ID:', authenticatedUserId);
 
+        // Transform receipt to Supabase format
+        const supabaseReceipt = this.transformReceiptToSupabase({
+            ...receipt,
+            userId: authenticatedUserId // Override with authenticated user ID
+        });
+
         const { data, error } = await supabase
             .from('receipts')
-            .insert([{
-                user_id: authenticatedUserId, // Always use auth.uid() for RLS
-                merchant: receipt.merchant,
-                date: receipt.date,
-                total: receipt.total,
-                currency: receipt.currency || 'EUR',
-                category: receipt.category,
-                notes: receipt.notes,
-                line_items: receipt.lineItems || [],
-                is_demo: receipt.isDemo || false
-            }])
+            .insert([supabaseReceipt])
             .select()
             .single();
 
@@ -280,18 +276,14 @@ export const supabaseService = {
     async updateReceipt(id, updates) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Transform updates to Supabase format
+        const supabaseUpdates = this.transformReceiptToSupabase(updates);
+        // Remove user_id from updates (shouldn't change)
+        delete supabaseUpdates.user_id;
+
         const { data, error } = await supabase
             .from('receipts')
-            .update({
-                merchant: updates.merchant,
-                date: updates.date,
-                total: updates.total,
-                currency: updates.currency,
-                category: updates.category,
-                notes: updates.notes,
-                line_items: updates.lineItems,
-                updated_at: new Date().toISOString()
-            })
+            .update(supabaseUpdates)
             .eq('id', id)
             .select()
             .single();
@@ -391,6 +383,11 @@ export const supabaseService = {
             notes: supabaseReceipt.notes,
             lineItems: supabaseReceipt.line_items || [],
             isDemo: supabaseReceipt.is_demo || false,
+            transactionType: supabaseReceipt.transaction_type || 'expense',
+            groupId: supabaseReceipt.group_id || null,
+            groupName: supabaseReceipt.group_name || null,
+            groupTags: supabaseReceipt.group_tags || [],
+            splitData: supabaseReceipt.split_data || null,
             createdAt: supabaseReceipt.created_at,
             updatedAt: supabaseReceipt.updated_at
         };
@@ -403,11 +400,16 @@ export const supabaseService = {
             merchant: receipt.merchant,
             date: receipt.date,
             total: receipt.total,
-            currency: receipt.currency || 'USD',
+            currency: receipt.currency || 'EUR',
             category: receipt.category,
             notes: receipt.notes,
             line_items: receipt.lineItems || [],
-            is_demo: receipt.isDemo || false
+            is_demo: receipt.isDemo || false,
+            transaction_type: receipt.transactionType || 'expense',
+            group_id: receipt.groupId || null,
+            group_name: receipt.groupName || null,
+            group_tags: receipt.groupTags || [],
+            split_data: receipt.splitData || null
         };
     },
 
@@ -454,6 +456,101 @@ export const supabaseService = {
             console.error('Failed to sync receipts from cloud:', error);
             return [];
         }
+    },
+
+    // User Categories operations
+    async createUserCategory(userId, category) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const { data, error } = await supabase
+            .from('user_categories')
+            .insert([{
+                user_id: authenticatedUserId,
+                name: category.name,
+                color: category.color || null
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return {
+            id: data.id,
+            userId: data.user_id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        };
+    },
+
+    async getUserCategories(userId) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const { data, error } = await supabase
+            .from('user_categories')
+            .select('*')
+            .eq('user_id', authenticatedUserId)
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+        return data.map(cat => ({
+            id: cat.id,
+            userId: cat.user_id,
+            name: cat.name,
+            color: cat.color,
+            createdAt: cat.created_at,
+            updatedAt: cat.updated_at
+        }));
+    },
+
+    async updateUserCategory(categoryId, updates) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('user_categories')
+            .update({
+                name: updates.name,
+                color: updates.color,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', categoryId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return {
+            id: data.id,
+            userId: data.user_id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        };
+    },
+
+    async deleteUserCategory(categoryId) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { error } = await supabase
+            .from('user_categories')
+            .delete()
+            .eq('id', categoryId);
+
+        if (error) throw error;
     }
 };
 

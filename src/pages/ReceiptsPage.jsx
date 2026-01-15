@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import ReceiptCard from '../components/receipts/ReceiptCard';
-import { Search, Loader, X, Filter } from 'lucide-react';
+import GroupManager from '../components/receipts/GroupManager';
+import { Search, Loader, X, Filter, Tag } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { categoryService } from '../services/categoryService';
@@ -20,10 +21,28 @@ export default function ReceiptsPage() {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [categories, setCategories] = useState([]);
+    const [selectedGroup, setSelectedGroup] = useState('');
+    const [showGroupManager, setShowGroupManager] = useState(false);
 
     useEffect(() => {
         loadReceipts();
+        loadCategories();
     }, [currentUser]);
+
+    const loadCategories = async () => {
+        if (currentUser) {
+            try {
+                const cats = await categoryService.getAllCategories(currentUser.userId);
+                setCategories(cats);
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+                setCategories(categoryService.getAllCategories()); // Fallback
+            }
+            } else {
+                setCategories(categoryService.getAllCategoriesSync()); // Fallback
+            }
+    };
 
     // Listen for refresh event when data is synced from cloud
     useEffect(() => {
@@ -126,12 +145,25 @@ export default function ReceiptsPage() {
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(receipt => {
-                return (
+                // Search in merchant, category, notes
+                const matchesBasic = (
                     receipt.merchant?.toLowerCase().includes(query) ||
                     receipt.category?.toLowerCase().includes(query) ||
                     receipt.notes?.toLowerCase().includes(query)
                 );
+                
+                // Search in line items
+                const matchesLineItems = receipt.lineItems?.some(item => 
+                    item.name?.toLowerCase().includes(query)
+                );
+                
+                return matchesBasic || matchesLineItems;
             });
+        }
+
+        // Apply group filter
+        if (selectedGroup) {
+            filtered = filtered.filter(receipt => receipt.groupId === selectedGroup);
         }
 
         setFilteredReceipts(filtered);
@@ -144,6 +176,20 @@ export default function ReceiptsPage() {
         setSelectedCategory('');
         setSelectedMonth('');
         setSelectedYear('');
+        setSelectedGroup('');
+    };
+
+    // Get unique groups from receipts
+    const getAvailableGroups = () => {
+        const groupMap = new Map();
+        receipts.forEach(r => {
+            if (r.groupId && r.groupName) {
+                if (!groupMap.has(r.groupId)) {
+                    groupMap.set(r.groupId, { id: r.groupId, name: r.groupName });
+                }
+            }
+        });
+        return Array.from(groupMap.values());
     };
 
     const handleCategoryChange = (category) => {
@@ -193,6 +239,14 @@ export default function ReceiptsPage() {
                     <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
+                            onClick={() => setShowGroupManager(!showGroupManager)}
+                            className="text-sm px-3 py-1.5 flex items-center gap-1"
+                        >
+                            <Tag size={16} />
+                            Groups
+                        </Button>
+                        <Button
+                            variant="secondary"
                             onClick={() => setShowFilters(!showFilters)}
                             className="text-sm px-3 py-1.5 flex items-center gap-1"
                         >
@@ -212,9 +266,15 @@ export default function ReceiptsPage() {
                     </div>
                 </div>
 
+                {showGroupManager && (
+                    <div className="mb-4">
+                        <GroupManager receipts={receipts} onUpdate={loadReceipts} />
+                    </div>
+                )}
+
                 {showFilters && (
                     <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
                                 <select
@@ -223,8 +283,21 @@ export default function ReceiptsPage() {
                                     className="input text-sm py-2"
                                 >
                                     <option value="">All Categories</option>
-                                    {categoryService.getAllCategories().map(cat => (
+                                    {categories.map(cat => (
                                         <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Group</label>
+                                <select
+                                    value={selectedGroup}
+                                    onChange={(e) => setSelectedGroup(e.target.value)}
+                                    className="input text-sm py-2"
+                                >
+                                    <option value="">All Groups</option>
+                                    {getAvailableGroups().map(group => (
+                                        <option key={group.id} value={group.id}>{group.name}</option>
                                     ))}
                                 </select>
                             </div>
@@ -273,7 +346,7 @@ export default function ReceiptsPage() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                     <input
                         type="text"
-                        placeholder="Search receipts..."
+                        placeholder="Search receipts or items..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="input pl-10"

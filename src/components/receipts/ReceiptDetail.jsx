@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { Edit, Trash2, ArrowLeft, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
+import SplitManager from './SplitManager';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
@@ -15,6 +16,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const showToast = useAppStore((state) => state.showToast);
     const [isEditing, setIsEditing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showSplitManager, setShowSplitManager] = useState(false);
 
     const handleUpdate = async (receiptData) => {
         try {
@@ -35,6 +37,17 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             onDelete();
         } catch (err) {
             showToast('Failed to delete receipt', 'error');
+        }
+    };
+
+    const handleSaveSplit = async (splitData) => {
+        try {
+            await storageService.updateReceipt(receipt.id, { splitData });
+            onUpdate();
+            setShowSplitManager(false);
+            showToast('Split saved successfully', 'success');
+        } catch (err) {
+            showToast('Failed to save split', 'error');
         }
     };
 
@@ -104,7 +117,52 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     </div>
                 )}
 
+                {receipt.splitData && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <Users size={20} />
+                            Split Information
+                        </h2>
+                        {receipt.splitData.method === 'equal' ? (
+                            <div>
+                                <p className="text-sm text-gray-700">
+                                    Split equally between {receipt.splitData.people} person{receipt.splitData.people !== 1 ? 's' : ''}
+                                </p>
+                                <p className="text-sm font-semibold text-gray-900 mt-1">
+                                    Each person: {formatCurrency(receipt.total / receipt.splitData.people, receipt.currency || 'EUR')}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <p className="text-sm text-gray-700 mb-2">
+                                    Custom split between {receipt.splitData.people} person{receipt.splitData.people !== 1 ? 's' : ''}
+                                </p>
+                                {receipt.splitData.users && receipt.splitData.users.length > 0 && (
+                                    <div className="space-y-1">
+                                        {receipt.splitData.users.map((user, index) => (
+                                            <div key={index} className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-700">{user.name || `Person ${index + 1}`}</span>
+                                                <span className="font-semibold text-gray-900">
+                                                    {formatCurrency(user.amount, receipt.currency || 'EUR')} ({user.percentage.toFixed(1)}%)
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="flex gap-2 pt-4 border-t">
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowSplitManager(true)}
+                        className="flex-1 flex items-center justify-center gap-2"
+                    >
+                        <Users size={18} />
+                        {receipt.splitData ? 'Edit Split' : 'Split Receipt'}
+                    </Button>
                     <Button
                         variant="primary"
                         onClick={() => setIsEditing(true)}
@@ -155,6 +213,14 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                         </Button>
                     </div>
                 </Modal>
+            )}
+
+            {showSplitManager && (
+                <SplitManager
+                    receipt={receipt}
+                    onSave={handleSaveSplit}
+                    onClose={() => setShowSplitManager(false)}
+                />
             )}
         </div>
     );

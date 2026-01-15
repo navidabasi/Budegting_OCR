@@ -57,6 +57,26 @@ db.version(3).stores({
     }
 });
 
+// Version 4: Add transactionType, grouping, splitting, and custom categories
+db.version(4).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
+    userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt'
+}).upgrade(async (tx) => {
+    // Migrate existing receipts: set transactionType to 'expense' by default
+    const receipts = await tx.table('receipts').toArray();
+    for (const receipt of receipts) {
+        const updates = {};
+        if (receipt.transactionType === undefined) {
+            updates.transactionType = 'expense';
+        }
+        if (Object.keys(updates).length > 0) {
+            await tx.table('receipts').update(receipt.id, updates);
+        }
+    }
+});
+
 export const storageService = {
     // User operations
     async createUser(userData) {
@@ -812,6 +832,99 @@ export const storageService = {
         }
 
         return { synced, errors };
+    },
+
+    // User Categories operations
+    async createUserCategory(userId, category) {
+        if (!userId || typeof userId !== 'string') {
+            throw new Error(`Invalid userId: ${userId}. Expected a non-empty string.`);
+        }
+
+        // Save locally first
+        const id = await db.userCategories.add({
+            userId: String(userId),
+            name: String(category.name),
+            color: category.color || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            syncedAt: null
+        });
+
+        // Try to sync to Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            const syncPromise = Promise.race([
+                supabaseService.createUserCategory(userId, category),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).then(async (cloudCategory) => {
+                await db.userCategories.update(id, {
+                    supabaseId: cloudCategory.id,
+                    syncedAt: new Date().toISOString()
+                });
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed for category:', error.message);
+            });
+            syncPromise.catch(() => { });
+        }
+
+        return id;
+    },
+
+    async getUserCategories(userId) {
+        if (!userId || typeof userId !== 'string') {
+            return [];
+        }
+        return await db.userCategories.where('userId').equals(userId).toArray();
+    },
+
+    async updateUserCategory(id, updates) {
+        // Update locally first
+        await db.userCategories.update(id, {
+            ...updates,
+            updatedAt: new Date().toISOString()
+        });
+
+        // Try to sync to Supabase in background
+        const category = await db.userCategories.get(id);
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && category?.supabaseId) {
+            const syncPromise = Promise.race([
+                supabaseService.updateUserCategory(category.supabaseId, updates),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).then(async () => {
+                await db.userCategories.update(id, {
+                    syncedAt: new Date().toISOString()
+                });
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed for category update:', error.message);
+            });
+            syncPromise.catch(() => { });
+        }
+    },
+
+    async deleteUserCategory(id) {
+        const category = await db.userCategories.get(id);
+
+        // Delete locally first
+        await db.userCategories.delete(id);
+
+        // Try to delete from Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && category?.supabaseId) {
+            const syncPromise = Promise.race([
+                supabaseService.deleteUserCategory(category.supabaseId),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).catch((error) => {
+                console.warn('[Storage] Background delete failed for category:', error.message);
+            });
+            syncPromise.catch(() => { });
+        }
     }
 };
 

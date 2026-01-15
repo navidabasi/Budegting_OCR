@@ -1,4 +1,5 @@
 import { MERCHANT_CATEGORY_MAP, CATEGORIES, DEFAULT_CATEGORY } from '../utils/constants';
+import { storageService } from './storage';
 
 export const categoryService = {
     suggestCategory(merchantName, itemName = '') {
@@ -77,8 +78,59 @@ export const categoryService = {
         return DEFAULT_CATEGORY;
     },
 
-    getAllCategories() {
+    async getAllCategories(userId = null) {
+        const defaultCats = [...CATEGORIES];
+        
+        if (userId) {
+            try {
+                const customCats = await storageService.getUserCategories(userId);
+                const customNames = customCats.map(cat => cat.name);
+                // Merge custom categories, avoiding duplicates
+                customNames.forEach(name => {
+                    if (!defaultCats.includes(name)) {
+                        defaultCats.push(name);
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to load custom categories:', error);
+            }
+        }
+        
+        return defaultCats;
+    },
+
+    // Synchronous version for backward compatibility (returns only defaults)
+    getAllCategoriesSync() {
         return CATEGORIES;
+    },
+
+    async getCategoryColors(userId = null) {
+        const colors = {};
+        
+        // Default colors for default categories
+        const defaultColors = [
+            '#00573f', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444',
+            '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+        ];
+        
+        CATEGORIES.forEach((cat, index) => {
+            colors[cat] = defaultColors[index % defaultColors.length];
+        });
+        
+        if (userId) {
+            try {
+                const customCats = await storageService.getUserCategories(userId);
+                customCats.forEach(cat => {
+                    if (cat.color) {
+                        colors[cat.name] = cat.color;
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to load custom category colors:', error);
+            }
+        }
+        
+        return colors;
     },
 
     getDefaultCategory() {
