@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, Loader } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
-import { veryfiApi } from '../../services/veryfiApi';
+import { ocrApi } from '../../services/ocrApi';
 import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
@@ -79,13 +79,10 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
         setError(null);
 
         try {
-            const apiKey = await storageService.getVeryfiApiKey(currentUser.userId);
+            // API key is optional for OCR.Space (free tier works without it)
+            const apiKey = await storageService.getOcrApiKey(currentUser.userId);
 
-            if (!apiKey) {
-                throw new Error('Veryfi API key not found. Please add it in Settings to use OCR.');
-            }
-
-            const result = await veryfiApi.processReceipt(file, apiKey);
+            const result = await ocrApi.processReceipt(file, apiKey);
             setOcrResult(result);
         } catch (err) {
             setError(err.message);
@@ -220,10 +217,9 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', onSwit
                             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                                 <p className="text-sm text-red-800 font-medium">{error}</p>
                                 <p className="text-xs text-red-600 mt-2">
-                                    {error.includes('CORS') || error.includes('Network error') ? (
+                                    {error.includes('rate limit') ? (
                                         <>
-                                            <strong>Note:</strong> Veryfi API may block direct browser requests. 
-                                            This is a security limitation. You can still add receipts manually.
+                                            <strong>Tip:</strong> Add an OCR.Space API key in Settings for higher limits.
                                         </>
                                     ) : (
                                         'You can still add this receipt manually.'

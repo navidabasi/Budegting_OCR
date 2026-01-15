@@ -8,7 +8,7 @@ const getAuthHelpers = async () => {
 };
 
 export const authService = {
-    async register(email, password, veryfiApiKey = null) {
+    async register(email, password, ocrApiKey = null) {
         if (!email || !password) {
             throw new Error('Email and password are required');
         }
@@ -39,8 +39,8 @@ export const authService = {
             });
 
             // Save API key if provided (using Supabase user ID)
-            if (veryfiApiKey && user.id) {
-                await storageService.setVeryfiApiKey(user.id, veryfiApiKey);
+            if (ocrApiKey && user.id) {
+                await storageService.setOcrApiKey(user.id, ocrApiKey);
             }
 
             return {

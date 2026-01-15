@@ -33,9 +33,11 @@ export default function SettingsPage() {
 
         try {
             const settings = await storageService.getSettings(currentUser.userId);
-            if (settings?.veryfiApiKey) {
-                setApiKey(settings.veryfiApiKey);
-                setValue('veryfiApiKey', settings.veryfiApiKey);
+            // Check both ocrApiKey and legacy veryfiApiKey
+            const existingApiKey = settings?.ocrApiKey || settings?.veryfiApiKey || '';
+            if (existingApiKey) {
+                setApiKey(existingApiKey);
+                setValue('ocrApiKey', existingApiKey);
             }
             const currency = await storageService.getDefaultCurrency(currentUser.userId);
             setDefaultCurrency(currency);
@@ -59,12 +61,12 @@ export default function SettingsPage() {
 
         setLoading(true);
         try {
-            const apiKeyValue = data.veryfiApiKey?.trim() || '';
+            const apiKeyValue = data.ocrApiKey?.trim() || '';
             // Ensure userId is a string
             const userId = String(currentUser.userId);
-            await storageService.setVeryfiApiKey(userId, apiKeyValue);
+            await storageService.setOcrApiKey(userId, apiKeyValue);
             setApiKey(apiKeyValue);
-            setValue('veryfiApiKey', apiKeyValue);
+            setValue('ocrApiKey', apiKeyValue);
             showToast('API key saved successfully', 'success');
         } catch (err) {
             console.error('Error saving API key:', err);
@@ -220,30 +222,28 @@ export default function SettingsPage() {
             <div className="card">
                 <div className="flex items-center gap-3 mb-4">
                     <Key className="text-primary-600" size={20} />
-                    <h3 className="font-semibold">Veryfi API Key</h3>
+                    <h3 className="font-semibold">OCR API Key (Optional)</h3>
                 </div>
                 <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
                     <Input
                         label="API Key"
                         type="text"
-                        placeholder="Enter your Veryfi API key"
-                        {...register('veryfiApiKey')}
+                        placeholder="Enter your OCR.Space API key (optional)"
+                        {...register('ocrApiKey')}
                     />
                         <p className="text-xs text-gray-500 mb-2">
-                            Add your Veryfi API credentials to enable OCR features. You can get a free API key at{' '}
+                            OCR works without an API key using the free tier. Add your own key for higher limits (25,000 requests/month). Get one at{' '}
                             <a
-                                href="https://www.veryfi.com"
+                                href="https://ocr.space/ocrapi"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary-600 hover:underline"
                             >
-                                veryfi.com
+                                ocr.space
                             </a>
                         </p>
                         <p className="text-xs text-gray-500">
-                            <strong>Format:</strong> Enter as <code className="bg-gray-100 px-1 rounded">USERNAME:API_KEY</code> or <code className="bg-gray-100 px-1 rounded">CLIENT_ID:USERNAME:API_KEY</code>
-                            <br />
-                            Find these in Veryfi Dashboard → API Settings → Keys
+                            <strong>Note:</strong> Leave empty to use the free tier, or enter your API key for higher limits.
                         </p>
                     <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save API Key'}

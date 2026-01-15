@@ -39,6 +39,24 @@ db.version(2).stores({
     }
 });
 
+// Version 3: Rename veryfiApiKey to ocrApiKey (OCR.Space integration)
+db.version(3).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt'
+}).upgrade(async (tx) => {
+    // Migrate existing settings: rename veryfiApiKey to ocrApiKey
+    const allSettings = await tx.table('settings').toArray();
+    for (const setting of allSettings) {
+        if (setting.veryfiApiKey !== undefined) {
+            await tx.table('settings').update(setting.userId, {
+                ocrApiKey: setting.veryfiApiKey,
+                veryfiApiKey: undefined
+            });
+        }
+    }
+});
+
 export const storageService = {
     // User operations
     async createUser(userData) {
@@ -191,7 +209,7 @@ export const storageService = {
 
         // Validate and sanitize settings
         const sanitizedSettings = {
-            veryfiApiKey: settings.veryfiApiKey ? String(settings.veryfiApiKey) : null,
+            ocrApiKey: settings.ocrApiKey ? String(settings.ocrApiKey) : (settings.veryfiApiKey ? String(settings.veryfiApiKey) : null),
             defaultCurrency: settings.defaultCurrency ? String(settings.defaultCurrency) : 'USD'
         };
 
@@ -259,13 +277,23 @@ export const storageService = {
         return await db.settings.where('userId').equals(userId).first();
     },
 
-    async getVeryfiApiKey(userId) {
+    async getOcrApiKey(userId) {
         const settings = await this.getSettings(userId);
-        return settings?.veryfiApiKey || null;
+        // Check both ocrApiKey and legacy veryfiApiKey
+        return settings?.ocrApiKey || settings?.veryfiApiKey || null;
+    },
+
+    async setOcrApiKey(userId, apiKey) {
+        await this.saveSettings(userId, { ocrApiKey: apiKey });
+    },
+
+    // Legacy aliases for backward compatibility
+    async getVeryfiApiKey(userId) {
+        return this.getOcrApiKey(userId);
     },
 
     async setVeryfiApiKey(userId, apiKey) {
-        await this.saveSettings(userId, { veryfiApiKey: apiKey });
+        return this.setOcrApiKey(userId, apiKey);
     },
 
     async getDefaultCurrency(userId) {

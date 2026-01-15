@@ -271,11 +271,14 @@ export const supabaseService = {
     async saveSettings(userId, settings) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Support both ocrApiKey and legacy veryfiApiKey
+        const apiKey = settings.ocrApiKey !== undefined ? settings.ocrApiKey : settings.veryfiApiKey;
+
         const { data, error } = await supabase
             .from('settings')
             .upsert({
                 user_id: userId,
-                veryfi_api_key: settings.veryfiApiKey,
+                veryfi_api_key: apiKey, // Still using old column name for backward compatibility
                 default_currency: settings.defaultCurrency,
                 updated_at: new Date().toISOString()
             }, {
@@ -301,7 +304,8 @@ export const supabaseService = {
         if (!data) return null;
 
         return {
-            veryfiApiKey: data.veryfi_api_key,
+            ocrApiKey: data.veryfi_api_key, // Return as ocrApiKey for new code
+            veryfiApiKey: data.veryfi_api_key, // Keep legacy name for backward compatibility
             defaultCurrency: data.default_currency || 'USD'
         };
     },

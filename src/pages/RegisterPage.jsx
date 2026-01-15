@@ -16,8 +16,8 @@ export default function RegisterPage() {
     const onSubmit = async (data) => {
         setLoading(true);
         try {
-            const veryfiApiKey = data.veryfiApiKey?.trim() || null;
-            const user = await authService.register(data.email, data.password, veryfiApiKey);
+            const ocrApiKey = data.ocrApiKey?.trim() || null;
+            const user = await authService.register(data.email, data.password, ocrApiKey);
             setCurrentUser(user);
             showToast('Registration successful', 'success');
             navigate('/');
@@ -66,13 +66,13 @@ export default function RegisterPage() {
 
                         <div>
                             <Input
-                                label="Veryfi API Key (Optional)"
+                                label="OCR API Key (Optional)"
                                 type="text"
-                                placeholder="Leave empty to enter receipts manually"
-                                {...register('veryfiApiKey')}
+                                placeholder="Leave empty to use free OCR tier"
+                                {...register('ocrApiKey')}
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                                You can add your API key later in Settings to enable OCR features.
+                                OCR works without an API key. You can add one later in Settings for higher limits.
                             </p>
                         </div>
 
