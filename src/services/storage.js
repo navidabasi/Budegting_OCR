@@ -96,32 +96,45 @@ export const storageService = {
     // Receipt operations
     async createReceipt(receipt) {
         // receipt.userId should be the Supabase user ID (UUID)
-        let supabaseId = null;
         
-        // Try to sync to Supabase if configured
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured()) {
-            try {
-                // receipt.userId is already the Supabase user ID
-                const supabaseReceipt = await supabaseService.createReceipt({
-                    ...receipt,
-                    userId: receipt.userId // This is already the Supabase user ID
-                });
-                supabaseId = supabaseReceipt.id;
-            } catch (error) {
-                console.error('Failed to create receipt in Supabase:', error);
-                // Continue with local creation even if Supabase fails
-            }
-        }
-
+        // Save locally FIRST (fast, always works)
         const id = await db.receipts.add({
             ...receipt,
-            supabaseId,
+            supabaseId: null,
             currency: receipt.currency || 'EUR',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            syncedAt: supabaseId ? new Date().toISOString() : null
+            syncedAt: null
         });
+        
+        // Try to sync to Supabase in background (don't block on this)
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            // Run sync in background with timeout - don't await
+            const syncPromise = Promise.race([
+                supabaseService.createReceipt({
+                    ...receipt,
+                    userId: receipt.userId
+                }),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
+                )
+            ]).then(async (supabaseReceipt) => {
+                // Update local receipt with Supabase ID
+                await db.receipts.update(id, {
+                    supabaseId: supabaseReceipt.id,
+                    syncedAt: new Date().toISOString()
+                });
+                console.log('[Storage] Receipt synced to Supabase:', supabaseReceipt.id);
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                // Receipt is saved locally, can be synced later
+            });
+            
+            // Don't await - let it run in background
+            syncPromise.catch(() => {}); // Prevent unhandled rejection
+        }
+
         return id;
     },
 
@@ -135,69 +148,89 @@ export const storageService = {
 
     async updateReceipt(id, updates) {
         const receipt = await db.receipts.get(id);
-        
-        // Try to sync to Supabase if configured
-        const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured() && receipt) {
-            try {
-                if (receipt.supabaseId) {
-                    // Receipt exists in Supabase, update it
-                    await supabaseService.updateReceipt(receipt.supabaseId, {
-                        ...receipt,
-                        ...updates
-                    });
-                    // Update local receipt with synced timestamp
-                    await db.receipts.update(id, {
-                        ...updates,
-                        updatedAt: new Date().toISOString(),
-                        syncedAt: new Date().toISOString()
-                    });
-                } else {
-                    // Receipt doesn't exist in Supabase yet, create it first
-                    const supabaseReceipt = await supabaseService.createReceipt({
-                        ...receipt,
-                        ...updates,
-                        userId: receipt.userId
-                    });
-                    // Update local receipt with Supabase ID and synced timestamp
-                    await db.receipts.update(id, {
-                        ...updates,
-                        supabaseId: supabaseReceipt.id,
-                        updatedAt: new Date().toISOString(),
-                        syncedAt: new Date().toISOString()
-                    });
-                }
-                return; // Successfully synced, return early
-            } catch (error) {
-                console.error('Failed to sync receipt update to Supabase:', error);
-                // Continue with local update even if Supabase fails
-            }
+        if (!receipt) {
+            throw new Error(`Receipt ${id} not found`);
         }
-
-        // Local update (if Supabase not configured or sync failed)
+        
+        // Update locally FIRST (fast, always works)
         await db.receipts.update(id, {
             ...updates,
-            updatedAt: new Date().toISOString(),
-            syncedAt: receipt?.supabaseId ? receipt.syncedAt : null // Keep existing syncedAt or null
+            updatedAt: new Date().toISOString()
+        });
+        
+        // Try to sync to Supabase in background (don't block on this)
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            const syncPromise = (async () => {
+                try {
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
+                    );
+                    
+                    if (receipt.supabaseId) {
+                        // Receipt exists in Supabase, update it
+                        await Promise.race([
+                            supabaseService.updateReceipt(receipt.supabaseId, {
+                                ...receipt,
+                                ...updates
+                            }),
+                            timeoutPromise
+                        ]);
+                        await db.receipts.update(id, { syncedAt: new Date().toISOString() });
+                        console.log('[Storage] Receipt update synced to Supabase');
+                    } else {
+                        // Receipt doesn't exist in Supabase yet, create it first
+                        const supabaseReceipt = await Promise.race([
+                            supabaseService.createReceipt({
+                                ...receipt,
+                                ...updates,
+                                userId: receipt.userId
+                            }),
+                            timeoutPromise
+                        ]);
+                        await db.receipts.update(id, {
+                            supabaseId: supabaseReceipt.id,
+                            syncedAt: new Date().toISOString()
+                        });
+                        console.log('[Storage] Receipt created in Supabase:', supabaseReceipt.id);
+                    }
+                } catch (error) {
+                    console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                }
+            })();
+            
+            // Don't await - let it run in background
+            syncPromise.catch(() => {}); // Prevent unhandled rejection
+        }
+
+        return; // Return immediately after local update
         });
     },
 
     async deleteReceipt(id) {
         const receipt = await db.receipts.get(id);
         
-        // Try to delete from Supabase if configured
+        // Delete locally FIRST (fast, always works)
+        await db.receipts.delete(id);
+        
+        // Try to delete from Supabase in background (don't block on this)
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured() && receipt?.supabaseId) {
-            try {
-                await supabaseService.deleteReceipt(receipt.supabaseId);
-            } catch (error) {
-                console.error('Failed to delete receipt from Supabase:', error);
-                // Continue with local deletion even if Supabase fails
-                // The receipt will be deleted locally and can be cleaned up later via manual sync
-            }
+            const syncPromise = Promise.race([
+                supabaseService.deleteReceipt(receipt.supabaseId),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Supabase delete timed out')), 5000)
+                )
+            ]).then(() => {
+                console.log('[Storage] Receipt deleted from Supabase');
+            }).catch((error) => {
+                console.warn('[Storage] Background delete failed:', error.message);
+                // Receipt is deleted locally, Supabase might have orphan that can be cleaned up
+            });
+            
+            // Don't await - let it run in background
+            syncPromise.catch(() => {}); // Prevent unhandled rejection
         }
-
-        await db.receipts.delete(id);
     },
 
     // Settings operations
@@ -352,6 +385,16 @@ export const storageService = {
 
         const errors = [];
         let synced = 0;
+        
+        // Helper function to add timeout to promises
+        const withTimeout = (promise, timeoutMs, errorMsg) => {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error(errorMsg || 'Operation timed out')), timeoutMs)
+                )
+            ]);
+        };
 
         // Sync receipts
         console.log('[Sync] Starting sync for userId:', userId);
@@ -397,15 +440,25 @@ export const storageService = {
             try {
                 console.log('[Sync] Syncing receipt:', receipt.id, 'has supabaseId:', !!receipt.supabaseId);
                 if (receipt.supabaseId) {
-                    await supabaseService.updateReceipt(receipt.supabaseId, receipt);
+                    // Add 10 second timeout
+                    await withTimeout(
+                        supabaseService.updateReceipt(receipt.supabaseId, receipt),
+                        10000,
+                        'Update receipt timed out'
+                    );
                     await db.receipts.update(receipt.id, {
                         syncedAt: new Date().toISOString()
                     });
                 } else {
-                    const supabaseReceipt = await supabaseService.createReceipt({
-                        ...receipt,
-                        userId: userId // Use Supabase user ID directly
-                    });
+                    // Add 10 second timeout
+                    const supabaseReceipt = await withTimeout(
+                        supabaseService.createReceipt({
+                            ...receipt,
+                            userId: userId // Use Supabase user ID directly
+                        }),
+                        10000,
+                        'Create receipt timed out'
+                    );
                     console.log('[Sync] Created receipt in Supabase:', supabaseReceipt.id);
                     await db.receipts.update(receipt.id, {
                         supabaseId: supabaseReceipt.id,
@@ -420,11 +473,15 @@ export const storageService = {
             }
         }
 
-        // Sync settings
+        // Sync settings with timeout
         try {
             const settings = await this.getSettings(userId);
             if (settings) {
-                await supabaseService.saveSettings(userId, settings);
+                await withTimeout(
+                    supabaseService.saveSettings(userId, settings),
+                    10000,
+                    'Save settings timed out'
+                );
                 const existing = await db.settings.where('userId').equals(userId).first();
                 if (existing) {
                     // Use put() since userId is the primary key
