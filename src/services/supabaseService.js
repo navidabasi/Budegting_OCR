@@ -187,6 +187,14 @@ export const supabaseService = {
     async createReceipt(receipt) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Debug: Check auth.uid() vs userId being sent
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log('[Supabase createReceipt] Debug:', {
+            authUid: user?.id,
+            receiptUserId: receipt.userId,
+            match: user?.id === receipt.userId
+        });
+
         const { data, error } = await supabase
             .from('receipts')
             .insert([{
@@ -203,7 +211,11 @@ export const supabaseService = {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('[Supabase createReceipt] Error:', error);
+            console.error('[Supabase createReceipt] Sent user_id:', receipt.userId);
+            throw error;
+        }
         return data;
     },
 
@@ -271,6 +283,14 @@ export const supabaseService = {
     async saveSettings(userId, settings) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Debug: Check auth.uid() vs userId being sent
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log('[Supabase saveSettings] Debug:', {
+            authUid: user?.id,
+            passedUserId: userId,
+            match: user?.id === userId
+        });
+
         // Support both ocrApiKey and legacy veryfiApiKey
         const apiKey = settings.ocrApiKey !== undefined ? settings.ocrApiKey : settings.veryfiApiKey;
 
@@ -287,7 +307,11 @@ export const supabaseService = {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('[Supabase saveSettings] Error:', error);
+            console.error('[Supabase saveSettings] Sent user_id:', userId);
+            throw error;
+        }
         return data;
     },
 
