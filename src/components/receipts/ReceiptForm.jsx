@@ -43,7 +43,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             currency: initialData.currency || 'EUR',
             transactionType: initialData.transactionType || 'expense',
             groupId: initialData.groupId || '',
-            groupName: initialData.groupName || ''
+            groupName: initialData.groupName || '',
+            groupTags: initialData.groupTags || []
         } : {
             merchant: '',
             date: new Date().toISOString().split('T')[0],
@@ -53,7 +54,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             currency: 'EUR',
             transactionType: 'expense',
             groupId: '',
-            groupName: ''
+            groupName: '',
+            groupTags: []
         }
     });
 
@@ -229,6 +231,11 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     };
 
     const onSubmit = (data) => {
+        // Always use watched values for group to ensure we get the latest state
+        const currentGroupId = watch('groupId') || null;
+        const currentGroupName = watch('groupName') || null;
+        const currentGroupTags = watch('groupTags') || [];
+        
         const receiptData = {
             merchant: data.merchant,
             date: data.date,
@@ -238,12 +245,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             lineItems: lineItems.filter(item => item.name && item.price),
             notes: data.notes || '',
             transactionType: data.transactionType || 'expense',
-            groupId: data.groupId || null,
-            groupName: data.groupName || null,
-            groupTags: data.groupTags || [],
+            groupId: currentGroupId,
+            groupName: currentGroupName,
+            groupTags: currentGroupTags,
             splitData: splitData || null
         };
 
+        console.log('[ReceiptForm] Submitting receipt with group:', { groupId: currentGroupId, groupName: currentGroupName });
         onSave(receiptData);
     };
 
@@ -453,8 +461,25 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                             value={watch('groupId') || ''}
                             onChange={(e) => {
                                 const selectedGroup = groups.find(g => g.id === e.target.value);
-                                setValue('groupId', e.target.value || '');
-                                setValue('groupName', selectedGroup?.name || '');
+                                const newGroupId = e.target.value || '';
+                                const newGroupName = selectedGroup?.name || '';
+                                
+                                setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
+                                setValue('groupName', newGroupName, { shouldValidate: true, shouldDirty: true });
+                                
+                                // Find the group's tags from receipts
+                                if (newGroupId && currentUser) {
+                                    storageService.getReceiptsByUserId(currentUser.userId).then(receipts => {
+                                        const groupReceipt = receipts.find(r => r.groupId === newGroupId);
+                                        if (groupReceipt && groupReceipt.groupTags) {
+                                            setValue('groupTags', groupReceipt.groupTags, { shouldValidate: true, shouldDirty: true });
+                                        } else {
+                                            setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
+                                        }
+                                    });
+                                } else {
+                                    setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
+                                }
                             }}
                         >
                             <option value="">No group</option>
@@ -495,9 +520,10 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     const newGroup = { id: groupId, name: groupName };
                                     setGroups([...groups, newGroup]);
                                     
-                                    // Set form values
-                                    setValue('groupId', groupId);
-                                    setValue('groupName', groupName);
+                                    // Set form values with validation flags
+                                    setValue('groupId', groupId, { shouldValidate: true, shouldDirty: true });
+                                    setValue('groupName', groupName, { shouldValidate: true, shouldDirty: true });
+                                    setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
                                     
                                     // Reload groups to ensure consistency
                                     await loadGroups();

@@ -3,8 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import ReceiptCard from '../components/receipts/ReceiptCard';
-import GroupManager from '../components/receipts/GroupManager';
-import { Search, Loader, X, Filter, Tag } from 'lucide-react';
+import { Search, Loader, X, Filter } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { categoryService } from '../services/categoryService';
@@ -23,7 +22,6 @@ export default function ReceiptsPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [categories, setCategories] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState('');
-    const [showGroupManager, setShowGroupManager] = useState(false);
 
     useEffect(() => {
         loadReceipts();
@@ -252,14 +250,6 @@ export default function ReceiptsPage() {
                     <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
-                            onClick={() => setShowGroupManager(!showGroupManager)}
-                            className="text-sm px-3 py-1.5 flex items-center gap-1"
-                        >
-                            <Tag size={16} />
-                            Groups
-                        </Button>
-                        <Button
-                            variant="secondary"
                             onClick={() => setShowFilters(!showFilters)}
                             className="text-sm px-3 py-1.5 flex items-center gap-1"
                         >
@@ -278,12 +268,6 @@ export default function ReceiptsPage() {
                         )}
                     </div>
                 </div>
-
-                {showGroupManager && (
-                    <div className="mb-4">
-                        <GroupManager receipts={receipts} onUpdate={loadReceipts} />
-                    </div>
-                )}
 
                 {showFilters && (
                     <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
