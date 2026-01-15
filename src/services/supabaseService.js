@@ -24,11 +24,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
     });
 }
 
-// Create Supabase client
+// Create Supabase client with proper auth persistence
 let supabase = null;
 try {
     if (supabaseUrl && supabaseAnonKey) {
-        supabase = createClient(supabaseUrl, supabaseAnonKey);
+        supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                storage: window.localStorage
+            }
+        });
         console.log('✅ Supabase client created successfully');
     } else {
         console.error('❌ Supabase client not created - missing credentials');

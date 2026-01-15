@@ -147,12 +147,18 @@ export default function SettingsPage() {
     };
 
     const handleSyncToCloud = async () => {
-        if (!currentUser) return;
+        console.log('[Settings] Sync to cloud clicked, currentUser:', currentUser);
+        if (!currentUser) {
+            showToast('Please log in to sync', 'error');
+            return;
+        }
 
         setSyncing(true);
         setSyncStatus(null);
         try {
+            console.log('[Settings] Starting sync to cloud for userId:', currentUser.userId);
             const result = await storageService.syncAllToCloud(currentUser.userId);
+            console.log('[Settings] Sync to cloud result:', result);
             if (result.errors.length > 0) {
                 showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
                 setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
@@ -161,8 +167,8 @@ export default function SettingsPage() {
                 setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
             }
         } catch (err) {
-            console.error('Sync error:', err);
-            showToast('Failed to sync to cloud', 'error');
+            console.error('[Settings] Sync to cloud error:', err);
+            showToast(`Failed to sync: ${err.message}`, 'error');
             setSyncStatus({ type: 'error', message: 'Sync failed' });
         } finally {
             setSyncing(false);
@@ -170,16 +176,32 @@ export default function SettingsPage() {
     };
 
     const handleSyncFromCloud = async () => {
-        if (!currentUser) return;
+        console.log('[Settings] Sync from cloud clicked, currentUser:', currentUser);
+        if (!currentUser) {
+            showToast('Please log in to sync', 'error');
+            return;
+        }
 
-        if (!confirm('This will download data from cloud and may overwrite local changes. Continue?')) {
+        // Use window.confirm with fallback - some mobile browsers don't support it
+        let shouldSync = true;
+        try {
+            shouldSync = window.confirm('This will download data from cloud and may overwrite local changes. Continue?');
+        } catch (e) {
+            // If confirm throws, just proceed
+            console.warn('[Settings] confirm() not supported, proceeding anyway');
+        }
+        
+        if (!shouldSync) {
+            console.log('[Settings] User cancelled sync from cloud');
             return;
         }
 
         setSyncing(true);
         setSyncStatus(null);
         try {
+            console.log('[Settings] Starting sync from cloud for userId:', currentUser.userId);
             const result = await storageService.syncAllFromCloud(currentUser.userId);
+            console.log('[Settings] Sync from cloud result:', result);
             if (result.errors.length > 0) {
                 showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
                 setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
@@ -190,8 +212,8 @@ export default function SettingsPage() {
                 setTimeout(() => window.location.reload(), 1000);
             }
         } catch (err) {
-            console.error('Sync error:', err);
-            showToast('Failed to sync from cloud', 'error');
+            console.error('[Settings] Sync from cloud error:', err);
+            showToast(`Failed to sync: ${err.message}`, 'error');
             setSyncStatus({ type: 'error', message: 'Sync failed' });
         } finally {
             setSyncing(false);
@@ -199,20 +221,41 @@ export default function SettingsPage() {
     };
 
     const handleLogout = async () => {
-        if (confirm('Are you sure you want to logout?')) {
-            try {
-                // Call logout which will clear state and sign out from Supabase
-                await logout();
-                // Small delay to ensure state is cleared
-                await new Promise(resolve => setTimeout(resolve, 100));
-                // Redirect to login
-                window.location.href = '/login';
-            } catch (error) {
-                console.error('Error during logout:', error);
-                // Still redirect even if logout fails - clear state manually
-                localStorage.removeItem('receipt-manager-storage');
-                window.location.href = '/login';
-            }
+        console.log('[Settings] Logout clicked');
+        
+        // Use window.confirm with fallback
+        let shouldLogout = true;
+        try {
+            shouldLogout = window.confirm('Are you sure you want to logout?');
+        } catch (e) {
+            // If confirm throws, just proceed
+            console.warn('[Settings] confirm() not supported, proceeding with logout');
+        }
+        
+        if (!shouldLogout) {
+            console.log('[Settings] User cancelled logout');
+            return;
+        }
+        
+        try {
+            console.log('[Settings] Calling logout...');
+            // Call logout which will clear state and sign out from Supabase
+            await logout();
+            console.log('[Settings] Logout successful, clearing storage...');
+            // Clear all storage
+            localStorage.clear();
+            sessionStorage.clear();
+            // Small delay to ensure state is cleared
+            await new Promise(resolve => setTimeout(resolve, 200));
+            console.log('[Settings] Redirecting to login...');
+            // Redirect to login
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('[Settings] Error during logout:', error);
+            // Still redirect even if logout fails - clear state manually
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = '/login';
         }
     };
 
