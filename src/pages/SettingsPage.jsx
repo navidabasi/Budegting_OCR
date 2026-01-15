@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { LogOut, Database, Key, DollarSign, Cloud, UploadCloud, DownloadCloud } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud } from 'lucide-react';
 
 export default function SettingsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -146,8 +146,8 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSyncToCloud = async () => {
-        console.log('[Settings] Sync to cloud clicked, currentUser:', currentUser);
+    const handleSync = async () => {
+        console.log('[Settings] Sync clicked, currentUser:', currentUser);
         if (!currentUser) {
             showToast('Please log in to sync', 'error');
             return;
@@ -165,83 +165,41 @@ export default function SettingsPage() {
         }, 30000);
 
         try {
-            console.log('[Settings] Starting sync to cloud for userId:', currentUser.userId);
-            const result = await storageService.syncAllToCloud(currentUser.userId);
+            console.log('[Settings] Starting bidirectional sync for userId:', currentUser.userId);
+            const result = await storageService.syncBidirectional(currentUser.userId);
             clearTimeout(syncTimeout); // Clear timeout if sync completes
-            console.log('[Settings] Sync to cloud result:', result);
-            if (result.errors.length > 0) {
-                // Show the first error message for debugging
+            console.log('[Settings] Sync result:', result);
+
+            let message = '';
+            let statusType = 'success';
+
+            if (result.conflicts && result.conflicts.length > 0) {
+                message = `Synced ${result.synced} items. ${result.conflicts.length} conflict(s) merged automatically.`;
+                statusType = 'warning';
+            } else if (result.errors.length > 0) {
                 const firstError = result.errors[0];
                 const errorMsg = firstError.error || firstError.message || 'Unknown error';
+                message = `Synced ${result.synced} items. ${result.errors.length} error(s): ${errorMsg}`;
+                statusType = 'error';
                 console.error('[Settings] Sync errors:', result.errors);
-                showToast(`Synced ${result.synced} items. ${result.errors.length} error(s): ${errorMsg}`, 'error');
-                setSyncStatus({
-                    type: 'error',
-                    message: `${result.synced} synced, ${result.errors.length} error(s): ${errorMsg}`
-                });
             } else {
-                showToast(`Successfully synced ${result.synced} items to cloud`, 'success');
-                setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
+                message = `Successfully synced ${result.synced} items`;
+                statusType = 'success';
+            }
+
+            showToast(message, statusType);
+            setSyncStatus({ type: statusType, message });
+
+            // Reload if items were synced to show updated data
+            if (result.synced > 0) {
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                    window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                }, 500);
             }
         } catch (err) {
             clearTimeout(syncTimeout); // Clear timeout on error
-            console.error('[Settings] Sync to cloud error:', err);
-            showToast(`Failed to sync: ${err.message || 'Unknown error'}`, 'error');
-            setSyncStatus({ type: 'error', message: 'Sync failed' });
-        } finally {
-            setSyncing(false);
-        }
-    };
-
-    const handleSyncFromCloud = async () => {
-        console.log('[Settings] Sync from cloud clicked, currentUser:', currentUser);
-        if (!currentUser) {
-            showToast('Please log in to sync', 'error');
-            return;
-        }
-
-        // Use window.confirm with fallback - some mobile browsers don't support it
-        let shouldSync = true;
-        try {
-            shouldSync = window.confirm('This will download data from cloud and may overwrite local changes. Continue?');
-        } catch (e) {
-            // If confirm throws, just proceed
-            console.warn('[Settings] confirm() not supported, proceeding anyway');
-        }
-
-        if (!shouldSync) {
-            console.log('[Settings] User cancelled sync from cloud');
-            return;
-        }
-
-        setSyncing(true);
-        setSyncStatus(null);
-
-        // Add a global timeout for the entire sync operation (30 seconds)
-        const syncTimeout = setTimeout(() => {
-            console.error('[Settings] Sync from cloud operation timed out after 30 seconds');
-            showToast('Sync timed out. Please try again.', 'error');
-            setSyncStatus({ type: 'error', message: 'Sync timed out' });
-            setSyncing(false);
-        }, 30000);
-
-        try {
-            console.log('[Settings] Starting sync from cloud for userId:', currentUser.userId);
-            const result = await storageService.syncAllFromCloud(currentUser.userId);
-            clearTimeout(syncTimeout); // Clear timeout if sync completes
-            console.log('[Settings] Sync from cloud result:', result);
-            if (result.errors.length > 0) {
-                showToast(`Synced ${result.synced} items. ${result.errors.length} errors occurred.`, 'warning');
-                setSyncStatus({ type: 'warning', message: `${result.synced} synced, ${result.errors.length} errors` });
-            } else {
-                showToast(`Successfully synced ${result.synced} items from cloud`, 'success');
-                setSyncStatus({ type: 'success', message: `${result.synced} items synced` });
-                // Reload the page to show synced data
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (err) {
-            clearTimeout(syncTimeout); // Clear timeout on error
-            console.error('[Settings] Sync from cloud error:', err);
+            console.error('[Settings] Sync error:', err);
             showToast(`Failed to sync: ${err.message || 'Unknown error'}`, 'error');
             setSyncStatus({ type: 'error', message: 'Sync failed' });
         } finally {
@@ -371,22 +329,16 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                     <Button
                         variant="primary"
-                        onClick={handleSyncToCloud}
+                        onClick={handleSync}
                         disabled={syncing}
                         className="w-full flex items-center justify-center gap-2"
                     >
-                        <UploadCloud size={18} />
-                        {syncing ? 'Syncing...' : 'Sync to Cloud'}
+                        <Cloud size={18} />
+                        {syncing ? 'Syncing...' : 'Sync'}
                     </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={handleSyncFromCloud}
-                        disabled={syncing}
-                        className="w-full flex items-center justify-center gap-2"
-                    >
-                        <DownloadCloud size={18} />
-                        {syncing ? 'Syncing...' : 'Sync from Cloud'}
-                    </Button>
+                    <p className="text-xs text-gray-500 mt-2">
+                        Syncs both directions automatically. If the same receipt was changed on both devices, changes will be merged (line items combined, newer data preserved).
+                    </p>
                     {syncStatus && (
                         <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600' :
                             syncStatus.type === 'warning' ? 'text-yellow-600' :

@@ -374,12 +374,48 @@ export const storageService = {
     },
 
     // Sync operations
-    async syncAllToCloud(userId) {
+    // Helper function to merge two receipts (conflict resolution)
+    mergeReceipts(localReceipt, cloudReceipt) {
+        // Merge line items - combine both, remove duplicates
+        const localItems = localReceipt.lineItems || [];
+        const cloudItems = cloudReceipt.lineItems || [];
+        const mergedItems = [...localItems];
+
+        // Add cloud items that don't exist in local (by name and price)
+        cloudItems.forEach(cloudItem => {
+            const exists = mergedItems.some(localItem =>
+                localItem.name === cloudItem.name &&
+                localItem.price === cloudItem.price
+            );
+            if (!exists) {
+                mergedItems.push(cloudItem);
+            }
+        });
+
+        // Use the most recent data, but merge fields intelligently
+        const localUpdated = new Date(localReceipt.updatedAt);
+        const cloudUpdated = new Date(cloudReceipt.updatedAt);
+        const isLocalNewer = localUpdated >= cloudUpdated;
+
+        return {
+            merchant: localReceipt.merchant || cloudReceipt.merchant,
+            date: isLocalNewer ? localReceipt.date : cloudReceipt.date,
+            total: Math.max(localReceipt.total || 0, cloudReceipt.total || 0), // Use higher total
+            currency: localReceipt.currency || cloudReceipt.currency || 'EUR',
+            category: localReceipt.category || cloudReceipt.category,
+            notes: (localReceipt.notes || '') + (cloudReceipt.notes ? `\n[Cloud]: ${cloudReceipt.notes}` : ''),
+            lineItems: mergedItems,
+            isDemo: localReceipt.isDemo || cloudReceipt.isDemo || false,
+            updatedAt: new Date().toISOString() // Mark as just merged
+        };
+    },
+
+    async syncBidirectional(userId) {
         // userId is now the Supabase user ID (UUID)
         const supabaseService = await getSupabaseService();
         if (!supabaseService.isConfigured()) {
             console.warn('[Sync] Supabase not configured, cannot sync');
-            return { synced: 0, errors: [] };
+            return { synced: 0, errors: [], conflicts: [] };
         }
 
         // Verify user is authenticated before syncing (with timeout)
@@ -397,17 +433,16 @@ export const storageService = {
             }
             if (user.id !== userId) {
                 console.warn('[Sync] userId mismatch, using authenticated user ID:', user.id);
-                // Use authenticated user ID instead
                 userId = user.id;
             }
         } catch (error) {
             const errorMessage = error?.message || error?.error || String(error);
             console.error('[Sync] Authentication check failed:', error);
-            console.error('[Sync] Auth error details:', { message: errorMessage, fullError: error });
-            return { synced: 0, errors: [{ type: 'auth', error: errorMessage }] };
+            return { synced: 0, errors: [{ type: 'auth', error: errorMessage }], conflicts: [] };
         }
 
         const errors = [];
+        const conflicts = [];
         let synced = 0;
 
         // Helper function to add timeout to promises
@@ -420,143 +455,235 @@ export const storageService = {
             ]);
         };
 
-        // Sync receipts
-        console.log('[Sync] Starting sync for userId:', userId);
+        console.log('[Sync] Starting bidirectional sync for userId:', userId);
 
         try {
-            // Get all receipts for this user
-            // First try by Supabase user ID (current format)
-            let receipts = await this.getReceiptsByUserId(userId);
-            console.log('[Sync] Found receipts by Supabase userId:', receipts.length);
+            // Step 1: Get all local and cloud receipts
+            let localReceipts = await this.getReceiptsByUserId(userId);
 
-            // If no receipts found, try to find by local user ID (for migration)
-            if (receipts.length === 0) {
+            // Migration check
+            if (localReceipts.length === 0) {
                 try {
                     const localUser = await this.getUserBySupabaseId(userId);
                     if (localUser) {
-                        receipts = await this.getReceiptsByUserId(localUser.id);
-                        console.log('[Sync] Found receipts by local userId:', receipts.length);
-                        // Update receipts to use Supabase user ID
-                        if (receipts.length > 0) {
-                            console.log('[Sync] Migrating receipts to use Supabase userId');
-                            for (const receipt of receipts) {
+                        localReceipts = await this.getReceiptsByUserId(localUser.id);
+                        if (localReceipts.length > 0) {
+                            for (const receipt of localReceipts) {
                                 await db.receipts.update(receipt.id, { userId: userId });
                             }
                         }
                     }
                 } catch (migrationError) {
-                    console.warn('[Sync] Migration check failed, continuing with existing receipts:', migrationError);
+                    console.warn('[Sync] Migration check failed:', migrationError);
                 }
             }
 
-            console.log('[Sync] Total receipts found:', receipts.length);
-            console.log('[Sync] Receipt details:', receipts.map(r => ({
-                id: r.id,
-                userId: r.userId,
-                supabaseId: r.supabaseId,
-                syncedAt: r.syncedAt,
-                merchant: r.merchant
-            })));
+            const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
+            console.log('[Sync] Local receipts:', localReceipts.length, 'Cloud receipts:', cloudReceipts.length);
 
-            const unsyncedReceipts = receipts.filter(r => !r.syncedAt || !r.supabaseId);
-            console.log('[Sync] Unsynced receipts:', unsyncedReceipts.length);
-            console.log('[Sync] Unsynced receipt details:', unsyncedReceipts.map(r => ({
-                id: r.id,
-                merchant: r.merchant,
-                hasSupabaseId: !!r.supabaseId,
-                hasSyncedAt: !!r.syncedAt,
-                userId: r.userId
-            })));
+            // Step 2: Create maps for quick lookup
+            const localMap = new Map(); // key: supabaseId or localId
+            const cloudMap = new Map(); // key: supabaseId
 
-            if (unsyncedReceipts.length === 0 && receipts.length > 0) {
-                console.log('[Sync] All receipts are already synced');
-            }
+            localReceipts.forEach(r => {
+                const key = r.supabaseId || `local_${r.id}`;
+                localMap.set(key, r);
+            });
 
-            if (unsyncedReceipts.length === 0) {
-                console.log('[Sync] No receipts to sync');
-            }
+            cloudReceipts.forEach(r => {
+                cloudMap.set(r.id, r);
+            });
 
-            for (const receipt of unsyncedReceipts) {
-                try {
-                    console.log('[Sync] Syncing receipt:', receipt.id, 'has supabaseId:', !!receipt.supabaseId);
-                    if (receipt.supabaseId) {
-                        // Add 10 second timeout
-                        await withTimeout(
-                            supabaseService.updateReceipt(receipt.supabaseId, receipt),
-                            10000,
-                            'Update receipt timed out'
-                        );
-                        await db.receipts.update(receipt.id, {
+            const processed = new Set();
+
+            // Step 3a: Process receipts that exist in both places
+            for (const [supabaseId, cloudReceipt] of cloudMap) {
+                const localReceipt = localMap.get(supabaseId);
+
+                if (localReceipt) {
+                    processed.add(supabaseId);
+
+                    const localUpdated = new Date(localReceipt.updatedAt || 0);
+                    const cloudUpdated = new Date(cloudReceipt.updatedAt || 0);
+
+                    // Check for conflicts (both changed significantly)
+                    const timeDiff = Math.abs(localUpdated.getTime() - cloudUpdated.getTime());
+                    const hasConflict = timeDiff > 1000 && // More than 1 second difference
+                        localReceipt.updatedAt !== cloudReceipt.updatedAt &&
+                        JSON.stringify(localReceipt) !== JSON.stringify(cloudReceipt);
+
+                    if (hasConflict) {
+                        // CONFLICT DETECTED - Merge the two
+                        console.log(`[Sync] Conflict detected for receipt ${supabaseId}, merging...`);
+                        const mergedReceipt = this.mergeReceipts(localReceipt, cloudReceipt);
+
+                        conflicts.push({
+                            supabaseId,
+                            localReceipt,
+                            cloudReceipt,
+                            mergedReceipt
+                        });
+
+                        try {
+                            // Update both local and cloud with merged version
+                            await db.receipts.update(localReceipt.id, {
+                                ...mergedReceipt,
+                                syncedAt: new Date().toISOString()
+                            });
+
+                            await withTimeout(
+                                supabaseService.updateReceipt(supabaseId, {
+                                    ...localReceipt,
+                                    ...mergedReceipt
+                                }),
+                                10000,
+                                'Update merged receipt timed out'
+                            );
+
+                            synced++;
+                            console.log(`[Sync] Merged and synced receipt ${supabaseId}`);
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'merge', receiptId: localReceipt.id, error: errorMessage });
+                        }
+
+                    } else if (localUpdated > cloudUpdated) {
+                        // Local is newer - upload to cloud
+                        try {
+                            await withTimeout(
+                                supabaseService.updateReceipt(supabaseId, localReceipt),
+                                10000,
+                                'Update receipt timed out'
+                            );
+                            await db.receipts.update(localReceipt.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'upload', receiptId: localReceipt.id, error: errorMessage });
+                        }
+
+                    } else if (cloudUpdated > localUpdated) {
+                        // Cloud is newer - download to local
+                        try {
+                            await db.receipts.update(localReceipt.id, {
+                                merchant: cloudReceipt.merchant,
+                                date: cloudReceipt.date,
+                                total: cloudReceipt.total,
+                                currency: cloudReceipt.currency || 'EUR',
+                                category: cloudReceipt.category,
+                                notes: cloudReceipt.notes,
+                                lineItems: cloudReceipt.lineItems || [],
+                                updatedAt: cloudReceipt.updatedAt,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'download', receiptId: localReceipt.id, error: errorMessage });
+                        }
+                    } else {
+                        // Timestamps equal - already in sync
+                        await db.receipts.update(localReceipt.id, {
                             syncedAt: new Date().toISOString()
                         });
-                    } else {
-                        // Add 10 second timeout
-                        const supabaseReceipt = await withTimeout(
+                    }
+                }
+            }
+
+            // Step 3b: Process local-only receipts (upload to cloud)
+            for (const [key, localReceipt] of localMap) {
+                if (!key.startsWith('local_') && processed.has(key)) continue;
+
+                if (key.startsWith('local_') || !localReceipt.supabaseId) {
+                    try {
+                        const cloudReceipt = await withTimeout(
                             supabaseService.createReceipt({
-                                ...receipt,
-                                userId: userId // Use Supabase user ID directly
+                                ...localReceipt,
+                                userId: userId
                             }),
                             10000,
                             'Create receipt timed out'
                         );
-                        console.log('[Sync] Created receipt in Supabase:', supabaseReceipt.id);
-                        await db.receipts.update(receipt.id, {
-                            supabaseId: supabaseReceipt.id,
+                        await db.receipts.update(localReceipt.id, {
+                            supabaseId: cloudReceipt.id,
                             syncedAt: new Date().toISOString()
                         });
+                        synced++;
+                    } catch (error) {
+                        const errorMessage = error?.message || error?.error || String(error);
+                        errors.push({ type: 'upload', receiptId: localReceipt.id, error: errorMessage });
                     }
-                    synced++;
-                    console.log('[Sync] Successfully synced receipt:', receipt.id);
-                } catch (error) {
-                    const errorMessage = error?.message || error?.error || String(error);
-                    console.error(`[Sync] Failed to sync receipt ${receipt.id}:`, error);
-                    console.error(`[Sync] Error details:`, {
-                        message: errorMessage,
-                        receiptId: receipt.id,
-                        receiptMerchant: receipt.merchant,
-                        fullError: error
-                    });
-                    errors.push({
-                        receiptId: receipt.id,
-                        error: errorMessage,
-                        type: 'receipt',
-                        receipt: receipt.merchant || 'Unknown'
-                    });
                 }
             }
-        } catch (error) {
-            const errorMessage = error?.message || error?.error || String(error);
-            console.error('[Sync] Error getting receipts:', error);
-            console.error('[Sync] Error details:', { message: errorMessage, fullError: error });
-            errors.push({ type: 'getReceipts', error: errorMessage });
-        }
 
-        // Sync settings with timeout
-        try {
-            const settings = await this.getSettings(userId);
-            if (settings) {
+            // Step 3c: Process cloud-only receipts (download to local)
+            for (const [supabaseId, cloudReceipt] of cloudMap) {
+                if (!processed.has(supabaseId)) {
+                    try {
+                        await db.receipts.add({
+                            userId: userId,
+                            supabaseId: cloudReceipt.id,
+                            merchant: cloudReceipt.merchant,
+                            date: cloudReceipt.date,
+                            total: cloudReceipt.total,
+                            currency: cloudReceipt.currency || 'EUR',
+                            category: cloudReceipt.category,
+                            notes: cloudReceipt.notes || '',
+                            lineItems: cloudReceipt.lineItems || [],
+                            isDemo: cloudReceipt.isDemo || false,
+                            createdAt: cloudReceipt.createdAt || new Date().toISOString(),
+                            updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    } catch (error) {
+                        const errorMessage = error?.message || error?.error || String(error);
+                        errors.push({ type: 'download', receiptId: cloudReceipt.id, error: errorMessage });
+                    }
+                }
+            }
+
+            // Step 4: Sync settings
+            const localSettings = await this.getSettings(userId);
+            const cloudSettings = await supabaseService.getSettings(userId);
+
+            if (localSettings && cloudSettings) {
+                const localUpdated = new Date(localSettings.updatedAt || 0);
+                const cloudUpdated = new Date(cloudSettings.updatedAt || 0);
+
+                if (localUpdated > cloudUpdated) {
+                    await withTimeout(
+                        supabaseService.saveSettings(userId, localSettings),
+                        10000,
+                        'Save settings timed out'
+                    );
+                } else if (cloudUpdated > localUpdated) {
+                    await this.saveSettings(userId, cloudSettings);
+                }
+            } else if (localSettings) {
                 await withTimeout(
-                    supabaseService.saveSettings(userId, settings),
+                    supabaseService.saveSettings(userId, localSettings),
                     10000,
                     'Save settings timed out'
                 );
-                const existing = await db.settings.where('userId').equals(userId).first();
-                if (existing) {
-                    // Use put() since userId is the primary key
-                    await db.settings.put({
-                        ...existing,
-                        syncedAt: new Date().toISOString()
-                    });
-                }
+            } else if (cloudSettings) {
+                await this.saveSettings(userId, cloudSettings);
             }
+
         } catch (error) {
             const errorMessage = error?.message || error?.error || String(error);
-            console.error('[Sync] Failed to sync settings:', error);
-            console.error('[Sync] Settings error details:', { message: errorMessage, fullError: error });
-            errors.push({ type: 'settings', error: errorMessage });
+            console.error('[Sync] Error during bidirectional sync:', error);
+            errors.push({ type: 'sync', error: errorMessage });
         }
 
-        return { synced, errors };
+        return { synced, errors, conflicts };
+    },
+
+    // Keep syncAllToCloud as alias for backward compatibility
+    async syncAllToCloud(userId) {
+        return this.syncBidirectional(userId);
     },
 
     async syncAllFromCloud(userId) {
