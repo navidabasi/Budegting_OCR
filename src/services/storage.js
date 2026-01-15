@@ -204,7 +204,6 @@ export const storageService = {
         }
 
         return; // Return immediately after local update
-        });
     },
 
     async deleteReceipt(id) {

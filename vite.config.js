@@ -44,6 +44,13 @@ export default defineConfig({
                 rewrite: (path) => path.replace(/^\/api/, '/api')
             }
         }
+    },
+    // Exclude SQL files and other non-JS files from processing
+    assetsInclude: ['**/*.sql'],
+    build: {
+        rollupOptions: {
+            external: (id) => id.endsWith('.sql')
+        }
     }
 })
 
