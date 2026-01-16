@@ -3,14 +3,16 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import ReceiptCard from '../components/receipts/ReceiptCard';
-import GroupManager from '../components/receipts/GroupManager';
-import { Search, Loader, X, Filter, Folder } from 'lucide-react';
+import { Search, Loader, X, Filter, ChevronDown, ChevronUp, Plus, Tag, Pin, PinOff, Edit2, Trash2 } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { categoryService } from '../services/categoryService';
+import { useNavigate } from 'react-router-dom';
 
 export default function ReceiptsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const showToast = useAppStore((state) => state.showToast);
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [receipts, setReceipts] = useState([]);
     const [filteredReceipts, setFilteredReceipts] = useState([]);
@@ -21,7 +23,13 @@ export default function ReceiptsPage() {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [showFilters, setShowFilters] = useState(false);
-    const [showGroups, setShowGroups] = useState(false);
+    const [showGroupsSection, setShowGroupsSection] = useState(true);
+    const [groups, setGroups] = useState([]);
+    const [showCreateGroup, setShowCreateGroup] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupColor, setNewGroupColor] = useState('#3b82f6');
+    const [newGroupPinned, setNewGroupPinned] = useState(false);
+    const [editingGroup, setEditingGroup] = useState(null);
     const [categories, setCategories] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState('');
     const [selectedGroupName, setSelectedGroupName] = useState('');
@@ -29,7 +37,56 @@ export default function ReceiptsPage() {
     useEffect(() => {
         loadReceipts();
         loadCategories();
+        loadGroups();
     }, [currentUser]);
+
+    const loadGroups = async () => {
+        if (!currentUser?.userId) return;
+        
+        try {
+            const allGroups = await storageService.getAllGroups(currentUser.userId);
+            
+            // Count receipts per group - match by groupId (UUID) only
+            const groupsWithCounts = allGroups.map(group => {
+                // Use supabaseId if available, otherwise use local id
+                const groupIdToMatch = group.supabaseId || group.id;
+                
+                const groupReceipts = receipts.filter(r => {
+                    // Match by exact groupId (UUID) - be strict about matching
+                    if (!r.groupId) return false;
+                    
+                    // Convert both to strings for comparison
+                    const receiptGroupId = String(r.groupId);
+                    const targetGroupId = String(groupIdToMatch);
+                    
+                    return receiptGroupId === targetGroupId;
+                });
+                
+                return {
+                    ...group,
+                    receiptCount: groupReceipts.length,
+                    receipts: groupReceipts
+                };
+            });
+            
+            // Sort: pinned first, then by name
+            groupsWithCounts.sort((a, b) => {
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            setGroups(groupsWithCounts);
+        } catch (error) {
+            console.error('Failed to load groups:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (receipts.length > 0) {
+            loadGroups();
+        }
+    }, [receipts, currentUser]);
 
     const loadCategories = async () => {
         if (currentUser) {
@@ -318,14 +375,6 @@ export default function ReceiptsPage() {
                     <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
-                            onClick={() => setShowGroups(!showGroups)}
-                            className="text-sm px-3 py-1.5 flex items-center gap-1"
-                        >
-                            <Folder size={16} />
-                            Groups
-                        </Button>
-                        <Button
-                            variant="secondary"
                             onClick={() => setShowFilters(!showFilters)}
                             className="text-sm px-3 py-1.5 flex items-center gap-1"
                         >
@@ -345,11 +394,6 @@ export default function ReceiptsPage() {
                     </div>
                 </div>
 
-                {showGroups && (
-                    <div className="mb-6">
-                        <GroupManager receipts={receipts} onUpdate={loadReceipts} />
-                    </div>
-                )}
 
                 {showFilters && (
                     <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -456,6 +500,77 @@ export default function ReceiptsPage() {
                 </div>
             </div>
 
+            {/* Groups Section */}
+            {groups.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                        <button
+                            onClick={() => setShowGroupsSection(!showGroupsSection)}
+                            className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                            {showGroupsSection ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                            Groups
+                        </button>
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setShowCreateGroup(true)}
+                            className="flex items-center gap-2"
+                        >
+                            <Plus size={16} />
+                            New Group
+                        </Button>
+                    </div>
+                    {showGroupsSection && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            {groups.map(group => (
+                                <GroupCard
+                                    key={group.id}
+                                    group={group}
+                                    onClick={() => {
+                                        const groupIdToUse = group.supabaseId || group.id;
+                                        navigate(`/receipts?group=${groupIdToUse}`);
+                                    }}
+                                    onEdit={() => {
+                                        setEditingGroup(group);
+                                        setNewGroupName(group.name);
+                                        setNewGroupColor(group.color || '#3b82f6');
+                                        setNewGroupPinned(group.isPinned);
+                                    }}
+                                    onDelete={async () => {
+                                        if (!confirm('Delete this group? Receipts will be ungrouped.')) return;
+                                        try {
+                                            await storageService.deleteGroup(group.id);
+                                            await loadReceipts();
+                                            await loadGroups();
+                                            showToast('Group deleted', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to delete group: ${err.message}`, 'error');
+                                        }
+                                    }}
+                                    onTogglePin={async () => {
+                                        try {
+                                            await storageService.updateGroup(group.id, {
+                                                isPinned: !group.isPinned
+                                            });
+                                            await loadGroups();
+                                            showToast(group.isPinned ? 'Group unpinned' : 'Group pinned', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to ${group.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
+                                        }
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Receipts Section Header */}
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Receipts</h2>
+            </div>
+
             {filteredReceipts.length === 0 ? (
                 <div className="card text-center py-12">
                     <p className="text-gray-500 mb-4">
@@ -472,6 +587,294 @@ export default function ReceiptsPage() {
                     ))}
                 </div>
             )}
+
+            {/* Create Group Modal */}
+            {showCreateGroup && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-semibold dark:text-white">Create Group</h4>
+                            <button 
+                                onClick={() => {
+                                    setShowCreateGroup(false);
+                                    setNewGroupName('');
+                                    setNewGroupColor('#3b82f6');
+                                    setNewGroupPinned(false);
+                                }}
+                                className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            <Input
+                                label="Group Name"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                placeholder="e.g., Vacation 2024"
+                            />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
+                                    Group Color
+                                </label>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#6b7280', '#6366f1'].map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            onClick={() => setNewGroupColor(color)}
+                                            className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                                                newGroupColor === color
+                                                    ? 'border-gray-900 dark:border-gray-100 scale-110'
+                                                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                                            }`}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={newGroupColor}
+                                        onChange={(e) => setNewGroupColor(e.target.value)}
+                                        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={newGroupColor}
+                                        onChange={(e) => setNewGroupColor(e.target.value)}
+                                        placeholder="#3b82f6"
+                                        className="flex-1 input text-sm font-mono"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="pinGroup"
+                                    checked={newGroupPinned}
+                                    onChange={(e) => setNewGroupPinned(e.target.checked)}
+                                    className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                                />
+                                <label htmlFor="pinGroup" className="text-sm text-gray-700 dark:text-gray-300">
+                                    Pin this group to the top
+                                </label>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="primary"
+                                    onClick={async () => {
+                                        if (!newGroupName.trim()) {
+                                            showToast('Group name is required', 'error');
+                                            return;
+                                        }
+                                        if (!currentUser) return;
+                                        try {
+                                            await storageService.createGroup(currentUser.userId, {
+                                                name: newGroupName.trim(),
+                                                color: newGroupColor,
+                                                isPinned: newGroupPinned
+                                            });
+                                            await loadGroups();
+                                            setShowCreateGroup(false);
+                                            setNewGroupName('');
+                                            setNewGroupColor('#3b82f6');
+                                            setNewGroupPinned(false);
+                                            showToast('Group created', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to create group: ${err.message}`, 'error');
+                                        }
+                                    }}
+                                    className="flex-1"
+                                >
+                                    Create
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setShowCreateGroup(false);
+                                        setNewGroupName('');
+                                        setNewGroupColor('#3b82f6');
+                                        setNewGroupPinned(false);
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Group Modal */}
+            {editingGroup && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-semibold dark:text-white">Edit Group</h4>
+                            <button 
+                                onClick={() => {
+                                    setEditingGroup(null);
+                                    setNewGroupName('');
+                                    setNewGroupColor('#3b82f6');
+                                    setNewGroupPinned(false);
+                                }}
+                                className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            <Input
+                                label="Group Name"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                            />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
+                                    Group Color
+                                </label>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#6b7280', '#6366f1'].map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            onClick={() => setNewGroupColor(color)}
+                                            className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                                                newGroupColor === color
+                                                    ? 'border-gray-900 dark:border-gray-100 scale-110'
+                                                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                                            }`}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={newGroupColor}
+                                        onChange={(e) => setNewGroupColor(e.target.value)}
+                                        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={newGroupColor}
+                                        onChange={(e) => setNewGroupColor(e.target.value)}
+                                        placeholder="#3b82f6"
+                                        className="flex-1 input text-sm font-mono"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="pinGroupEdit"
+                                    checked={newGroupPinned}
+                                    onChange={(e) => setNewGroupPinned(e.target.checked)}
+                                    className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                                />
+                                <label htmlFor="pinGroupEdit" className="text-sm text-gray-700 dark:text-gray-300">
+                                    Pin this group to the top
+                                </label>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="primary"
+                                    onClick={async () => {
+                                        try {
+                                            await storageService.updateGroup(editingGroup.id, {
+                                                name: newGroupName.trim(),
+                                                color: newGroupColor,
+                                                isPinned: newGroupPinned
+                                            });
+                                            await loadGroups();
+                                            setEditingGroup(null);
+                                            setNewGroupName('');
+                                            setNewGroupColor('#3b82f6');
+                                            setNewGroupPinned(false);
+                                            showToast('Group updated', 'success');
+                                        } catch (err) {
+                                            showToast(`Failed to update group: ${err.message}`, 'error');
+                                        }
+                                    }}
+                                    className="flex-1"
+                                >
+                                    Update
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setEditingGroup(null);
+                                        setNewGroupName('');
+                                        setNewGroupColor('#3b82f6');
+                                        setNewGroupPinned(false);
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Group Card Component - matches ReceiptCard format
+function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin }) {
+    return (
+        <div
+            className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
+            onClick={onClick}
+        >
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{group.name}</h3>
+                        <span 
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded"
+                            style={{ 
+                                backgroundColor: (group.color || '#3b82f6') + '20',
+                                color: group.color || '#3b82f6',
+                                border: `1px solid ${(group.color || '#3b82f6')}40`
+                            }}
+                        >
+                            <Tag size={12} style={{ color: group.color || '#3b82f6' }} />
+                            Group
+                        </span>
+                        {group.isPinned && (
+                            <Pin size={14} className="text-gray-400" title="Pinned" />
+                        )}
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {group.receiptCount || 0} receipt{(group.receiptCount || 0) !== 1 ? 's' : ''}
+                    </p>
+                </div>
+                <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                        onClick={onTogglePin}
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                        title={group.isPinned ? 'Unpin group' : 'Pin group'}
+                    >
+                        {group.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                    </button>
+                    <button
+                        onClick={onEdit}
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                        title="Edit group"
+                    >
+                        <Edit2 size={16} />
+                    </button>
+                    <button
+                        onClick={onDelete}
+                        className="p-1.5 text-red-500 hover:text-red-700 rounded"
+                        title="Delete group"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

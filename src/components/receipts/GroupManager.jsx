@@ -29,14 +29,22 @@ export default function GroupManager({ receipts, onUpdate }) {
         try {
             const allGroups = await storageService.getAllGroups(currentUser.userId);
             
-            // Count receipts per group
+            // Count receipts per group - match by groupId (UUID) only
             const groupsWithCounts = allGroups.map(group => {
+                // Use supabaseId if available, otherwise use local id
+                const groupIdToMatch = group.supabaseId || group.id;
+                
                 const groupReceipts = receipts.filter(r => {
-                    // Match by groupId (UUID) or by groupName (for backward compatibility)
-                    return r.groupId === group.id || 
-                           r.groupId === group.supabaseId ||
-                           (r.groupName === group.name && r.groupId);
+                    // Match by exact groupId (UUID) - be strict about matching
+                    if (!r.groupId) return false;
+                    
+                    // Convert both to strings for comparison
+                    const receiptGroupId = String(r.groupId);
+                    const targetGroupId = String(groupIdToMatch);
+                    
+                    return receiptGroupId === targetGroupId;
                 });
+                
                 return {
                     ...group,
                     receiptCount: groupReceipts.length,
@@ -457,36 +465,35 @@ export default function GroupManager({ receipts, onUpdate }) {
     );
 }
 
-// Group Card Component
-function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, onRemoveReceipt }) {
+// Group Card Component - matches ReceiptCard format
+function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin }) {
     return (
         <div
-            className="card cursor-pointer hover:shadow-lg transition-all border-l-4"
-            style={{ borderLeftColor: group.color || '#3b82f6' }}
+            className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
             onClick={onClick}
         >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                    <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: (group.color || '#3b82f6') + '20' }}
-                    >
-                        <Tag 
-                            size={20} 
-                            style={{ color: group.color || '#3b82f6' }}
-                        />
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{group.name}</h3>
+                        <span 
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded"
+                            style={{ 
+                                backgroundColor: (group.color || '#3b82f6') + '20',
+                                color: group.color || '#3b82f6',
+                                border: `1px solid ${(group.color || '#3b82f6')}40`
+                            }}
+                        >
+                            <Tag size={12} style={{ color: group.color || '#3b82f6' }} />
+                            Group
+                        </span>
+                        {group.isPinned && (
+                            <Pin size={14} className="text-gray-400" title="Pinned" />
+                        )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h4 className="font-semibold dark:text-white truncate">{group.name}</h4>
-                            {group.isPinned && (
-                                <Pin size={14} className="text-gray-400 flex-shrink-0" />
-                            )}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                            {group.receiptCount || 0} receipt{(group.receiptCount || 0) !== 1 ? 's' : ''}
-                        </div>
-                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {group.receiptCount || 0} receipt{(group.receiptCount || 0) !== 1 ? 's' : ''}
+                    </p>
                 </div>
                 <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
