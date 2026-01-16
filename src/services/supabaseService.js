@@ -393,8 +393,20 @@ export const supabaseService = {
         };
     },
 
+    // Helper function to validate UUID format
+    isValidUUID(str) {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return str && typeof str === 'string' && uuidRegex.test(str);
+    },
+
     // Transform app receipt format to Supabase format
     transformReceiptToSupabase(receipt) {
+        // Validate groupId - if it's not a valid UUID (e.g., temporary group IDs like "group_..."),
+        // set group_id to null but keep group_name and group_tags for reference
+        const groupId = receipt.groupId && this.isValidUUID(receipt.groupId)
+            ? receipt.groupId
+            : null;
+
         return {
             user_id: receipt.userId,
             merchant: receipt.merchant,
@@ -406,7 +418,7 @@ export const supabaseService = {
             line_items: receipt.lineItems || [],
             is_demo: receipt.isDemo || false,
             transaction_type: receipt.transactionType || 'expense',
-            group_id: receipt.groupId || null,
+            group_id: groupId,
             group_name: receipt.groupName || null,
             group_tags: receipt.groupTags || [],
             split_data: receipt.splitData || null

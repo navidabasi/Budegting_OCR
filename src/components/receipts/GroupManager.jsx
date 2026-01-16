@@ -5,6 +5,7 @@ import Input from '../common/Input';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
+import { getGroupColor } from '../../utils/helpers';
 
 export default function GroupManager({ receipts, onUpdate }) {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -276,13 +277,18 @@ export default function GroupManager({ receipts, onUpdate }) {
                     {groups.map(group => {
                         const isExpanded = expandedGroups.has(group.id);
                         const isSelected = selectedGroup === group.id;
+                        const groupColor = getGroupColor(group.name);
                         
                         return (
                             <div 
                                 key={group.id} 
                                 className={`card cursor-pointer transition-colors ${
-                                    isSelected ? 'border-2 border-primary-500 bg-primary-50' : ''
+                                    isSelected ? 'border-2 border-primary-500' : ''
                                 }`}
+                                style={{
+                                    backgroundColor: groupColor ? groupColor.rgba(0.1) : undefined,
+                                    borderLeft: groupColor ? `4px solid ${groupColor.hex}` : undefined
+                                }}
                                 onClick={() => {
                                     if (isSelected) {
                                         setSelectedGroup(null);
@@ -358,7 +364,21 @@ export default function GroupManager({ receipts, onUpdate }) {
                                         {group.receipts.map(receipt => (
                                             <div
                                                 key={receipt.id}
-                                                className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50"
+                                                className="flex items-center justify-between p-2 border rounded transition-colors"
+                                                style={{
+                                                    backgroundColor: groupColor ? groupColor.rgba(0.15) : undefined,
+                                                    borderColor: groupColor ? groupColor.rgba(0.3) : undefined
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (groupColor) {
+                                                        e.currentTarget.style.backgroundColor = groupColor.rgba(0.25);
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (groupColor) {
+                                                        e.currentTarget.style.backgroundColor = groupColor.rgba(0.15);
+                                                    }
+                                                }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     navigate(`/receipts/${receipt.id}`);
