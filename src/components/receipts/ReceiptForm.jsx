@@ -110,9 +110,38 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const loadGroups = async () => {
         if (currentUser) {
             try {
-                const groupsList = await storageService.getAllGroups(currentUser.userId);
-                setGroups(groupsList);
-                console.log('[ReceiptForm] Loaded groups:', groupsList);
+                const allGroups = await storageService.getAllGroups(currentUser.userId);
+                
+                // Organize groups into parent and nested groups
+                const parentGroups = allGroups.filter(g => !g.parentGroupId);
+                const nestedGroups = allGroups.filter(g => g.parentGroupId);
+                
+                // Attach nested groups to their parents
+                const organizedGroups = parentGroups.map(parent => {
+                    const children = nestedGroups.filter(nested => 
+                        String(nested.parentGroupId) === String(parent.id) || 
+                        String(nested.parentGroupId) === String(parent.supabaseId)
+                    );
+                    return {
+                        ...parent,
+                        nestedGroups: children
+                    };
+                });
+                
+                // Add nested groups that don't have a parent (orphaned) as separate items
+                const orphanedNested = nestedGroups.filter(nested => {
+                    const hasParent = parentGroups.some(parent => 
+                        String(nested.parentGroupId) === String(parent.id) || 
+                        String(nested.parentGroupId) === String(parent.supabaseId)
+                    );
+                    return !hasParent;
+                });
+                
+                // Combine organized groups with orphaned nested groups
+                const allOrganizedGroups = [...organizedGroups, ...orphanedNested];
+                
+                setGroups(allOrganizedGroups);
+                console.log('[ReceiptForm] Loaded groups:', allOrganizedGroups);
             } catch (error) {
                 console.error('Failed to load groups:', error);
             }
@@ -465,10 +494,31 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </label>
                 <div className="flex flex-col gap-2">
                     {watch('groupId') && watch('groupName') && (() => {
-                        const selectedGroup = groups.find(g => 
-                            g.id === watch('groupId') || 
-                            g.supabaseId === watch('groupId')
-                        );
+                        // Find the selected group (could be in parent or nested)
+                        let selectedGroup = null;
+                        let isNested = false;
+                        
+                        for (const group of groups) {
+                            if (String(group.id) === String(watch('groupId')) || 
+                                String(group.supabaseId) === String(watch('groupId'))) {
+                                selectedGroup = group;
+                                isNested = !!group.parentGroupId;
+                                break;
+                            }
+                            // Check nested groups
+                            if (group.nestedGroups) {
+                                const nested = group.nestedGroups.find(n => 
+                                    String(n.id) === String(watch('groupId')) || 
+                                    String(n.supabaseId) === String(watch('groupId'))
+                                );
+                                if (nested) {
+                                    selectedGroup = nested;
+                                    isNested = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
                         const groupColor = selectedGroup?.color || '#3b82f6';
                         return (
                             <div className="flex items-center gap-2">
@@ -482,7 +532,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     }}
                                 >
                                     <Tag size={12} style={{ color: groupColor }} />
+                                    {isNested && <span className="opacity-70">└─</span>}
                                     {watch('groupName')}
+                                    {isNested && <span className="text-xs opacity-70 ml-1">(Nested)</span>}
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -505,10 +557,28 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 value={watch('groupId') || ''}
                                 style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 onChange={(e) => {
-                                    const selectedGroup = groups.find(g => 
-                                        String(g.id) === String(e.target.value) || 
-                                        String(g.supabaseId) === String(e.target.value)
-                                    );
+                                    // Find the selected group (could be in parent or nested)
+                                    let selectedGroup = null;
+                                    
+                                    for (const group of groups) {
+                                        const groupValue = String(group.supabaseId || group.id);
+                                        if (groupValue === String(e.target.value)) {
+                                            selectedGroup = group;
+                                            break;
+                                        }
+                                        // Check nested groups
+                                        if (group.nestedGroups) {
+                                            const nested = group.nestedGroups.find(n => {
+                                                const nestedValue = String(n.supabaseId || n.id);
+                                                return nestedValue === String(e.target.value);
+                                            });
+                                            if (nested) {
+                                                selectedGroup = nested;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
                                     const newGroupId = selectedGroup ? (selectedGroup.supabaseId || selectedGroup.id) : '';
                                     const newGroupName = selectedGroup?.name || '';
                                     
@@ -516,7 +586,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         selectedValue: e.target.value,
                                         selectedGroup,
                                         newGroupId,
-                                        newGroupName
+                                        newGroupName,
+                                        isNested: selectedGroup?.parentGroupId ? true : false
                                     });
                                     
                                     setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
@@ -527,9 +598,31 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 <option value="">No group</option>
                                 {groups.map(group => {
                                     const groupValue = group.supabaseId || group.id;
+                                    const isNested = !!group.parentGroupId;
+                                    
+                                    // If it's a parent group with nested groups, show it and its children
+                                    if (group.nestedGroups && group.nestedGroups.length > 0) {
+                                        return (
+                                            <optgroup key={group.id} label={group.name}>
+                                                <option value={String(groupValue)}>
+                                                    {group.name} (Parent)
+                                                </option>
+                                                {group.nestedGroups.map(nested => {
+                                                    const nestedValue = nested.supabaseId || nested.id;
+                                                    return (
+                                                        <option key={nested.id} value={String(nestedValue)}>
+                                                            &nbsp;&nbsp;└─ {nested.name}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </optgroup>
+                                        );
+                                    }
+                                    
+                                    // Regular parent group or orphaned nested group
                                     return (
                                         <option key={group.id} value={String(groupValue)}>
-                                            {group.name}
+                                            {isNested ? '└─ ' : ''}{group.name}
                                         </option>
                                     );
                                 })}
