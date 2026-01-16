@@ -135,7 +135,23 @@ export default function ReceiptsPage() {
     useEffect(() => {
         const handleReceiptDrop = async (e) => {
             const { receiptId, groupId } = e.detail;
-            const group = groups.find(g => String(g.id) === String(groupId) || String(g.supabaseId) === String(groupId));
+
+            // First, search in top-level groups
+            let group = groups.find(g => String(g.id) === String(groupId) || String(g.supabaseId) === String(groupId));
+
+            // If not found, search in nested groups
+            if (!group) {
+                for (const parentGroup of groups) {
+                    const nestedGroups = parentGroup.nestedGroups || [];
+                    const nestedGroup = nestedGroups.find(ng =>
+                        String(ng.id) === String(groupId) || String(ng.supabaseId) === String(groupId)
+                    );
+                    if (nestedGroup) {
+                        group = nestedGroup;
+                        break;
+                    }
+                }
+            }
 
             if (!group) return;
 
@@ -710,14 +726,20 @@ export default function ReceiptsPage() {
                                                         const nestedRgb = hexToRgb(nestedColor);
                                                         const nestedFadedBg = nestedRgb ? `rgba(${nestedRgb.r}, ${nestedRgb.g}, ${nestedRgb.b}, 0.15)` : `${nestedColor}20`;
 
+                                                        const nestedGroupIdToUse = nestedGroup.supabaseId || nestedGroup.id;
+                                                        const isNestedDragOver = draggedOverGroup === `nested-${nestedGroup.id}`;
+
                                                         return (
                                                             <div key={nestedGroup.id}>
                                                                 <div
+                                                                    data-group-id={nestedGroupIdToUse}
                                                                     className="p-3 rounded-lg border border-dashed cursor-pointer hover:shadow-md transition-all"
                                                                     style={{
-                                                                        backgroundColor: nestedFadedBg,
+                                                                        backgroundColor: isNestedDragOver ? nestedColor + '40' : nestedFadedBg,
                                                                         borderColor: nestedColor + '50',
-                                                                        borderLeft: `4px solid ${nestedColor}`
+                                                                        borderLeft: `4px solid ${nestedColor}`,
+                                                                        transform: isNestedDragOver ? 'scale(1.02)' : 'scale(1)',
+                                                                        boxShadow: isNestedDragOver ? `0 4px 12px ${nestedColor}40` : undefined
                                                                     }}
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
@@ -730,6 +752,56 @@ export default function ReceiptsPage() {
                                                                             }
                                                                             return newSet;
                                                                         });
+                                                                    }}
+                                                                    onDragOver={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        e.dataTransfer.dropEffect = 'move';
+                                                                        if (draggedOverGroup !== `nested-${nestedGroup.id}`) {
+                                                                            setDraggedOverGroup(`nested-${nestedGroup.id}`);
+                                                                        }
+                                                                    }}
+                                                                    onDragLeave={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        // Only clear if we're leaving the card itself, not a child element
+                                                                        if (!e.currentTarget.contains(e.relatedTarget)) {
+                                                                            setDraggedOverGroup(null);
+                                                                        }
+                                                                    }}
+                                                                    onDrop={async (e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        setDraggedOverGroup(null);
+
+                                                                        try {
+                                                                            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                                                            const receiptId = data.receiptId;
+
+                                                                            // Check if receipt is already in this nested group
+                                                                            const receipt = receipts.find(r => r.id === receiptId);
+                                                                            if (receipt && receipt.groupId) {
+                                                                                const currentGroupId = String(receipt.groupId);
+                                                                                const targetGroupId = String(nestedGroupIdToUse);
+                                                                                if (currentGroupId === targetGroupId) {
+                                                                                    showToast('Receipt is already in this group', 'info');
+                                                                                    return;
+                                                                                }
+                                                                            }
+
+                                                                            // Assign receipt to nested group
+                                                                            await storageService.updateReceipt(receiptId, {
+                                                                                groupId: nestedGroupIdToUse,
+                                                                                groupName: nestedGroup.name
+                                                                            });
+
+                                                                            await loadReceipts();
+                                                                            await loadGroups();
+                                                                            showToast(`Receipt added to ${nestedGroup.name}`, 'success');
+                                                                        } catch (err) {
+                                                                            console.error('Failed to assign receipt to nested group:', err);
+                                                                            showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                                                                        }
                                                                     }}
                                                                 >
                                                                     <div className="flex items-center justify-between">

@@ -98,7 +98,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         
         if (isDragging) {
-            // Check if dropped on a group card
+            // Check if dropped on a group card (including nested groups)
             const groupCard = elementBelow?.closest('[data-group-id]');
             if (groupCard) {
                 const groupId = groupCard.getAttribute('data-group-id');

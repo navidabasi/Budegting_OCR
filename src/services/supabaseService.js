@@ -635,18 +635,69 @@ export const supabaseService = {
     async deleteGroup(groupId) {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // First, ungroup all receipts in this group
-        const { error: updateError } = await supabase
-            .from('receipts')
-            .update({
-                group_id: null,
-                group_name: null,
-                group_tags: []
-            })
-            .eq('group_id', groupId);
+        // First, get the group to check if it's nested
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('parent_group_id')
+            .eq('id', groupId)
+            .single();
 
-        if (updateError) {
-            console.warn('[Delete Group] Failed to ungroup receipts:', updateError);
+        if (groupError) {
+            console.warn('[Delete Group] Failed to fetch group:', groupError);
+        }
+
+        // Check if this is a nested group (has parent_group_id)
+        if (group && group.parent_group_id) {
+            // This is a nested group - move receipts to parent group
+            const { data: parentGroup, error: parentError } = await supabase
+                .from('groups')
+                .select('id, name')
+                .eq('id', group.parent_group_id)
+                .single();
+
+            if (parentError) {
+                console.warn('[Delete Group] Failed to fetch parent group:', parentError);
+                // Fallback: ungroup receipts
+                const { error: updateError } = await supabase
+                    .from('receipts')
+                    .update({
+                        group_id: null,
+                        group_name: null,
+                        group_tags: []
+                    })
+                    .eq('group_id', groupId);
+
+                if (updateError) {
+                    console.warn('[Delete Group] Failed to ungroup receipts:', updateError);
+                }
+            } else {
+                // Move receipts to parent group
+                const { error: updateError } = await supabase
+                    .from('receipts')
+                    .update({
+                        group_id: parentGroup.id,
+                        group_name: parentGroup.name
+                    })
+                    .eq('group_id', groupId);
+
+                if (updateError) {
+                    console.warn('[Delete Group] Failed to move receipts to parent:', updateError);
+                }
+            }
+        } else {
+            // This is a parent group - ungroup all receipts
+            const { error: updateError } = await supabase
+                .from('receipts')
+                .update({
+                    group_id: null,
+                    group_name: null,
+                    group_tags: []
+                })
+                .eq('group_id', groupId);
+
+            if (updateError) {
+                console.warn('[Delete Group] Failed to ungroup receipts:', updateError);
+            }
         }
 
         // Then delete the group

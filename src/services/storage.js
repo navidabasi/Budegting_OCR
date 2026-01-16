@@ -1550,12 +1550,40 @@ export const storageService = {
                    receiptGroupId === String(group.supabaseId);
         });
         
-        for (const receipt of groupReceipts) {
-            await db.receipts.update(receipt.id, {
-                groupId: null,
-                groupName: null,
-                groupTags: []
-            });
+        // Check if this is a nested group (has parentGroupId)
+        if (group.parentGroupId) {
+            // This is a nested group - move receipts to parent group
+            const parentGroupId = group.parentGroupId;
+            const parentGroup = await db.groups.where('id').equals(parentGroupId).or('supabaseId').equals(parentGroupId).first();
+            
+            if (parentGroup) {
+                const parentGroupIdToUse = parentGroup.supabaseId || parentGroup.id;
+                // Move all receipts to parent group
+                for (const receipt of groupReceipts) {
+                    await db.receipts.update(receipt.id, {
+                        groupId: parentGroupIdToUse,
+                        groupName: parentGroup.name
+                    });
+                }
+            } else {
+                // Parent group not found, ungroup receipts
+                for (const receipt of groupReceipts) {
+                    await db.receipts.update(receipt.id, {
+                        groupId: null,
+                        groupName: null,
+                        groupTags: []
+                    });
+                }
+            }
+        } else {
+            // This is a parent group - ungroup all receipts
+            for (const receipt of groupReceipts) {
+                await db.receipts.update(receipt.id, {
+                    groupId: null,
+                    groupName: null,
+                    groupTags: []
+                });
+            }
         }
 
         // Delete locally
