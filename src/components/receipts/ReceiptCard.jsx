@@ -26,15 +26,6 @@ export default function ReceiptCard({ receipt, onDropOnReceipt }) {
         e.currentTarget.style.opacity = '1';
     };
 
-    const handleDragOver = (e) => {
-        // Only allow drop if this receipt is not the one being dragged
-        if (!isDragging) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            setIsDragOver(true);
-        }
-    };
 
     const handleDragLeave = (e) => {
         e.preventDefault();
@@ -64,6 +55,16 @@ export default function ReceiptCard({ receipt, onDropOnReceipt }) {
             }
         } catch (err) {
             console.error('Failed to parse drop data:', err);
+        }
+    };
+    
+    // Prevent default drag behavior on dragover to allow drop
+    const handleDragOverPrevent = (e) => {
+        if (!isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+            setIsDragOver(true);
         }
     };
 
@@ -135,7 +136,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt }) {
             draggable={true}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
+            onDragOver={handleDragOverPrevent}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onTouchStart={handleTouchStart}
