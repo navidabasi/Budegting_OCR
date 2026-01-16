@@ -711,17 +711,22 @@ export default function ReceiptsPage() {
                                             borderStyle: isParentDragOver ? 'solid' : 'dashed'
                                         }}
                                         onDragOver={(e) => {
-                                            // Only handle if not dragging over a child element (nested group or receipt)
-                                            const target = e.target;
-                                            if (target.closest('[data-group-id]') && target.closest('[data-group-id]') !== e.currentTarget) {
-                                                return; // Let child handle it
-                                            }
-                                            if (target.closest('[data-receipt-id]')) {
-                                                return; // Let receipt handle it
-                                            }
-
                                             e.preventDefault();
                                             e.stopPropagation();
+
+                                            // Check if dragging over a child element - if so, don't show parent feedback
+                                            const target = e.target;
+                                            const nestedGroupCard = target.closest('[data-group-id]');
+                                            const receiptCard = target.closest('[data-receipt-id]');
+
+                                            // If dragging over a nested group card or receipt card, don't show parent feedback
+                                            if (nestedGroupCard && nestedGroupCard !== e.currentTarget) {
+                                                return;
+                                            }
+                                            if (receiptCard) {
+                                                return;
+                                            }
+
                                             e.dataTransfer.dropEffect = 'move';
                                             if (draggedOverGroup !== `parent-${group.id}`) {
                                                 setDraggedOverGroup(`parent-${group.id}`);
@@ -734,21 +739,35 @@ export default function ReceiptsPage() {
                                             }
                                         }}
                                         onDrop={async (e) => {
-                                            // Only handle if not dropping on a child element
-                                            const target = e.target;
-                                            if (target.closest('[data-group-id]') && target.closest('[data-group-id]') !== e.currentTarget) {
-                                                return; // Let child handle it
-                                            }
-                                            if (target.closest('[data-receipt-id]')) {
-                                                return; // Let receipt handle it
-                                            }
-
                                             e.preventDefault();
                                             e.stopPropagation();
                                             setDraggedOverGroup(null);
 
+                                            // Check if dropping on a child element - if so, let it handle it
+                                            const target = e.target;
+                                            const nestedGroupCard = target.closest('[data-group-id]');
+                                            const receiptCard = target.closest('[data-receipt-id]');
+
+                                            // If dropping on a nested group card (not the current container), let it handle it
+                                            if (nestedGroupCard && nestedGroupCard !== e.currentTarget) {
+                                                return;
+                                            }
+                                            // If dropping on a receipt card, let it handle it
+                                            if (receiptCard) {
+                                                return;
+                                            }
+                                            // If dropping on nested group container or receipt grid, let them handle it
+                                            if (target.closest('[data-nested-group-container]')) {
+                                                return;
+                                            }
+
                                             try {
                                                 const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                                if (!data || !data.receiptId) {
+                                                    console.error('Invalid drop data:', data);
+                                                    return;
+                                                }
+
                                                 const receiptId = data.receiptId;
 
                                                 // Check if receipt is already in this parent group
@@ -942,14 +961,6 @@ export default function ReceiptsPage() {
                                                                             backgroundColor: nestedFadedBg,
                                                                             borderColor: nestedColor + '40'
                                                                         }}
-                                                                        onDragOver={(e) => {
-                                                                            // Prevent parent from handling if dragging over nested group container
-                                                                            e.stopPropagation();
-                                                                        }}
-                                                                        onDrop={(e) => {
-                                                                            // Prevent parent from handling if dropping on nested group container
-                                                                            e.stopPropagation();
-                                                                        }}
                                                                     >
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                                             {nestedReceipts.map(receipt => (
@@ -1039,17 +1050,7 @@ export default function ReceiptsPage() {
                                                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
                                                         Receipts
                                                     </h4>
-                                                    <div
-                                                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-                                                        onDragOver={(e) => {
-                                                            // Prevent parent from handling if dragging over receipts grid
-                                                            e.stopPropagation();
-                                                        }}
-                                                        onDrop={(e) => {
-                                                            // Prevent parent from handling if dropping on receipts grid
-                                                            e.stopPropagation();
-                                                        }}
-                                                    >
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                         {parentOnlyReceipts.map(receipt => (
                                                             <ReceiptCard
                                                                 key={receipt.id}

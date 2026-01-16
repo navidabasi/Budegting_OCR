@@ -98,17 +98,25 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         
         if (isDragging) {
-            // Check if dropped on a group card (including nested groups)
+            // Check if dropped on a group card (including nested groups and expanded group containers)
             const groupCard = elementBelow?.closest('[data-group-id]');
             if (groupCard) {
                 const groupId = groupCard.getAttribute('data-group-id');
-                const event = new CustomEvent('receiptDrop', {
-                    detail: {
-                        receiptId: receipt.id,
-                        groupId: groupId
-                    }
-                });
-                window.dispatchEvent(event);
+                // Check if it's an expanded container (has class with 'rounded-lg border-2')
+                const isExpandedContainer = groupCard.classList.contains('rounded-lg') && 
+                                           groupCard.classList.contains('border-2') &&
+                                           groupCard.classList.contains('border-dashed');
+                
+                // Only dispatch if it's a group card or expanded container
+                if (groupId) {
+                    const event = new CustomEvent('receiptDrop', {
+                        detail: {
+                            receiptId: receipt.id,
+                            groupId: groupId
+                        }
+                    });
+                    window.dispatchEvent(event);
+                }
             } else {
                 // Check if dropped on another receipt card
                 const receiptCard = elementBelow?.closest('[data-receipt-id]');
