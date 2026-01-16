@@ -10,7 +10,7 @@ const Input = forwardRef(({
     ...props
 }, ref) => {
     return (
-        <div className="mb-4">
+        <div className={`mb-4 ${type === 'date' ? 'w-full overflow-hidden' : ''}`}>
             {label && (
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                     {label}
@@ -21,8 +21,13 @@ const Input = forwardRef(({
                 ref={ref}
                 type={type}
                 placeholder={placeholder}
-                className={`input ${error ? 'border-red-500' : ''} ${type === 'date' ? 'max-w-full' : ''} ${className}`}
-                style={type === 'date' ? { maxWidth: '100%', boxSizing: 'border-box' } : {}}
+                className={`input ${error ? 'border-red-500' : ''} ${type === 'date' ? 'w-full min-w-0' : ''} ${className}`}
+                style={type === 'date' ? { 
+                    maxWidth: '100%', 
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                    width: '100%'
+                } : {}}
                 {...props}
             />
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}

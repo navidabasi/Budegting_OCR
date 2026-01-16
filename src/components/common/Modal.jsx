@@ -31,7 +31,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
                     onClick={onClose}
                 />
                 <div className={`inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full ${sizeClasses[size]}`}>
-                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 overflow-x-hidden">
                         <div className="flex items-center justify-between mb-4">
                             {title && <h3 className="text-lg font-medium text-gray-900">{title}</h3>}
                             <button
@@ -41,7 +41,9 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
                                 <X size={24} />
                             </button>
                         </div>
-                        {children}
+                        <div className="overflow-x-hidden w-full">
+                            {children}
+                        </div>
                     </div>
                 </div>
             </div>

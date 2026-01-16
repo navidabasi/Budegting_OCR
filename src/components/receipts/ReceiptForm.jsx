@@ -258,7 +258,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const itemsTotal = calculateTotal();
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full overflow-hidden">
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transaction Type *

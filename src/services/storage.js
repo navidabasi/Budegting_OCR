@@ -505,6 +505,10 @@ export const storageService = {
 
             const cloudReceipts = await supabaseService.getReceiptsByUserId(userId);
             console.log('[Sync] Local receipts:', localReceipts.length, 'Cloud receipts:', cloudReceipts.length);
+            // Debug: Check if groups and splits are in cloud receipts
+            const receiptsWithGroups = cloudReceipts.filter(r => r.groupId || r.groupName);
+            const receiptsWithSplits = cloudReceipts.filter(r => r.splitData);
+            console.log('[Sync] Cloud receipts with groups:', receiptsWithGroups.length, 'with splits:', receiptsWithSplits.length);
 
             // Step 2: Create maps for quick lookup
             const localMap = new Map(); // key: supabaseId or localId
@@ -624,9 +628,12 @@ export const storageService = {
 
             // Step 3b: Process local-only receipts (upload to cloud)
             for (const [key, localReceipt] of localMap) {
+                // Skip if already processed in Step 3a
                 if (!key.startsWith('local_') && processed.has(key)) continue;
 
+                // Handle items that need to be uploaded
                 if (key.startsWith('local_') || !localReceipt.supabaseId) {
+                    // New local item - create in cloud
                     try {
                         const cloudReceipt = await withTimeout(
                             supabaseService.createReceipt({
@@ -644,6 +651,51 @@ export const storageService = {
                     } catch (error) {
                         const errorMessage = error?.message || error?.error || String(error);
                         errors.push({ type: 'upload', receiptId: localReceipt.id, error: errorMessage });
+                    }
+                } else if (localReceipt.supabaseId && !processed.has(localReceipt.supabaseId)) {
+                    // Local item has supabaseId but wasn't in cloudMap
+                    // This could mean it was deleted from cloud or the ID is stale
+                    // Try to update first, if that fails (404), create a new one
+                    try {
+                        await withTimeout(
+                            supabaseService.updateReceipt(localReceipt.supabaseId, {
+                                ...localReceipt,
+                                userId: userId
+                            }),
+                            10000,
+                            'Update receipt timed out'
+                        );
+                        // Update succeeded - item exists in cloud, just wasn't in our initial fetch
+                        await db.receipts.update(localReceipt.id, {
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    } catch (updateError) {
+                        // Update failed - likely 404 (item doesn't exist in cloud)
+                        // Create a new one and update the local supabaseId
+                        try {
+                            console.log(`[Sync] Receipt ${localReceipt.supabaseId} not found in cloud, creating new one`);
+                            const cloudReceipt = await withTimeout(
+                                supabaseService.createReceipt({
+                                    ...localReceipt,
+                                    userId: userId
+                                }),
+                                10000,
+                                'Create receipt timed out'
+                            );
+                            await db.receipts.update(localReceipt.id, {
+                                supabaseId: cloudReceipt.id,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (createError) {
+                            const errorMessage = createError?.message || createError?.error || String(createError);
+                            errors.push({
+                                type: 'upload',
+                                receiptId: localReceipt.id,
+                                error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}`
+                            });
+                        }
                     }
                 }
             }
@@ -785,6 +837,7 @@ export const storageService = {
                 // Process local-only categories (upload to cloud)
                 for (const [key, localCategory] of localMap) {
                     if (key.startsWith('local_') || !localCategory.supabaseId) {
+                        // New local category - create in cloud
                         try {
                             const cloudCategory = await withTimeout(
                                 supabaseService.createUserCategory(userId, {
@@ -802,6 +855,50 @@ export const storageService = {
                         } catch (error) {
                             const errorMessage = error?.message || error?.error || String(error);
                             errors.push({ type: 'category_upload', categoryId: localCategory.id, error: errorMessage });
+                        }
+                    } else if (localCategory.supabaseId && !processed.has(localCategory.supabaseId)) {
+                        // Local category has supabaseId but wasn't in cloudMap
+                        // Try to update first, if that fails (404), create a new one
+                        try {
+                            await withTimeout(
+                                supabaseService.updateUserCategory(localCategory.supabaseId, {
+                                    name: localCategory.name,
+                                    color: localCategory.color
+                                }),
+                                10000,
+                                'Update category timed out'
+                            );
+                            // Update succeeded - category exists in cloud
+                            await db.userCategories.update(localCategory.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (updateError) {
+                            // Update failed - likely 404 (category doesn't exist in cloud)
+                            // Create a new one and update the local supabaseId
+                            try {
+                                console.log(`[Sync] Category ${localCategory.supabaseId} not found in cloud, creating new one`);
+                                const cloudCategory = await withTimeout(
+                                    supabaseService.createUserCategory(userId, {
+                                        name: localCategory.name,
+                                        color: localCategory.color
+                                    }),
+                                    10000,
+                                    'Create category timed out'
+                                );
+                                await db.userCategories.update(localCategory.id, {
+                                    supabaseId: cloudCategory.id,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (createError) {
+                                const errorMessage = createError?.message || createError?.error || String(createError);
+                                errors.push({
+                                    type: 'category_upload',
+                                    categoryId: localCategory.id,
+                                    error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}`
+                                });
+                            }
                         }
                     }
                 }
