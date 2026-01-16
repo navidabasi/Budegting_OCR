@@ -33,12 +33,39 @@ export default function ReceiptsPage() {
     const [categories, setCategories] = useState([]);
     const [draggedOverGroup, setDraggedOverGroup] = useState(null);
     const [expandedGroups, setExpandedGroups] = useState(new Set());
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [groupToDelete, setGroupToDelete] = useState(null);
 
     useEffect(() => {
         loadReceipts();
         loadCategories();
         loadGroups();
     }, [currentUser]);
+
+    // Helper function to get next available group number
+    const getNextAvailableGroupNumber = async (parentGroupId = null) => {
+        const allGroups = await storageService.getAllGroups(currentUser.userId);
+        const relevantGroups = parentGroupId
+            ? allGroups.filter(g => String(g.parentGroupId || '') === String(parentGroupId))
+            : allGroups.filter(g => !g.parentGroupId);
+
+        // Extract numbers from group names that match "Group N" pattern
+        const usedNumbers = new Set();
+        relevantGroups.forEach(group => {
+            const match = group.name.match(/^Group (\d+)$/);
+            if (match) {
+                usedNumbers.add(parseInt(match[1], 10));
+            }
+        });
+
+        // Find the first available number starting from 1
+        let nextNumber = 1;
+        while (usedNumbers.has(nextNumber)) {
+            nextNumber++;
+        }
+
+        return nextNumber;
+    };
 
     const loadGroups = async () => {
         if (!currentUser?.userId) return;
@@ -397,9 +424,8 @@ export default function ReceiptsPage() {
                     <div className="flex items-center gap-2">
                         <Button
                             variant="primary"
-                            size="sm"
                             onClick={() => setShowCreateGroup(true)}
-                            className="flex items-center gap-2"
+                            className="text-sm px-3 py-1.5 flex items-center gap-1"
                         >
                             <Plus size={16} />
                             New Group
@@ -508,32 +534,33 @@ export default function ReceiptsPage() {
                         </button>
                     </div>
                     {showGroupsSection && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                            {groups.map(group => {
-                                const groupIdToUse = String(group.supabaseId || group.id);
-                                const isExpanded = expandedGroups.has(groupIdToUse);
-                                const groupReceipts = receipts.filter(r => {
-                                    if (!r.groupId) return false;
-                                    const receiptGroupId = String(r.groupId);
-                                    return receiptGroupId === groupIdToUse;
-                                });
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                                {groups.map((group, index) => {
+                                    const groupIdToUse = String(group.supabaseId || group.id);
+                                    const isExpanded = expandedGroups.has(groupIdToUse);
+                                    const groupReceipts = receipts.filter(r => {
+                                        if (!r.groupId) return false;
+                                        const receiptGroupId = String(r.groupId);
+                                        return receiptGroupId === groupIdToUse;
+                                    });
 
-                                // Get faded background color
-                                const groupColor = group.color || '#3b82f6';
-                                const hexToRgb = (hex) => {
-                                    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-                                    return result ? {
-                                        r: parseInt(result[1], 16),
-                                        g: parseInt(result[2], 16),
-                                        b: parseInt(result[3], 16)
-                                    } : null;
-                                };
-                                const rgb = hexToRgb(groupColor);
-                                const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
+                                    // Get faded background color
+                                    const groupColor = group.color || '#3b82f6';
+                                    const hexToRgb = (hex) => {
+                                        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                                        return result ? {
+                                            r: parseInt(result[1], 16),
+                                            g: parseInt(result[2], 16),
+                                            b: parseInt(result[3], 16)
+                                        } : null;
+                                    };
+                                    const rgb = hexToRgb(groupColor);
+                                    const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
 
-                                return (
-                                    <div key={group.id} className={isExpanded ? "md:col-span-2 lg:col-span-3" : ""}>
+                                    return (
                                         <GroupCard
+                                            key={group.id}
                                             group={group}
                                             isDragOver={draggedOverGroup === group.id}
                                             isExpanded={isExpanded}
@@ -554,16 +581,9 @@ export default function ReceiptsPage() {
                                                 setNewGroupColor(group.color || '#3b82f6');
                                                 setNewGroupPinned(group.isPinned);
                                             }}
-                                            onDelete={async () => {
-                                                if (!confirm('Delete this group? Receipts will be ungrouped.')) return;
-                                                try {
-                                                    await storageService.deleteGroup(group.id);
-                                                    await loadReceipts();
-                                                    await loadGroups();
-                                                    showToast('Group deleted', 'success');
-                                                } catch (err) {
-                                                    showToast(`Failed to delete group: ${err.message}`, 'error');
-                                                }
+                                            onDelete={() => {
+                                                setGroupToDelete(group);
+                                                setShowDeleteConfirm(true);
                                             }}
                                             onTogglePin={async () => {
                                                 try {
@@ -628,72 +648,103 @@ export default function ReceiptsPage() {
                                                 }
                                             }}
                                         />
-                                        {isExpanded && groupReceipts.length > 0 && (
-                                            <div
-                                                className="mt-4 p-4 rounded-lg border-2 border-dashed w-full"
-                                                style={{
-                                                    backgroundColor: fadedBg,
-                                                    borderColor: groupColor + '40'
-                                                }}
-                                            >
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                    {groupReceipts.map(receipt => (
-                                                        <ReceiptCard
-                                                            key={receipt.id}
-                                                            receipt={receipt}
-                                                            onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
-                                                                try {
-                                                                    const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
-                                                                    const targetReceipt = receipts.find(r => r.id === targetReceiptId);
+                                    );
+                                })}
+                            </div>
+                            {groups.map(group => {
+                                const groupIdToUse = String(group.supabaseId || group.id);
+                                const isExpanded = expandedGroups.has(groupIdToUse);
+                                const groupReceipts = receipts.filter(r => {
+                                    if (!r.groupId) return false;
+                                    const receiptGroupId = String(r.groupId);
+                                    return receiptGroupId === groupIdToUse;
+                                });
 
-                                                                    if (!draggedReceipt || !targetReceipt) return;
+                                if (!isExpanded || groupReceipts.length === 0) return null;
 
-                                                                    // Check if target receipt is in a group - if so, create nested group
-                                                                    const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
-                                                                    const parentGroup = targetGroupId ? groups.find(g =>
-                                                                        String(g.supabaseId || g.id) === targetGroupId
-                                                                    ) : null;
+                                const groupColor = group.color || '#3b82f6';
+                                const hexToRgb = (hex) => {
+                                    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                                    return result ? {
+                                        r: parseInt(result[1], 16),
+                                        g: parseInt(result[2], 16),
+                                        b: parseInt(result[3], 16)
+                                    } : null;
+                                };
+                                const rgb = hexToRgb(groupColor);
+                                const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
 
-                                                                    // Create group with default name
-                                                                    const groupName = `Group ${new Date().toLocaleDateString()}`;
-                                                                    const groupId = await storageService.createGroup(currentUser.userId, {
-                                                                        name: groupName,
-                                                                        color: '#3b82f6',
-                                                                        isPinned: false,
-                                                                        parentGroupId: parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null
-                                                                    });
+                                return (
+                                    <div
+                                        key={`expanded-${group.id}`}
+                                        className="mb-6 p-4 rounded-lg border-2 border-dashed w-full"
+                                        style={{
+                                            backgroundColor: fadedBg,
+                                            borderColor: groupColor + '40'
+                                        }}
+                                    >
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {groupReceipts.map(receipt => (
+                                                <ReceiptCard
+                                                    key={receipt.id}
+                                                    receipt={receipt}
+                                                    onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
+                                                        try {
+                                                            const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
+                                                            const targetReceipt = receipts.find(r => r.id === targetReceiptId);
 
-                                                                    const createdGroup = await storageService.getGroupById(groupId);
-                                                                    const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                                            if (!draggedReceipt || !targetReceipt) return;
 
-                                                                    // Assign both receipts to the new group
-                                                                    await storageService.updateReceipt(draggedReceiptId, {
-                                                                        groupId: groupIdToUse,
-                                                                        groupName: createdGroup.name
-                                                                    });
+                                                            // Check if target receipt is in a group - if so, create nested group
+                                                            const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
+                                                            const parentGroup = targetGroupId ? groups.find(g =>
+                                                                String(g.supabaseId || g.id) === targetGroupId
+                                                            ) : null;
 
-                                                                    await storageService.updateReceipt(targetReceiptId, {
-                                                                        groupId: groupIdToUse,
-                                                                        groupName: createdGroup.name
-                                                                    });
+                                                            // Get parent group ID for nested group
+                                                            const parentGroupId = parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null;
+                                                            const parentGroupIdStr = parentGroupId ? String(parentGroupId) : null;
 
-                                                                    await loadReceipts();
-                                                                    await loadGroups();
-                                                                    showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
-                                                                } catch (err) {
-                                                                    console.error('Failed to create group from receipts:', err);
-                                                                    showToast(`Failed to create group: ${err.message}`, 'error');
-                                                                }
-                                                            }}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                                            // Get next available group number
+                                                            const nextNumber = await getNextAvailableGroupNumber(parentGroupIdStr);
+                                                            const groupName = `Group ${nextNumber}`;
+
+                                                            const groupId = await storageService.createGroup(currentUser.userId, {
+                                                                name: groupName,
+                                                                color: '#3b82f6',
+                                                                isPinned: false,
+                                                                parentGroupId: parentGroupIdStr
+                                                            });
+
+                                                            const createdGroup = await storageService.getGroupById(groupId);
+                                                            const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+
+                                                            // Assign both receipts to the new group
+                                                            await storageService.updateReceipt(draggedReceiptId, {
+                                                                groupId: groupIdToUse,
+                                                                groupName: createdGroup.name
+                                                            });
+
+                                                            await storageService.updateReceipt(targetReceiptId, {
+                                                                groupId: groupIdToUse,
+                                                                groupName: createdGroup.name
+                                                            });
+
+                                                            await loadReceipts();
+                                                            await loadGroups();
+                                                            showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
+                                                        } catch (err) {
+                                                            console.error('Failed to create group from receipts:', err);
+                                                            showToast(`Failed to create group: ${err.message}`, 'error');
+                                                        }
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 );
                             })}
-                        </div>
+                        </>
                     )}
                 </div>
             )}
@@ -731,13 +782,19 @@ export default function ReceiptsPage() {
                                         String(g.supabaseId || g.id) === targetGroupId
                                     ) : null;
 
-                                    // Create group with default name
-                                    const groupName = `Group ${new Date().toLocaleDateString()}`;
+                                    // Get parent group ID for nested group
+                                    const parentGroupId = parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null;
+                                    const parentGroupIdStr = parentGroupId ? String(parentGroupId) : null;
+
+                                    // Get next available group number
+                                    const nextNumber = await getNextAvailableGroupNumber(parentGroupIdStr);
+                                    const groupName = `Group ${nextNumber}`;
+
                                     const groupId = await storageService.createGroup(currentUser.userId, {
                                         name: groupName,
                                         color: '#3b82f6',
                                         isPinned: false,
-                                        parentGroupId: parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null
+                                        parentGroupId: parentGroupIdStr
                                     });
 
                                     const createdGroup = await storageService.getGroupById(groupId);
@@ -990,6 +1047,60 @@ export default function ReceiptsPage() {
                                     Cancel
                                 </Button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="card max-w-md w-full">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-semibold dark:text-white">Delete Group</h4>
+                            <button
+                                onClick={() => {
+                                    setShowDeleteConfirm(false);
+                                    setGroupToDelete(null);
+                                }}
+                                className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 mb-6">
+                            Delete this group? Receipts will be ungrouped.
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    setShowDeleteConfirm(false);
+                                    setGroupToDelete(null);
+                                }}
+                                className="flex-1"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={async () => {
+                                    if (!groupToDelete) return;
+                                    try {
+                                        await storageService.deleteGroup(groupToDelete.id);
+                                        await loadReceipts();
+                                        await loadGroups();
+                                        showToast('Group deleted', 'success');
+                                        setShowDeleteConfirm(false);
+                                        setGroupToDelete(null);
+                                    } catch (err) {
+                                        showToast(`Failed to delete group: ${err.message}`, 'error');
+                                    }
+                                }}
+                                className="flex-1 bg-red-600 hover:bg-red-700"
+                            >
+                                Delete
+                            </Button>
                         </div>
                     </div>
                 </div>
