@@ -1533,9 +1533,22 @@ export const storageService = {
             throw new Error(`Group ${id} not found`);
         }
 
+        // Get groupId to match (could be local id or supabaseId)
+        const groupIdToMatch = group.supabaseId || group.id;
+        
         // Remove groupId from all receipts in this group
-        const receipts = await db.receipts.where('groupId').equals(group.id).toArray();
-        for (const receipt of receipts) {
+        // Match by both local id and supabaseId to catch all receipts
+        const allReceipts = await db.receipts.toArray();
+        const groupReceipts = allReceipts.filter(r => {
+            if (!r.groupId) return false;
+            const receiptGroupId = String(r.groupId);
+            const targetGroupId = String(groupIdToMatch);
+            return receiptGroupId === targetGroupId || 
+                   receiptGroupId === String(group.id) ||
+                   receiptGroupId === String(group.supabaseId);
+        });
+        
+        for (const receipt of groupReceipts) {
             await db.receipts.update(receipt.id, {
                 groupId: null,
                 groupName: null,

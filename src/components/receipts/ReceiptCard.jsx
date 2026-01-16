@@ -4,10 +4,11 @@ import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users } from 'lucide-react';
 
-export default function ReceiptCard({ receipt }) {
+export default function ReceiptCard({ receipt, onDropOnReceipt }) {
     const navigate = useNavigate();
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const handleDragStart = (e) => {
         e.dataTransfer.setData('application/json', JSON.stringify({
@@ -23,6 +24,47 @@ export default function ReceiptCard({ receipt }) {
     const handleDragEnd = (e) => {
         setIsDragging(false);
         e.currentTarget.style.opacity = '1';
+    };
+
+    const handleDragOver = (e) => {
+        // Only allow drop if this receipt is not the one being dragged
+        if (!isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+            setIsDragOver(true);
+        }
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            setIsDragOver(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+            const draggedReceiptId = data.receiptId;
+            
+            // Don't create group if dropping on itself
+            if (draggedReceiptId === receipt.id) {
+                return;
+            }
+            
+            // Trigger create group with both receipts
+            if (onDropOnReceipt) {
+                onDropOnReceipt(draggedReceiptId, receipt.id);
+            }
+        } catch (err) {
+            console.error('Failed to parse drop data:', err);
+        }
     };
 
     // Touch handlers for mobile drag and drop
@@ -54,17 +96,32 @@ export default function ReceiptCard({ receipt }) {
         const touch = e.changedTouches[0];
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         
-        // Check if dropped on a group card
-        const groupCard = elementBelow?.closest('[data-group-id]');
-        if (groupCard && isDragging) {
-            const groupId = groupCard.getAttribute('data-group-id');
-            const event = new CustomEvent('receiptDrop', {
-                detail: {
-                    receiptId: receipt.id,
-                    groupId: groupId
+        if (isDragging) {
+            // Check if dropped on a group card
+            const groupCard = elementBelow?.closest('[data-group-id]');
+            if (groupCard) {
+                const groupId = groupCard.getAttribute('data-group-id');
+                const event = new CustomEvent('receiptDrop', {
+                    detail: {
+                        receiptId: receipt.id,
+                        groupId: groupId
+                    }
+                });
+                window.dispatchEvent(event);
+            } else {
+                // Check if dropped on another receipt card
+                const receiptCard = elementBelow?.closest('[data-receipt-id]');
+                if (receiptCard && receiptCard.getAttribute('data-receipt-id') !== receipt.id) {
+                    const targetReceiptId = receiptCard.getAttribute('data-receipt-id');
+                    const event = new CustomEvent('receiptDropOnReceipt', {
+                        detail: {
+                            draggedReceiptId: receipt.id,
+                            targetReceiptId: targetReceiptId
+                        }
+                    });
+                    window.dispatchEvent(event);
                 }
-            });
-            window.dispatchEvent(event);
+            }
         }
         
         setIsDragging(false);
@@ -74,20 +131,28 @@ export default function ReceiptCard({ receipt }) {
 
     return (
         <div
+            data-receipt-id={receipt.id}
             draggable={true}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={() => {
                 // Only navigate if not dragging
-                if (!isDragging) {
+                if (!isDragging && !isDragOver) {
                     navigate(`/receipts/${receipt.id}`);
                 }
             }}
-            className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
-            style={{ opacity: isDragging ? 0.5 : 1 }}
+            className="card cursor-pointer hover:shadow-lg transition-all w-full"
+            style={{ 
+                opacity: isDragging ? 0.5 : 1,
+                backgroundColor: isDragOver ? '#3b82f615' : undefined,
+                border: isDragOver ? '2px dashed #3b82f6' : undefined
+            }}
         >
                 <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">

@@ -124,11 +124,54 @@ export default function ReceiptsPage() {
             }
         };
 
+        const handleReceiptDropOnReceipt = async (e) => {
+            const { draggedReceiptId, targetReceiptId } = e.detail;
+            
+            // Create a new group with both receipts
+            try {
+                const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
+                const targetReceipt = receipts.find(r => r.id === targetReceiptId);
+                
+                if (!draggedReceipt || !targetReceipt) return;
+                
+                // Create group with default name
+                const groupName = `Group ${new Date().toLocaleDateString()}`;
+                const groupId = await storageService.createGroup(currentUser.userId, {
+                    name: groupName,
+                    color: '#3b82f6',
+                    isPinned: false
+                });
+                
+                const createdGroup = await storageService.getGroupById(groupId);
+                const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                
+                // Assign both receipts to the new group
+                await storageService.updateReceipt(draggedReceiptId, {
+                    groupId: groupIdToUse,
+                    groupName: createdGroup.name
+                });
+                
+                await storageService.updateReceipt(targetReceiptId, {
+                    groupId: groupIdToUse,
+                    groupName: createdGroup.name
+                });
+                
+                await loadReceipts();
+                await loadGroups();
+                showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+            } catch (err) {
+                console.error('Failed to create group from receipts:', err);
+                showToast(`Failed to create group: ${err.message}`, 'error');
+            }
+        };
+
         window.addEventListener('receiptDrop', handleReceiptDrop);
+        window.addEventListener('receiptDropOnReceipt', handleReceiptDropOnReceipt);
         return () => {
             window.removeEventListener('receiptDrop', handleReceiptDrop);
+            window.removeEventListener('receiptDropOnReceipt', handleReceiptDropOnReceipt);
         };
-    }, [groups, receipts, showToast]);
+    }, [groups, receipts, showToast, currentUser]);
 
     const loadCategories = async () => {
         if (currentUser) {
@@ -419,6 +462,15 @@ export default function ReceiptsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setShowCreateGroup(true)}
+                            className="flex items-center gap-2"
+                        >
+                            <Plus size={16} />
+                            New Group
+                        </Button>
+                        <Button
                             variant="secondary"
                             onClick={() => setShowFilters(!showFilters)}
                             className="text-sm px-3 py-1.5 flex items-center gap-1"
@@ -556,15 +608,6 @@ export default function ReceiptsPage() {
                             {showGroupsSection ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                             Groups
                         </button>
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setShowCreateGroup(true)}
-                            className="flex items-center gap-2"
-                        >
-                            <Plus size={16} />
-                            New Group
-                        </Button>
                     </div>
                     {showGroupsSection && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -665,22 +708,28 @@ export default function ReceiptsPage() {
 
             {/* Receipts Section Header */}
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Receipts</h2>
-                {hideGroupedReceipts && (
-                    <button
-                        onClick={() => setHideGroupedReceipts(false)}
-                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                    >
-                        Show grouped receipts
-                    </button>
-                )}
-                {!hideGroupedReceipts && (
-                    <button
-                        onClick={() => setHideGroupedReceipts(true)}
-                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                    >
-                        Hide grouped receipts
-                    </button>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {selectedGroup ? `${selectedGroupName || 'Group'} Receipts` : 'Receipts'}
+                </h2>
+                {!selectedGroup && (
+                    <>
+                        {hideGroupedReceipts && (
+                            <button
+                                onClick={() => setHideGroupedReceipts(false)}
+                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                            >
+                                Show grouped receipts
+                            </button>
+                        )}
+                        {!hideGroupedReceipts && (
+                            <button
+                                onClick={() => setHideGroupedReceipts(true)}
+                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                            >
+                                Hide grouped receipts
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -696,7 +745,47 @@ export default function ReceiptsPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredReceipts.map(receipt => (
-                        <ReceiptCard key={receipt.id} receipt={receipt} />
+                        <ReceiptCard 
+                            key={receipt.id} 
+                            receipt={receipt}
+                            onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
+                                try {
+                                    const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
+                                    const targetReceipt = receipts.find(r => r.id === targetReceiptId);
+                                    
+                                    if (!draggedReceipt || !targetReceipt) return;
+                                    
+                                    // Create group with default name
+                                    const groupName = `Group ${new Date().toLocaleDateString()}`;
+                                    const groupId = await storageService.createGroup(currentUser.userId, {
+                                        name: groupName,
+                                        color: '#3b82f6',
+                                        isPinned: false
+                                    });
+                                    
+                                    const createdGroup = await storageService.getGroupById(groupId);
+                                    const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                    
+                                    // Assign both receipts to the new group
+                                    await storageService.updateReceipt(draggedReceiptId, {
+                                        groupId: groupIdToUse,
+                                        groupName: createdGroup.name
+                                    });
+                                    
+                                    await storageService.updateReceipt(targetReceiptId, {
+                                        groupId: groupIdToUse,
+                                        groupName: createdGroup.name
+                                    });
+                                    
+                                    await loadReceipts();
+                                    await loadGroups();
+                                    showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                } catch (err) {
+                                    console.error('Failed to create group from receipts:', err);
+                                    showToast(`Failed to create group: ${err.message}`, 'error');
+                                }
+                            }}
+                        />
                     ))}
                 </div>
             )}
