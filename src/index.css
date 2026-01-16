@@ -85,4 +85,9 @@
     .animate-slide-in {
         animation: slide-in 0.3s ease-out;
     }
+
+    .touch-manipulation {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
 }

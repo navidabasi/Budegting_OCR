@@ -3,6 +3,7 @@ import { X, Plus, Tag, Edit2, Trash2, Pin, PinOff } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import ColorPicker from '../common/ColorPicker';
+import ConfirmationModal from '../common/ConfirmationModal';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +19,8 @@ export default function GroupManager({ receipts, onUpdate }) {
     const [newGroupColor, setNewGroupColor] = useState('#3b82f6');
     const [newGroupPinned, setNewGroupPinned] = useState(false);
     const [editingGroup, setEditingGroup] = useState(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [groupToDelete, setGroupToDelete] = useState(null);
 
     useEffect(() => {
         loadGroups();
@@ -138,15 +141,25 @@ export default function GroupManager({ receipts, onUpdate }) {
     };
 
     const handleDeleteGroup = async (groupId) => {
-        if (!confirm('Delete this group? Receipts will be ungrouped.')) return;
+        const group = groups.find(g => g.id === groupId);
+        setGroupToDelete(group);
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDeleteGroup = async () => {
+        if (!groupToDelete) return;
 
         try {
-            await storageService.deleteGroup(groupId);
+            await storageService.deleteGroup(groupToDelete.id);
             await onUpdate();
             await loadGroups();
             showToast('Group deleted', 'success');
+            setShowDeleteConfirm(false);
+            setGroupToDelete(null);
         } catch (err) {
             showToast(`Failed to delete group: ${err.message}`, 'error');
+            setShowDeleteConfirm(false);
+            setGroupToDelete(null);
         }
     };
 
@@ -461,6 +474,20 @@ export default function GroupManager({ receipts, onUpdate }) {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => {
+                    setShowDeleteConfirm(false);
+                    setGroupToDelete(null);
+                }}
+                onConfirm={confirmDeleteGroup}
+                title="Delete Group"
+                message="Delete this group? Receipts will be ungrouped."
+                confirmText="Delete"
+                cancelText="Cancel"
+                danger={true}
+            />
         </div>
     );
 }

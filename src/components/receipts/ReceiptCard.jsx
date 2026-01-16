@@ -4,7 +4,7 @@ import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users } from 'lucide-react';
 
-export default function ReceiptCard({ receipt, onDropOnReceipt }) {
+export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null }) {
     const navigate = useNavigate();
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
@@ -151,8 +151,10 @@ export default function ReceiptCard({ receipt, onDropOnReceipt }) {
             className="card cursor-pointer hover:shadow-lg transition-all w-full"
             style={{ 
                 opacity: isDragging ? 0.5 : 1,
-                backgroundColor: isDragOver ? '#3b82f615' : undefined,
-                border: isDragOver ? '2px dashed #3b82f6' : undefined
+                backgroundColor: isDragOver ? '#3b82f615' : (isNested && nestedGroupColor ? `${nestedGroupColor}08` : undefined),
+                border: isDragOver ? '2px dashed #3b82f6' : (isNested && nestedGroupColor ? `2px solid ${nestedGroupColor}40` : undefined),
+                borderLeft: isNested && nestedGroupColor ? `4px solid ${nestedGroupColor}` : undefined,
+                marginLeft: isNested ? '0.5rem' : undefined
             }}
         >
                 <div className="flex items-start justify-between mb-2">
