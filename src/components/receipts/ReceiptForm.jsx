@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Plus, Trash2, Users, X } from 'lucide-react';
+import { Plus, Trash2, Users, X, Tag } from 'lucide-react';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import SplitManager from './SplitManager';
@@ -110,19 +110,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const loadGroups = async () => {
         if (currentUser) {
             try {
-                const allReceipts = await storageService.getReceiptsByUserId(currentUser.userId);
-                const groupMap = new Map();
-                allReceipts.forEach(receipt => {
-                    if (receipt.groupId && receipt.groupName) {
-                        if (!groupMap.has(receipt.groupId)) {
-                            groupMap.set(receipt.groupId, {
-                                id: receipt.groupId,
-                                name: receipt.groupName
-                            });
-                        }
-                    }
-                });
-                const groupsList = Array.from(groupMap.values());
+                const groupsList = await storageService.getAllGroups(currentUser.userId);
                 setGroups(groupsList);
                 console.log('[ReceiptForm] Loaded groups:', groupsList);
             } catch (error) {
@@ -456,24 +444,40 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     Group (optional)
                 </label>
                 <div className="flex flex-col gap-2">
-                    {watch('groupId') && watch('groupName') && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-300">Selected:</span>
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
-                                {watch('groupName')}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setValue('groupId', '');
-                                        setValue('groupName', '');
+                    {watch('groupId') && watch('groupName') && (() => {
+                        const selectedGroup = groups.find(g => 
+                            g.id === watch('groupId') || 
+                            g.supabaseId === watch('groupId')
+                        );
+                        const groupColor = selectedGroup?.color || '#3b82f6';
+                        return (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-300">Selected:</span>
+                                <span 
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded"
+                                    style={{ 
+                                        backgroundColor: groupColor + '20',
+                                        color: groupColor,
+                                        border: `1px solid ${groupColor}40`
                                     }}
-                                    className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
                                 >
-                                    <X size={14} />
-                                </button>
-                            </span>
-                        </div>
-                    )}
+                                    <Tag size={12} style={{ color: groupColor }} />
+                                    {watch('groupName')}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValue('groupId', '');
+                                            setValue('groupName', '');
+                                        }}
+                                        className="hover:opacity-70"
+                                        style={{ color: groupColor }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </span>
+                            </div>
+                        );
+                    })()}
                     <div className="flex gap-2">
                         <div className="flex-1">
                             <select
@@ -482,31 +486,21 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 value={watch('groupId') || ''}
                                 style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 onChange={(e) => {
-                                    const selectedGroup = groups.find(g => g.id === e.target.value);
-                                    const newGroupId = e.target.value || '';
+                                    const selectedGroup = groups.find(g => 
+                                        g.id === e.target.value || 
+                                        g.supabaseId === e.target.value
+                                    );
+                                    const newGroupId = selectedGroup ? (selectedGroup.supabaseId || selectedGroup.id) : '';
                                     const newGroupName = selectedGroup?.name || '';
                                     
                                     setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
                                     setValue('groupName', newGroupName, { shouldValidate: true, shouldDirty: true });
-                                    
-                                    // Find the group's tags from receipts
-                                    if (newGroupId && currentUser) {
-                                        storageService.getReceiptsByUserId(currentUser.userId).then(receipts => {
-                                            const groupReceipt = receipts.find(r => r.groupId === newGroupId);
-                                            if (groupReceipt && groupReceipt.groupTags) {
-                                                setValue('groupTags', groupReceipt.groupTags, { shouldValidate: true, shouldDirty: true });
-                                            } else {
-                                                setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
-                                            }
-                                        });
-                                    } else {
-                                        setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
-                                    }
+                                    setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
                                 }}
                             >
                                 <option value="">No group</option>
                                 {groups.map(group => (
-                                    <option key={group.id} value={group.id}>
+                                    <option key={group.id} value={group.supabaseId || group.id}>
                                         {group.name}
                                     </option>
                                 ))}
@@ -535,24 +529,33 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 variant="primary"
                                 size="sm"
                                 onClick={async () => {
-                                    if (!newGroupName.trim()) return;
-                                    const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                                    const groupName = newGroupName.trim();
+                                    if (!newGroupName.trim() || !currentUser) return;
                                     
-                                    // Add to groups list immediately
-                                    const newGroup = { id: groupId, name: groupName };
-                                    setGroups([...groups, newGroup]);
-                                    
-                                    // Set form values with validation flags
-                                    setValue('groupId', groupId, { shouldValidate: true, shouldDirty: true });
-                                    setValue('groupName', groupName, { shouldValidate: true, shouldDirty: true });
-                                    setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
-                                    
-                                    // Reload groups to ensure consistency
-                                    await loadGroups();
-                                    
-                                    setNewGroupName('');
-                                    setShowNewGroupInput(false);
+                                    try {
+                                        // Create group in groups table
+                                        const groupId = await storageService.createGroup(currentUser.userId, {
+                                            name: newGroupName.trim(),
+                                            color: '#3b82f6',
+                                            isPinned: false
+                                        });
+                                        
+                                        // Get the created group
+                                        const createdGroup = await storageService.getGroupById(groupId);
+                                        
+                                        // Reload groups to ensure consistency
+                                        await loadGroups();
+                                        
+                                        // Set form values with validation flags
+                                        const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                        setValue('groupId', groupIdToUse, { shouldValidate: true, shouldDirty: true });
+                                        setValue('groupName', createdGroup.name, { shouldValidate: true, shouldDirty: true });
+                                        setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
+                                        
+                                        setNewGroupName('');
+                                        setShowNewGroupInput(false);
+                                    } catch (error) {
+                                        console.error('Failed to create group:', error);
+                                    }
                                 }}
                             >
                                 Create & Select

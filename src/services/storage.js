@@ -77,6 +77,42 @@ db.version(4).stores({
     }
 });
 
+// Version 5: Add groups table for folder-like group management
+db.version(5).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
+    userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt',
+    groups: '++id, userId, supabaseId, name, color, isPinned, createdAt, updatedAt, syncedAt'
+}).upgrade(async (tx) => {
+    // Migrate existing groups from receipts to groups table
+    const receipts = await tx.table('receipts').toArray();
+    const groupMap = new Map();
+    
+    // Collect unique groups from receipts
+    receipts.forEach(receipt => {
+        if (receipt.groupId && receipt.groupName) {
+            const key = `${receipt.userId}_${receipt.groupName}`;
+            if (!groupMap.has(key)) {
+                groupMap.set(key, {
+                    userId: receipt.userId,
+                    name: receipt.groupName,
+                    color: '#3b82f6', // Default blue
+                    isPinned: false,
+                    createdAt: receipt.createdAt || new Date().toISOString(),
+                    updatedAt: receipt.updatedAt || new Date().toISOString(),
+                    syncedAt: null
+                });
+            }
+        }
+    });
+    
+    // Create groups in IndexedDB
+    for (const group of groupMap.values()) {
+        await tx.table('groups').add(group);
+    }
+});
+
 export const storageService = {
     // User operations
     async createUser(userData) {
@@ -929,6 +965,179 @@ export const storageService = {
                 errors.push({ type: 'category_sync', error: errorMessage });
             }
 
+            // Sync groups bidirectionally
+            try {
+                const cloudGroups = await withTimeout(
+                    supabaseService.getGroups(userId),
+                    30000,
+                    'Get groups timed out'
+                );
+                const localGroups = await this.getAllGroups(userId);
+
+                // Create maps for comparison
+                const cloudMap = new Map();
+                cloudGroups.forEach(group => {
+                    cloudMap.set(group.id, group);
+                });
+
+                const localMap = new Map();
+                localGroups.forEach(group => {
+                    const key = group.supabaseId ? group.supabaseId : `local_${group.id}`;
+                    localMap.set(key, group);
+                });
+
+                const processed = new Set();
+
+                // Process groups that exist in both
+                for (const [supabaseId, cloudGroup] of cloudMap) {
+                    const localGroup = localMap.get(supabaseId);
+                    if (localGroup) {
+                        processed.add(supabaseId);
+                        const cloudUpdated = new Date(cloudGroup.updatedAt || 0);
+                        const localUpdated = new Date(localGroup.updatedAt || 0);
+
+                        if (localUpdated > cloudUpdated) {
+                            // Local is newer - upload to cloud
+                            try {
+                                await withTimeout(
+                                    supabaseService.updateGroup(supabaseId, {
+                                        name: localGroup.name,
+                                        color: localGroup.color,
+                                        isPinned: localGroup.isPinned
+                                    }),
+                                    10000,
+                                    'Update group timed out'
+                                );
+                                await db.groups.update(localGroup.id, {
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (error) {
+                                const errorMessage = error?.message || error?.error || String(error);
+                                errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                            }
+                        } else if (cloudUpdated > localUpdated) {
+                            // Cloud is newer - download to local
+                            try {
+                                await db.groups.update(localGroup.id, {
+                                    name: cloudGroup.name,
+                                    color: cloudGroup.color,
+                                    isPinned: cloudGroup.isPinned,
+                                    updatedAt: cloudGroup.updatedAt,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (error) {
+                                const errorMessage = error?.message || error?.error || String(error);
+                                errors.push({ type: 'group_download', groupId: localGroup.id, error: errorMessage });
+                            }
+                        } else {
+                            // Already in sync
+                            await db.groups.update(localGroup.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                        }
+                    }
+                }
+
+                // Process local-only groups (upload to cloud)
+                for (const [key, localGroup] of localMap) {
+                    if (key.startsWith('local_') || !localGroup.supabaseId) {
+                        // New local group - create in cloud
+                        try {
+                            const cloudGroup = await withTimeout(
+                                supabaseService.createGroup(userId, {
+                                    name: localGroup.name,
+                                    color: localGroup.color,
+                                    isPinned: localGroup.isPinned
+                                }),
+                                10000,
+                                'Create group timed out'
+                            );
+                            await db.groups.update(localGroup.id, {
+                                supabaseId: cloudGroup.id,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                        }
+                    } else if (localGroup.supabaseId && !processed.has(localGroup.supabaseId)) {
+                        // Local group has supabaseId but wasn't in cloudMap
+                        // Try to update first, if that fails (404), create a new one
+                        try {
+                            await withTimeout(
+                                supabaseService.updateGroup(localGroup.supabaseId, {
+                                    name: localGroup.name,
+                                    color: localGroup.color,
+                                    isPinned: localGroup.isPinned
+                                }),
+                                10000,
+                                'Update group timed out'
+                            );
+                            await db.groups.update(localGroup.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (updateError) {
+                            // Update failed - likely 404 (group doesn't exist in cloud)
+                            // Create a new one and update the local supabaseId
+                            try {
+                                console.log(`[Sync] Group ${localGroup.supabaseId} not found in cloud, creating new one`);
+                                const cloudGroup = await withTimeout(
+                                    supabaseService.createGroup(userId, {
+                                        name: localGroup.name,
+                                        color: localGroup.color,
+                                        isPinned: localGroup.isPinned
+                                    }),
+                                    10000,
+                                    'Create group timed out'
+                                );
+                                await db.groups.update(localGroup.id, {
+                                    supabaseId: cloudGroup.id,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (createError) {
+                                const errorMessage = createError?.message || createError?.error || String(createError);
+                                errors.push({
+                                    type: 'group_upload',
+                                    groupId: localGroup.id,
+                                    error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}`
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Process cloud-only groups (download to local)
+                for (const [supabaseId, cloudGroup] of cloudMap) {
+                    if (!processed.has(supabaseId)) {
+                        try {
+                            await db.groups.add({
+                                userId: userId,
+                                supabaseId: cloudGroup.id,
+                                name: cloudGroup.name,
+                                color: cloudGroup.color || '#3b82f6',
+                                isPinned: cloudGroup.isPinned || false,
+                                createdAt: cloudGroup.createdAt || new Date().toISOString(),
+                                updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'group_download', groupId: cloudGroup.id, error: errorMessage });
+                        }
+                    }
+                }
+            } catch (error) {
+                const errorMessage = error?.message || error?.error || String(error);
+                console.error('[Sync] Error syncing groups:', error);
+                errors.push({ type: 'group_sync', error: errorMessage });
+            }
+
         } catch (error) {
             const errorMessage = error?.message || error?.error || String(error);
             console.error('[Sync] Error during bidirectional sync:', error);
@@ -1122,6 +1331,57 @@ export const storageService = {
                 console.error('[Sync From Cloud] Failed to sync user categories:', error);
                 errors.push({ type: 'category_sync', error: error.message || String(error) });
             }
+
+            // Sync groups from cloud
+            try {
+                const cloudGroups = await supabaseService.getGroups(userId);
+                const localGroups = await this.getAllGroups(userId);
+
+                // Create a map of local groups by supabaseId
+                const localMap = new Map();
+                localGroups.forEach(group => {
+                    if (group.supabaseId) {
+                        localMap.set(group.supabaseId, group);
+                    }
+                });
+
+                for (const cloudGroup of cloudGroups) {
+                    const localGroup = localMap.get(cloudGroup.id);
+
+                    if (localGroup) {
+                        // Update existing local group if cloud is newer
+                        const cloudUpdated = new Date(cloudGroup.updatedAt || 0);
+                        const localUpdated = new Date(localGroup.updatedAt || 0);
+
+                        if (cloudUpdated > localUpdated) {
+                            await db.groups.update(localGroup.id, {
+                                name: cloudGroup.name,
+                                color: cloudGroup.color,
+                                isPinned: cloudGroup.isPinned,
+                                updatedAt: cloudGroup.updatedAt,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        }
+                    } else {
+                        // Create new local group from cloud
+                        await db.groups.add({
+                            userId: userId,
+                            supabaseId: cloudGroup.id,
+                            name: cloudGroup.name,
+                            color: cloudGroup.color || '#3b82f6',
+                            isPinned: cloudGroup.isPinned || false,
+                            createdAt: cloudGroup.createdAt || new Date().toISOString(),
+                            updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    }
+                }
+            } catch (error) {
+                console.error('[Sync From Cloud] Failed to sync groups:', error);
+                errors.push({ type: 'group_sync', error: error.message || String(error) });
+            }
         } catch (error) {
             console.error('Failed to sync from cloud:', error);
             errors.push({ type: 'sync', error: error.message });
@@ -1162,6 +1422,142 @@ export const storageService = {
             }).catch((error) => {
                 console.warn('[Storage] Background sync failed for category:', error.message);
             });
+            syncPromise.catch(() => { });
+        }
+
+        return id;
+    },
+
+    // Group operations
+    async createGroup(userId, groupData) {
+        // groupData should contain: name, color, isPinned
+        const now = new Date().toISOString();
+        
+        // Save locally FIRST
+        const id = await db.groups.add({
+            userId,
+            name: groupData.name,
+            color: groupData.color || '#3b82f6',
+            isPinned: groupData.isPinned || false,
+            supabaseId: null,
+            createdAt: now,
+            updatedAt: now,
+            syncedAt: null
+        });
+
+        // Try to sync to Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            const syncPromise = Promise.race([
+                supabaseService.createGroup({
+                    userId,
+                    name: groupData.name,
+                    color: groupData.color || '#3b82f6',
+                    isPinned: groupData.isPinned || false
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
+                )
+            ]).then(async (supabaseGroup) => {
+                await db.groups.update(id, {
+                    supabaseId: supabaseGroup.id,
+                    syncedAt: new Date().toISOString()
+                });
+                console.log('[Storage] Group synced to Supabase:', supabaseGroup.id);
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed (will retry later):', error.message);
+            });
+
+            syncPromise.catch(() => { });
+        }
+
+        return id;
+    },
+
+    async getAllGroups(userId) {
+        if (!userId) return [];
+        const groups = await db.groups.where('userId').equals(userId).toArray();
+        // Sort: pinned first, then by name
+        return groups.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    },
+
+    async getGroupById(id) {
+        return await db.groups.get(id);
+    },
+
+    async getGroupBySupabaseId(supabaseId) {
+        return await db.groups.where('supabaseId').equals(supabaseId).first();
+    },
+
+    async updateGroup(id, updates) {
+        const group = await db.groups.get(id);
+        if (!group) {
+            throw new Error(`Group ${id} not found`);
+        }
+
+        // Update locally FIRST
+        await db.groups.update(id, {
+            ...updates,
+            updatedAt: new Date().toISOString()
+        });
+
+        // Try to sync to Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && group.supabaseId) {
+            const syncPromise = Promise.race([
+                supabaseService.updateGroup(group.supabaseId, updates),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).then(() => {
+                return db.groups.update(id, {
+                    syncedAt: new Date().toISOString()
+                });
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed (will retry later):', error.message);
+            });
+
+            syncPromise.catch(() => { });
+        }
+
+        return id;
+    },
+
+    async deleteGroup(id) {
+        const group = await db.groups.get(id);
+        if (!group) {
+            throw new Error(`Group ${id} not found`);
+        }
+
+        // Remove groupId from all receipts in this group
+        const receipts = await db.receipts.where('groupId').equals(group.id).toArray();
+        for (const receipt of receipts) {
+            await db.receipts.update(receipt.id, {
+                groupId: null,
+                groupName: null,
+                groupTags: []
+            });
+        }
+
+        // Delete locally
+        await db.groups.delete(id);
+
+        // Try to sync deletion to Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured() && group.supabaseId) {
+            const syncPromise = Promise.race([
+                supabaseService.deleteGroup(group.supabaseId),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).catch((error) => {
+                console.warn('[Storage] Background sync failed (will retry later):', error.message);
+            });
+
             syncPromise.catch(() => { });
         }
 

@@ -563,6 +563,120 @@ export const supabaseService = {
             .eq('id', categoryId);
 
         if (error) throw error;
+    },
+
+    // Group operations
+    async createGroup(userId, groupData) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const { data, error } = await supabase
+            .from('groups')
+            .insert([{
+                user_id: authenticatedUserId,
+                name: groupData.name,
+                color: groupData.color || '#3b82f6',
+                is_pinned: groupData.isPinned || false
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return this.transformGroupFromSupabase(data);
+    },
+
+    async getGroups(userId) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const { data, error } = await supabase
+            .from('groups')
+            .select('*')
+            .eq('user_id', authenticatedUserId)
+            .order('is_pinned', { ascending: false })
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+        return data.map(group => this.transformGroupFromSupabase(group));
+    },
+
+    async updateGroup(groupId, updates) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('groups')
+            .update({
+                name: updates.name,
+                color: updates.color,
+                is_pinned: updates.isPinned,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', groupId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return this.transformGroupFromSupabase(data);
+    },
+
+    async deleteGroup(groupId) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // First, ungroup all receipts in this group
+        const { error: updateError } = await supabase
+            .from('receipts')
+            .update({
+                group_id: null,
+                group_name: null,
+                group_tags: []
+            })
+            .eq('group_id', groupId);
+
+        if (updateError) {
+            console.warn('[Delete Group] Failed to ungroup receipts:', updateError);
+        }
+
+        // Then delete the group
+        const { error } = await supabase
+            .from('groups')
+            .delete()
+            .eq('id', groupId);
+
+        if (error) throw error;
+    },
+
+    // Transform group between app and Supabase formats
+    transformGroupToSupabase(group) {
+        return {
+            user_id: group.userId,
+            name: group.name,
+            color: group.color || '#3b82f6',
+            is_pinned: group.isPinned || false
+        };
+    },
+
+    transformGroupFromSupabase(supabaseGroup) {
+        return {
+            id: supabaseGroup.id,
+            userId: supabaseGroup.user_id,
+            name: supabaseGroup.name,
+            color: supabaseGroup.color || '#3b82f6',
+            isPinned: supabaseGroup.is_pinned || false,
+            createdAt: supabaseGroup.created_at,
+            updatedAt: supabaseGroup.updated_at
+        };
     }
 };
 

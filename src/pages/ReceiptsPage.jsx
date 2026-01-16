@@ -22,6 +22,7 @@ export default function ReceiptsPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [categories, setCategories] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState('');
+    const [selectedGroupName, setSelectedGroupName] = useState('');
 
     useEffect(() => {
         loadReceipts();
@@ -59,10 +60,46 @@ export default function ReceiptsPage() {
         const groupParam = searchParams.get('group');
         if (groupParam && groupParam !== selectedGroup) {
             setSelectedGroup(groupParam);
+            // Load group name
+            loadGroupName(groupParam);
+        } else if (!groupParam && selectedGroup) {
+            // Clear group filter if removed from URL
+            setSelectedGroup('');
+            setSelectedGroupName('');
         }
         applyFilters();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear, selectedGroup]);
+
+    const loadGroupName = async (groupId) => {
+        if (!groupId || !currentUser) return;
+        try {
+            // Try to find group in groups table
+            const allGroups = await storageService.getAllGroups(currentUser.userId);
+            const group = allGroups.find(g => 
+                g.id === groupId || 
+                g.supabaseId === groupId
+            );
+            if (group) {
+                setSelectedGroupName(group.name);
+            } else {
+                // Fallback: find in receipts
+                const receipt = receipts.find(r => r.groupId === groupId);
+                if (receipt) {
+                    setSelectedGroupName(receipt.groupName || '');
+                } else {
+                    setSelectedGroupName('');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load group name:', error);
+            // Fallback: find in receipts
+            const receipt = receipts.find(r => r.groupId === groupId);
+            if (receipt) {
+                setSelectedGroupName(receipt.groupName || '');
+            }
+        }
+    };
 
     const loadReceipts = async () => {
         if (!currentUser) return;
@@ -174,7 +211,10 @@ export default function ReceiptsPage() {
 
         // Apply group filter
         if (selectedGroup) {
-            filtered = filtered.filter(receipt => receipt.groupId === selectedGroup);
+            filtered = filtered.filter(receipt => 
+                receipt.groupId === selectedGroup ||
+                (receipt.groupName && selectedGroupName && receipt.groupName === selectedGroupName)
+            );
         }
 
         setFilteredReceipts(filtered);
@@ -188,6 +228,7 @@ export default function ReceiptsPage() {
         setSelectedMonth('');
         setSelectedYear('');
         setSelectedGroup('');
+        setSelectedGroupName('');
     };
 
     // Get unique groups from receipts
@@ -246,7 +287,32 @@ export default function ReceiptsPage() {
         <div className="pb-24 px-4 pt-6">
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-3xl font-bold text-gray-900">Receipts</h1>
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Receipts</h1>
+                        {selectedGroupName && (
+                            <div className="flex items-center gap-2 mt-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    Filtered by group:
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded"
+                                    style={{ 
+                                        backgroundColor: '#3b82f620',
+                                        color: '#3b82f6',
+                                        border: '1px solid #3b82f640'
+                                    }}
+                                >
+                                    {selectedGroupName}
+                                </span>
+                                <button
+                                    onClick={clearFilters}
+                                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
+                                >
+                                    <X size={14} />
+                                    Clear
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
