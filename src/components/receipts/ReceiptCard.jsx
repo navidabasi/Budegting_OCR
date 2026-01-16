@@ -1,34 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import { formatDate, getGroupColor } from '../../utils/helpers';
+import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users } from 'lucide-react';
 
 export default function ReceiptCard({ receipt }) {
     const navigate = useNavigate();
-    const groupColor = receipt.groupName ? getGroupColor(receipt.groupName) : null;
 
     return (
         <div
             onClick={() => navigate(`/receipts/${receipt.id}`)}
             className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
-            style={groupColor ? {
-                backgroundColor: groupColor.rgba(0.15),
-                borderLeft: `4px solid ${groupColor.hex}`
-            } : {}}
         >
             <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-lg text-gray-900">{receipt.merchant}</h3>
-                        {receipt.groupName && groupColor && (
-                            <span 
-                                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded"
-                                style={{
-                                    backgroundColor: groupColor.rgba(0.3),
-                                    color: groupColor.hex,
-                                    border: `1px solid ${groupColor.rgba(0.5)}`
-                                }}
-                            >
+                        {receipt.groupName && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-700">
                                 <Tag size={12} />
                                 {receipt.groupName}
                             </span>
