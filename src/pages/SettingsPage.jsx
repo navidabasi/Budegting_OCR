@@ -4,12 +4,17 @@ import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2 } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun } from 'lucide-react';
 
 export default function SettingsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
     const logout = useAppStore((state) => state.logout);
     const showToast = useAppStore((state) => state.showToast);
+    const darkMode = useAppStore((state) => state.darkMode);
+    const darkModeManual = useAppStore((state) => state.darkModeManual);
+    const toggleDarkMode = useAppStore((state) => state.toggleDarkMode);
+    const resetToSystemDarkMode = useAppStore((state) => state.resetToSystemDarkMode);
+    const getSystemDarkMode = useAppStore((state) => state.getSystemDarkMode);
     const { register, handleSubmit, setValue, formState: { errors } } = useForm();
     const { control: controlCurrency, handleSubmit: handleSubmitCurrency, reset: resetCurrency } = useForm({
         defaultValues: {
@@ -276,18 +281,18 @@ export default function SettingsPage() {
                         placeholder="Enter your OCR.Space API key (optional)"
                         {...register('ocrApiKey')}
                     />
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                         OCR works without an API key using the free tier. Add your own key for higher limits (25,000 requests/month). Get one at{' '}
                         <a
                             href="https://ocr.space/ocrapi"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary-600 hover:underline"
+                            className="text-primary-600 dark:text-primary-400 hover:underline"
                         >
                             ocr.space
                         </a>
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                         <strong>Note:</strong> Leave empty to use the free tier, or enter your API key for higher limits.
                     </p>
                     <Button type="submit" variant="primary" disabled={loading}>
@@ -303,7 +308,7 @@ export default function SettingsPage() {
                 </div>
                 <form onSubmit={handleSubmitCurrency(onSaveCurrency)} className="space-y-4">
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Currency
                         </label>
                         <Controller
@@ -313,7 +318,7 @@ export default function SettingsPage() {
                             render={({ field }) => (
                                 <select
                                     {...field}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                 >
                                     {currencies.map(currency => (
                                         <option key={currency.code} value={currency.code}>
@@ -324,7 +329,7 @@ export default function SettingsPage() {
                             )}
                         />
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                         This currency will be used as default for all new transactions. You can change the currency for individual transactions.
                     </p>
                     <Button type="submit" variant="primary" disabled={loadingCurrency}>
@@ -335,10 +340,50 @@ export default function SettingsPage() {
 
             <div className="card">
                 <div className="flex items-center gap-3 mb-4">
+                    {darkMode ? <Moon className="text-primary-600" size={20} /> : <Sun className="text-primary-600" size={20} />}
+                    <h3 className="font-semibold">Appearance</h3>
+                </div>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {darkModeManual === null
+                                    ? `Following system (${getSystemDarkMode() ? 'Dark' : 'Light'})`
+                                    : darkMode ? 'Manually set to Dark' : 'Manually set to Light'
+                                }
+                            </p>
+                        </div>
+                        <button
+                            onClick={toggleDarkMode}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${darkMode ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                            role="switch"
+                            aria-checked={darkMode}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+                    {darkModeManual !== null && (
+                        <button
+                            onClick={resetToSystemDarkMode}
+                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                        >
+                            Reset to system preference
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="card">
+                <div className="flex items-center gap-3 mb-4">
                     <Cloud className="text-primary-600" size={20} />
                     <h3 className="font-semibold">Cloud Sync</h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Sync your data with the cloud to access it from multiple devices
                 </p>
                 <div className="space-y-2">
@@ -351,13 +396,13 @@ export default function SettingsPage() {
                         <Cloud size={18} />
                         {syncing ? 'Syncing...' : 'Sync'}
                     </Button>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                         Syncs both directions automatically. If the same receipt was changed on both devices, changes will be merged (line items combined, newer data preserved).
                     </p>
                     {syncStatus && (
-                        <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600' :
-                            syncStatus.type === 'warning' ? 'text-yellow-600' :
-                                'text-red-600'
+                        <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                            syncStatus.type === 'warning' ? 'text-yellow-600 dark:text-yellow-400' :
+                                'text-red-600 dark:text-red-400'
                             }`}>
                             {syncStatus.message}
                         </p>
@@ -370,7 +415,7 @@ export default function SettingsPage() {
                     <Database className="text-primary-600" size={20} />
                     <h3 className="font-semibold">Demo Data</h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Load sample receipts to see how the app works
                 </p>
                 <div className="flex gap-2">
@@ -397,25 +442,25 @@ export default function SettingsPage() {
                     <Tag className="text-primary-600" size={20} />
                     <h3 className="font-semibold">Custom Categories</h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Create custom categories that sync across all your devices
                 </p>
 
                 <div className="space-y-3 mb-4">
                     {customCategories.map(category => (
-                        <div key={category.id} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg">
+                        <div key={category.id} className="flex items-center gap-2 p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
                             <div
                                 className="w-6 h-6 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: category.color || '#00573f' }}
                             />
-                            <span className="flex-1 font-medium">{category.name}</span>
+                            <span className="flex-1 font-medium dark:text-gray-200">{category.name}</span>
                             <button
                                 onClick={() => {
                                     setEditingCategory(category);
                                     setNewCategoryName(category.name);
                                     setNewCategoryColor(category.color || '#00573f');
                                 }}
-                                className="p-1 text-gray-500 hover:text-gray-700"
+                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                             >
                                 <Edit2 size={16} />
                             </button>
@@ -431,7 +476,7 @@ export default function SettingsPage() {
                                         }
                                     }
                                 }}
-                                className="p-1 text-red-500 hover:text-red-700"
+                                className="p-1 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -439,7 +484,7 @@ export default function SettingsPage() {
                     ))}
                 </div>
 
-                <div className="border-t pt-4">
+                <div className="border-t dark:border-gray-700 pt-4">
                     <div className="flex gap-2 mb-2">
                         <Input
                             placeholder="Category name"
@@ -451,7 +496,7 @@ export default function SettingsPage() {
                             type="color"
                             value={newCategoryColor}
                             onChange={(e) => setNewCategoryColor(e.target.value)}
-                            className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                            className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
                         />
                     </div>
                     <div className="flex gap-2">
@@ -527,10 +572,10 @@ export default function SettingsPage() {
 
             <div className="card">
                 <div className="flex items-center gap-3 mb-4">
-                    <LogOut className="text-red-600" size={20} />
-                    <h3 className="font-semibold">Account</h3>
+                    <LogOut className="text-red-600 dark:text-red-400" size={20} />
+                    <h3 className="font-semibold dark:text-gray-100">Account</h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Signed in as: <span className="font-medium">{currentUser?.email}</span>
                 </p>
                 <Button variant="danger" onClick={handleLogout} className="w-full">

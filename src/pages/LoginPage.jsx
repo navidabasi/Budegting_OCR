@@ -41,11 +41,11 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
             <div className="max-w-md w-full">
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Receipt Manager</h1>
-                    <p className="text-gray-600">Sign in to your account</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Receipt Manager</h1>
+                    <p className="text-gray-600 dark:text-gray-400">Sign in to your account</p>
                 </div>
 
                 <div className="card">
@@ -81,9 +81,9 @@ export default function LoginPage() {
                     </form>
 
                     <div className="mt-6 text-center">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                             Don't have an account?{' '}
-                            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
+                            <Link to="/register" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
                                 Sign up
                             </Link>
                         </p>

@@ -29,11 +29,11 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
             <div className="max-w-md w-full">
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-                    <p className="text-gray-600">Sign up to start managing your receipts</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Create Account</h1>
+                    <p className="text-gray-600 dark:text-gray-400">Sign up to start managing your receipts</p>
                 </div>
 
                 <div className="card">
@@ -71,7 +71,7 @@ export default function RegisterPage() {
                                 placeholder="Leave empty to use free OCR tier"
                                 {...register('ocrApiKey')}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                 OCR works without an API key. You can add one later in Settings for higher limits.
                             </p>
                         </div>
@@ -87,9 +87,9 @@ export default function RegisterPage() {
                     </form>
 
                     <div className="mt-6 text-center">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                             Already have an account?{' '}
-                            <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+                            <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
                                 Sign in
                             </Link>
                         </p>

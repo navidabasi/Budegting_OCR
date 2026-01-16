@@ -28,6 +28,11 @@ function App() {
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
+    const darkMode = useAppStore((state) => state.darkMode);
+    const initializeDarkMode = useAppStore((state) => state.initializeDarkMode);
+    const getSystemDarkMode = useAppStore((state) => state.getSystemDarkMode);
+    const darkModeManual = useAppStore((state) => state.darkModeManual);
+    const applyDarkMode = useAppStore((state) => state.applyDarkMode);
     const syncIntervalRef = useRef(null);
     const lastSyncRef = useRef(null);
     const showToastRef = useRef(showToast);
@@ -174,9 +179,41 @@ function App() {
         };
     }, [currentUser?.userId]);
 
+    // Initialize dark mode on mount
+    useEffect(() => {
+        initializeDarkMode();
+    }, [initializeDarkMode]);
+
+    // Listen for system preference changes (only if not manually set)
+    useEffect(() => {
+        if (darkModeManual !== null) {
+            // User has manually set preference, don't listen to system changes
+            return;
+        }
+
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        
+        const handleSystemChange = (e) => {
+            const systemDarkMode = e.matches;
+            applyDarkMode(systemDarkMode);
+            useAppStore.setState({ darkMode: systemDarkMode });
+        };
+
+        // Modern browsers
+        if (mediaQuery.addEventListener) {
+            mediaQuery.addEventListener('change', handleSystemChange);
+            return () => mediaQuery.removeEventListener('change', handleSystemChange);
+        } 
+        // Fallback for older browsers
+        else if (mediaQuery.addListener) {
+            mediaQuery.addListener(handleSystemChange);
+            return () => mediaQuery.removeListener(handleSystemChange);
+        }
+    }, [darkModeManual, applyDarkMode]);
+
     return (
         <BrowserRouter>
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
                 <Routes>
                     <Route
                         path="/login"
