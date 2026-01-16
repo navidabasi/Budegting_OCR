@@ -83,7 +83,7 @@ db.version(5).stores({
     receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, createdAt, updatedAt, syncedAt',
     settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
     userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt',
-    groups: '++id, userId, supabaseId, name, color, isPinned, createdAt, updatedAt, syncedAt'
+    groups: '++id, userId, supabaseId, name, color, isPinned, parentGroupId, createdAt, updatedAt, syncedAt'
 }).upgrade(async (tx) => {
     // Migrate existing groups from receipts to groups table
     const receipts = await tx.table('receipts').toArray();
@@ -1430,7 +1430,7 @@ export const storageService = {
 
     // Group operations
     async createGroup(userId, groupData) {
-        // groupData should contain: name, color, isPinned
+        // groupData should contain: name, color, isPinned, parentGroupId (optional)
         const now = new Date().toISOString();
         
         // Save locally FIRST
@@ -1439,6 +1439,7 @@ export const storageService = {
             name: groupData.name,
             color: groupData.color || '#3b82f6',
             isPinned: groupData.isPinned || false,
+            parentGroupId: groupData.parentGroupId || null,
             supabaseId: null,
             createdAt: now,
             updatedAt: now,
@@ -1453,7 +1454,8 @@ export const storageService = {
                     userId,
                     name: groupData.name,
                     color: groupData.color || '#3b82f6',
-                    isPinned: groupData.isPinned || false
+                    isPinned: groupData.isPinned || false,
+                    parentGroupId: groupData.parentGroupId || null
                 }),
                 new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)

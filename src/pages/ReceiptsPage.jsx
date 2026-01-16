@@ -46,8 +46,11 @@ export default function ReceiptsPage() {
         try {
             const allGroups = await storageService.getAllGroups(currentUser.userId);
 
+            // Filter out nested groups (they'll be shown within their parent groups)
+            const topLevelGroups = allGroups.filter(group => !group.parentGroupId);
+
             // Count receipts per group - match by groupId (UUID) only
-            const groupsWithCounts = allGroups.map(group => {
+            const groupsWithCounts = topLevelGroups.map(group => {
                 // Use supabaseId if available, otherwise use local id
                 const groupIdToMatch = group.supabaseId || group.id;
 
@@ -62,10 +65,18 @@ export default function ReceiptsPage() {
                     return receiptGroupId === targetGroupId;
                 });
 
+                // Get nested groups for this group
+                const nestedGroups = allGroups.filter(g => {
+                    const gParentId = String(g.parentGroupId || '');
+                    const gId = String(groupIdToMatch);
+                    return gParentId === gId;
+                });
+
                 return {
                     ...group,
                     receiptCount: groupReceipts.length,
-                    receipts: groupReceipts
+                    receipts: groupReceipts,
+                    nestedGroups: nestedGroups
                 };
             });
 
@@ -497,7 +508,7 @@ export default function ReceiptsPage() {
                         </button>
                     </div>
                     {showGroupsSection && (
-                        <div className="space-y-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             {groups.map(group => {
                                 const groupIdToUse = String(group.supabaseId || group.id);
                                 const isExpanded = expandedGroups.has(groupIdToUse);
@@ -521,7 +532,7 @@ export default function ReceiptsPage() {
                                 const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
 
                                 return (
-                                    <div key={group.id}>
+                                    <div key={group.id} className={isExpanded ? "md:col-span-2 lg:col-span-3" : ""}>
                                         <GroupCard
                                             group={group}
                                             isDragOver={draggedOverGroup === group.id}
@@ -619,7 +630,7 @@ export default function ReceiptsPage() {
                                         />
                                         {isExpanded && groupReceipts.length > 0 && (
                                             <div
-                                                className="mt-4 p-4 rounded-lg border-2 border-dashed"
+                                                className="mt-4 p-4 rounded-lg border-2 border-dashed w-full"
                                                 style={{
                                                     backgroundColor: fadedBg,
                                                     borderColor: groupColor + '40'
@@ -637,12 +648,19 @@ export default function ReceiptsPage() {
 
                                                                     if (!draggedReceipt || !targetReceipt) return;
 
+                                                                    // Check if target receipt is in a group - if so, create nested group
+                                                                    const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
+                                                                    const parentGroup = targetGroupId ? groups.find(g =>
+                                                                        String(g.supabaseId || g.id) === targetGroupId
+                                                                    ) : null;
+
                                                                     // Create group with default name
                                                                     const groupName = `Group ${new Date().toLocaleDateString()}`;
                                                                     const groupId = await storageService.createGroup(currentUser.userId, {
                                                                         name: groupName,
                                                                         color: '#3b82f6',
-                                                                        isPinned: false
+                                                                        isPinned: false,
+                                                                        parentGroupId: parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null
                                                                     });
 
                                                                     const createdGroup = await storageService.getGroupById(groupId);
@@ -661,7 +679,7 @@ export default function ReceiptsPage() {
 
                                                                     await loadReceipts();
                                                                     await loadGroups();
-                                                                    showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                                                    showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
                                                                 } catch (err) {
                                                                     console.error('Failed to create group from receipts:', err);
                                                                     showToast(`Failed to create group: ${err.message}`, 'error');
@@ -707,12 +725,19 @@ export default function ReceiptsPage() {
 
                                     if (!draggedReceipt || !targetReceipt) return;
 
+                                    // Check if target receipt is in a group - if so, create nested group
+                                    const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
+                                    const parentGroup = targetGroupId ? groups.find(g =>
+                                        String(g.supabaseId || g.id) === targetGroupId
+                                    ) : null;
+
                                     // Create group with default name
                                     const groupName = `Group ${new Date().toLocaleDateString()}`;
                                     const groupId = await storageService.createGroup(currentUser.userId, {
                                         name: groupName,
                                         color: '#3b82f6',
-                                        isPinned: false
+                                        isPinned: false,
+                                        parentGroupId: parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null
                                     });
 
                                     const createdGroup = await storageService.getGroupById(groupId);
@@ -731,7 +756,7 @@ export default function ReceiptsPage() {
 
                                     await loadReceipts();
                                     await loadGroups();
-                                    showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                    showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
                                 } catch (err) {
                                     console.error('Failed to create group from receipts:', err);
                                     showToast(`Failed to create group: ${err.message}`, 'error');

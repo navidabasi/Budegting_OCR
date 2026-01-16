@@ -582,7 +582,8 @@ export const supabaseService = {
                 user_id: authenticatedUserId,
                 name: groupData.name,
                 color: groupData.color || '#3b82f6',
-                is_pinned: groupData.isPinned || false
+                is_pinned: groupData.isPinned || false,
+                parent_group_id: groupData.parentGroupId || null
             }])
             .select()
             .single();
@@ -663,7 +664,8 @@ export const supabaseService = {
             user_id: group.userId,
             name: group.name,
             color: group.color || '#3b82f6',
-            is_pinned: group.isPinned || false
+            is_pinned: group.isPinned || false,
+            parent_group_id: group.parentGroupId || null
         };
     },
 
@@ -674,6 +676,7 @@ export const supabaseService = {
             name: supabaseGroup.name,
             color: supabaseGroup.color || '#3b82f6',
             isPinned: supabaseGroup.is_pinned || false,
+            parentGroupId: supabaseGroup.parent_group_id || null,
             createdAt: supabaseGroup.created_at,
             updatedAt: supabaseGroup.updated_at
         };
