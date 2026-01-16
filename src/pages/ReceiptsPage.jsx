@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import ReceiptCard from '../components/receipts/ReceiptCard';
-import { Search, Loader, X, Filter } from 'lucide-react';
+import GroupManager from '../components/receipts/GroupManager';
+import { Search, Loader, X, Filter, Folder } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { categoryService } from '../services/categoryService';
@@ -20,6 +21,7 @@ export default function ReceiptsPage() {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedYear, setSelectedYear] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [showGroups, setShowGroups] = useState(false);
     const [categories, setCategories] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState('');
     const [selectedGroupName, setSelectedGroupName] = useState('');
@@ -316,6 +318,14 @@ export default function ReceiptsPage() {
                     <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
+                            onClick={() => setShowGroups(!showGroups)}
+                            className="text-sm px-3 py-1.5 flex items-center gap-1"
+                        >
+                            <Folder size={16} />
+                            Groups
+                        </Button>
+                        <Button
+                            variant="secondary"
                             onClick={() => setShowFilters(!showFilters)}
                             className="text-sm px-3 py-1.5 flex items-center gap-1"
                         >
@@ -334,6 +344,12 @@ export default function ReceiptsPage() {
                         )}
                     </div>
                 </div>
+
+                {showGroups && (
+                    <div className="mb-6">
+                        <GroupManager receipts={receipts} onUpdate={loadReceipts} />
+                    </div>
+                )}
 
                 {showFilters && (
                     <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
