@@ -4,6 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
+import ConfirmationModal from '../components/common/ConfirmationModal';
 import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -28,6 +29,11 @@ export default function SettingsPage() {
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
+    const [showLoadDemoConfirm, setShowLoadDemoConfirm] = useState(false);
+    const [showClearDemoConfirm, setShowClearDemoConfirm] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showDeleteCategoryConfirm, setShowDeleteCategoryConfirm] = useState(false);
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
     const [customCategories, setCustomCategories] = useState([]);
     const [editingCategory, setEditingCategory] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
@@ -133,10 +139,6 @@ export default function SettingsPage() {
     const handleLoadDemoData = async () => {
         if (!currentUser) return;
 
-        if (!confirm('This will add sample receipts to your account. Continue?')) {
-            return;
-        }
-
         setLoadingDemo(true);
         try {
             const count = await storageService.seedDemoData(currentUser.userId);
@@ -152,10 +154,6 @@ export default function SettingsPage() {
 
     const handleClearDemoData = async () => {
         if (!currentUser) return;
-
-        if (!confirm('This will remove all demo receipts. Continue?')) {
-            return;
-        }
 
         try {
             await storageService.clearDemoData(currentUser.userId);
@@ -229,20 +227,6 @@ export default function SettingsPage() {
 
     const handleLogout = async () => {
         console.log('[Settings] Logout clicked');
-
-        // Use window.confirm with fallback
-        let shouldLogout = true;
-        try {
-            shouldLogout = window.confirm('Are you sure you want to logout?');
-        } catch (e) {
-            // If confirm throws, just proceed
-            console.warn('[Settings] confirm() not supported, proceeding with logout');
-        }
-
-        if (!shouldLogout) {
-            console.log('[Settings] User cancelled logout');
-            return;
-        }
 
         try {
             console.log('[Settings] Calling logout...');
@@ -421,7 +405,7 @@ export default function SettingsPage() {
                 <div className="flex gap-2">
                     <Button
                         variant="secondary"
-                        onClick={handleLoadDemoData}
+                        onClick={() => setShowLoadDemoConfirm(true)}
                         disabled={loadingDemo}
                         className="flex-1"
                     >
@@ -429,7 +413,7 @@ export default function SettingsPage() {
                     </Button>
                     <Button
                         variant="secondary"
-                        onClick={handleClearDemoData}
+                        onClick={() => setShowClearDemoConfirm(true)}
                         className="flex-1"
                     >
                         Clear Demo Data
@@ -465,16 +449,9 @@ export default function SettingsPage() {
                                 <Edit2 size={16} />
                             </button>
                             <button
-                                onClick={async () => {
-                                    if (confirm(`Delete category "${category.name}"?`)) {
-                                        try {
-                                            await storageService.deleteUserCategory(category.id);
-                                            await loadCustomCategories();
-                                            showToast('Category deleted', 'success');
-                                        } catch (err) {
-                                            showToast(`Failed to delete: ${err.message}`, 'error');
-                                        }
-                                    }
+                                onClick={() => {
+                                    setCategoryToDelete(category);
+                                    setShowDeleteCategoryConfirm(true);
                                 }}
                                 className="p-1 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                             >
@@ -578,10 +555,66 @@ export default function SettingsPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Signed in as: <span className="font-medium">{currentUser?.email}</span>
                 </p>
-                <Button variant="danger" onClick={handleLogout} className="w-full">
+                <Button variant="danger" onClick={() => setShowLogoutConfirm(true)} className="w-full">
                     Logout
                 </Button>
             </div>
+
+            {/* Confirmation Modals */}
+            <ConfirmationModal
+                isOpen={showLoadDemoConfirm}
+                onClose={() => setShowLoadDemoConfirm(false)}
+                onConfirm={handleLoadDemoData}
+                title="Load Demo Data"
+                message="This will add sample receipts to your account. Continue?"
+                confirmText="Load"
+                cancelText="Cancel"
+            />
+
+            <ConfirmationModal
+                isOpen={showClearDemoConfirm}
+                onClose={() => setShowClearDemoConfirm(false)}
+                onConfirm={handleClearDemoData}
+                title="Clear Demo Data"
+                message="This will remove all demo receipts. Continue?"
+                confirmText="Clear"
+                cancelText="Cancel"
+                danger={true}
+            />
+
+            <ConfirmationModal
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                onConfirm={handleLogout}
+                title="Logout"
+                message="Are you sure you want to logout?"
+                confirmText="Logout"
+                cancelText="Cancel"
+                danger={true}
+            />
+
+            <ConfirmationModal
+                isOpen={showDeleteCategoryConfirm}
+                onClose={() => {
+                    setShowDeleteCategoryConfirm(false);
+                    setCategoryToDelete(null);
+                }}
+                onConfirm={async () => {
+                    if (!categoryToDelete) return;
+                    try {
+                        await storageService.deleteUserCategory(categoryToDelete.id);
+                        await loadCustomCategories();
+                        showToast('Category deleted', 'success');
+                    } catch (err) {
+                        showToast(`Failed to delete: ${err.message}`, 'error');
+                    }
+                }}
+                title="Delete Category"
+                message={`Delete category "${categoryToDelete?.name}"?`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                danger={true}
+            />
         </div>
     );
 }

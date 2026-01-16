@@ -660,7 +660,7 @@ export default function ReceiptsPage() {
                                     return receiptGroupId === groupIdToUse;
                                 });
 
-                                if (!isExpanded || groupReceipts.length === 0) return null;
+                                if (!isExpanded) return null;
 
                                 const groupColor = group.color || '#3b82f6';
                                 const hexToRgb = (hex) => {
@@ -674,6 +674,20 @@ export default function ReceiptsPage() {
                                 const rgb = hexToRgb(groupColor);
                                 const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
 
+                                // Get nested groups for this parent group
+                                const nestedGroups = group.nestedGroups || [];
+                                const allGroupReceipts = [...groupReceipts];
+
+                                // Add receipts from nested groups
+                                nestedGroups.forEach(nestedGroup => {
+                                    const nestedGroupId = String(nestedGroup.supabaseId || nestedGroup.id);
+                                    const nestedReceipts = receipts.filter(r => {
+                                        if (!r.groupId) return false;
+                                        return String(r.groupId) === nestedGroupId;
+                                    });
+                                    allGroupReceipts.push(...nestedReceipts);
+                                });
+
                                 return (
                                     <div
                                         key={`expanded-${group.id}`}
@@ -683,8 +697,50 @@ export default function ReceiptsPage() {
                                             borderColor: groupColor + '40'
                                         }}
                                     >
+                                        {/* Show nested groups if any */}
+                                        {nestedGroups.length > 0 && (
+                                            <div className="mb-4">
+                                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                                    Nested Groups
+                                                </h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                                                    {nestedGroups.map(nestedGroup => {
+                                                        const nestedGroupId = String(nestedGroup.supabaseId || nestedGroup.id);
+                                                        const nestedReceipts = receipts.filter(r => {
+                                                            if (!r.groupId) return false;
+                                                            return String(r.groupId) === nestedGroupId;
+                                                        });
+                                                        const nestedColor = nestedGroup.color || '#3b82f6';
+                                                        const nestedRgb = hexToRgb(nestedColor);
+                                                        const nestedFadedBg = nestedRgb ? `rgba(${nestedRgb.r}, ${nestedRgb.g}, ${nestedRgb.b}, 0.15)` : `${nestedColor}20`;
+
+                                                        return (
+                                                            <div
+                                                                key={nestedGroup.id}
+                                                                className="p-3 rounded-lg border border-dashed"
+                                                                style={{
+                                                                    backgroundColor: nestedFadedBg,
+                                                                    borderColor: nestedColor + '50'
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <Tag size={14} style={{ color: nestedColor }} />
+                                                                    <span className="font-medium text-sm text-gray-900 dark:text-white">
+                                                                        {nestedGroup.name}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                                    {nestedReceipts.length} receipt{nestedReceipts.length !== 1 ? 's' : ''}
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {groupReceipts.map(receipt => (
+                                            {allGroupReceipts.map(receipt => (
                                                 <ReceiptCard
                                                     key={receipt.id}
                                                     receipt={receipt}
