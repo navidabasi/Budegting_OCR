@@ -33,6 +33,8 @@ export default function ReceiptsPage() {
     const [categories, setCategories] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState('');
     const [selectedGroupName, setSelectedGroupName] = useState('');
+    const [draggedOverGroup, setDraggedOverGroup] = useState(null);
+    const [hideGroupedReceipts, setHideGroupedReceipts] = useState(true);
 
     useEffect(() => {
         loadReceipts();
@@ -88,6 +90,46 @@ export default function ReceiptsPage() {
         }
     }, [receipts, currentUser]);
 
+    // Listen for touch-based drops
+    useEffect(() => {
+        const handleReceiptDrop = async (e) => {
+            const { receiptId, groupId } = e.detail;
+            const group = groups.find(g => String(g.id) === String(groupId) || String(g.supabaseId) === String(groupId));
+            
+            if (!group) return;
+            
+            try {
+                const receipt = receipts.find(r => r.id === receiptId);
+                if (receipt && receipt.groupId) {
+                    const currentGroupId = String(receipt.groupId);
+                    const targetGroupId = String(group.supabaseId || group.id);
+                    if (currentGroupId === targetGroupId) {
+                        showToast('Receipt is already in this group', 'info');
+                        return;
+                    }
+                }
+                
+                const groupIdToUse = group.supabaseId || group.id;
+                await storageService.updateReceipt(receiptId, {
+                    groupId: groupIdToUse,
+                    groupName: group.name
+                });
+                
+                await loadReceipts();
+                await loadGroups();
+                showToast(`Receipt added to ${group.name}`, 'success');
+            } catch (err) {
+                console.error('Failed to assign receipt to group:', err);
+                showToast(`Failed to assign receipt: ${err.message}`, 'error');
+            }
+        };
+
+        window.addEventListener('receiptDrop', handleReceiptDrop);
+        return () => {
+            window.removeEventListener('receiptDrop', handleReceiptDrop);
+        };
+    }, [groups, receipts, showToast]);
+
     const loadCategories = async () => {
         if (currentUser) {
             try {
@@ -128,7 +170,7 @@ export default function ReceiptsPage() {
         }
         applyFilters();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear, selectedGroup]);
+    }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear, selectedGroup, hideGroupedReceipts]);
 
     const loadGroupName = async (groupId) => {
         if (!groupId || !currentUser) return;
@@ -274,6 +316,9 @@ export default function ReceiptsPage() {
                 receipt.groupId === selectedGroup ||
                 (receipt.groupName && selectedGroupName && receipt.groupName === selectedGroupName)
             );
+        } else if (hideGroupedReceipts) {
+            // Hide receipts that are in groups (they're "filed away" in folders)
+            filtered = filtered.filter(receipt => !receipt.groupId);
         }
 
         setFilteredReceipts(filtered);
@@ -527,6 +572,7 @@ export default function ReceiptsPage() {
                                 <GroupCard
                                     key={group.id}
                                     group={group}
+                                    isDragOver={draggedOverGroup === group.id}
                                     onClick={() => {
                                         const groupIdToUse = group.supabaseId || group.id;
                                         navigate(`/receipts?group=${groupIdToUse}`);
@@ -559,6 +605,57 @@ export default function ReceiptsPage() {
                                             showToast(`Failed to ${group.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
                                         }
                                     }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.dataTransfer.dropEffect = 'move';
+                                        if (draggedOverGroup !== group.id) {
+                                            setDraggedOverGroup(group.id);
+                                        }
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Only clear if we're leaving the card itself, not a child element
+                                        if (!e.currentTarget.contains(e.relatedTarget)) {
+                                            setDraggedOverGroup(null);
+                                        }
+                                    }}
+                                    onDrop={async (e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDraggedOverGroup(null);
+                                        
+                                        try {
+                                            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                            const receiptId = data.receiptId;
+                                            
+                                            // Check if receipt is already in this group
+                                            const receipt = receipts.find(r => r.id === receiptId);
+                                            if (receipt && receipt.groupId) {
+                                                const currentGroupId = String(receipt.groupId);
+                                                const targetGroupId = String(group.supabaseId || group.id);
+                                                if (currentGroupId === targetGroupId) {
+                                                    showToast('Receipt is already in this group', 'info');
+                                                    return;
+                                                }
+                                            }
+                                            
+                                            // Assign receipt to group
+                                            const groupIdToUse = group.supabaseId || group.id;
+                                            await storageService.updateReceipt(receiptId, {
+                                                groupId: groupIdToUse,
+                                                groupName: group.name
+                                            });
+                                            
+                                            await loadReceipts();
+                                            await loadGroups();
+                                            showToast(`Receipt added to ${group.name}`, 'success');
+                                        } catch (err) {
+                                            console.error('Failed to assign receipt to group:', err);
+                                            showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                                        }
+                                    }}
                                 />
                             ))}
                         </div>
@@ -569,6 +666,22 @@ export default function ReceiptsPage() {
             {/* Receipts Section Header */}
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Receipts</h2>
+                {hideGroupedReceipts && (
+                    <button
+                        onClick={() => setHideGroupedReceipts(false)}
+                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    >
+                        Show grouped receipts
+                    </button>
+                )}
+                {!hideGroupedReceipts && (
+                    <button
+                        onClick={() => setHideGroupedReceipts(true)}
+                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    >
+                        Hide grouped receipts
+                    </button>
+                )}
             </div>
 
             {filteredReceipts.length === 0 ? (
@@ -822,11 +935,25 @@ export default function ReceiptsPage() {
 }
 
 // Group Card Component - matches ReceiptCard format
-function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin }) {
+function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver = false, onDragOver, onDragLeave, onDrop }) {
+    const groupColor = group.color || '#3b82f6';
+    const fadedColor = groupColor + '15'; // 15% opacity
+    const groupId = group.supabaseId || group.id;
+    
     return (
         <div
-            className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
+            data-group-id={groupId}
+            className="card cursor-pointer hover:shadow-lg transition-all w-full"
+            style={{ 
+                backgroundColor: isDragOver ? groupColor + '30' : fadedColor,
+                borderLeft: `4px solid ${groupColor}`,
+                transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+                boxShadow: isDragOver ? `0 4px 12px ${groupColor}40` : undefined
+            }}
             onClick={onClick}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
         >
             <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">

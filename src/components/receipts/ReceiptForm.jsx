@@ -224,6 +224,22 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         const currentGroupName = watch('groupName') || null;
         const currentGroupTags = watch('groupTags') || [];
         
+        // If groupId is set, ensure we have the groupName
+        let finalGroupId = currentGroupId;
+        let finalGroupName = currentGroupName;
+        
+        if (currentGroupId && !currentGroupName) {
+            // Try to find the group name from the groups list
+            const selectedGroup = groups.find(g => 
+                String(g.id) === String(currentGroupId) || 
+                String(g.supabaseId) === String(currentGroupId)
+            );
+            if (selectedGroup) {
+                finalGroupName = selectedGroup.name;
+                finalGroupId = selectedGroup.supabaseId || selectedGroup.id;
+            }
+        }
+        
         const receiptData = {
             merchant: data.merchant,
             date: data.date,
@@ -233,13 +249,17 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             lineItems: lineItems.filter(item => item.name && item.price),
             notes: data.notes || '',
             transactionType: data.transactionType || 'expense',
-            groupId: currentGroupId,
-            groupName: currentGroupName,
+            groupId: finalGroupId,
+            groupName: finalGroupName,
             groupTags: currentGroupTags,
             splitData: splitData || null
         };
 
-        console.log('[ReceiptForm] Submitting receipt with group:', { groupId: currentGroupId, groupName: currentGroupName });
+        console.log('[ReceiptForm] Submitting receipt with group:', { 
+            groupId: finalGroupId, 
+            groupName: finalGroupName,
+            formData: receiptData
+        });
         onSave(receiptData);
     };
 
@@ -481,17 +501,23 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     <div className="flex gap-2">
                         <div className="flex-1">
                             <select
-                                {...register('groupId')}
                                 className="input"
                                 value={watch('groupId') || ''}
                                 style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 onChange={(e) => {
                                     const selectedGroup = groups.find(g => 
-                                        g.id === e.target.value || 
-                                        g.supabaseId === e.target.value
+                                        String(g.id) === String(e.target.value) || 
+                                        String(g.supabaseId) === String(e.target.value)
                                     );
                                     const newGroupId = selectedGroup ? (selectedGroup.supabaseId || selectedGroup.id) : '';
                                     const newGroupName = selectedGroup?.name || '';
+                                    
+                                    console.log('[ReceiptForm] Group selected:', { 
+                                        selectedValue: e.target.value,
+                                        selectedGroup,
+                                        newGroupId,
+                                        newGroupName
+                                    });
                                     
                                     setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
                                     setValue('groupName', newGroupName, { shouldValidate: true, shouldDirty: true });
@@ -499,11 +525,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 }}
                             >
                                 <option value="">No group</option>
-                                {groups.map(group => (
-                                    <option key={group.id} value={group.supabaseId || group.id}>
-                                        {group.name}
-                                    </option>
-                                ))}
+                                {groups.map(group => {
+                                    const groupValue = group.supabaseId || group.id;
+                                    return (
+                                        <option key={group.id} value={String(groupValue)}>
+                                            {group.name}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         <Button

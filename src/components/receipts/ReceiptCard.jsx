@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
@@ -5,11 +6,88 @@ import { Tag, Users } from 'lucide-react';
 
 export default function ReceiptCard({ receipt }) {
     const navigate = useNavigate();
+    const [isDragging, setIsDragging] = useState(false);
+    const [touchStart, setTouchStart] = useState(null);
+
+    const handleDragStart = (e) => {
+        e.dataTransfer.setData('application/json', JSON.stringify({
+            receiptId: receipt.id,
+            receiptName: receipt.merchant
+        }));
+        e.dataTransfer.effectAllowed = 'move';
+        setIsDragging(true);
+        // Add visual feedback
+        e.currentTarget.style.opacity = '0.5';
+    };
+
+    const handleDragEnd = (e) => {
+        setIsDragging(false);
+        e.currentTarget.style.opacity = '1';
+    };
+
+    // Touch handlers for mobile drag and drop
+    const handleTouchStart = (e) => {
+        const touch = e.touches[0];
+        setTouchStart({
+            x: touch.clientX,
+            y: touch.clientY,
+            time: Date.now()
+        });
+    };
+
+    const handleTouchMove = (e) => {
+        if (!touchStart) return;
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - touchStart.x);
+        const deltaY = Math.abs(touch.clientY - touchStart.y);
+        
+        // If moved significantly, start drag
+        if (deltaX > 10 || deltaY > 10) {
+            setIsDragging(true);
+            e.currentTarget.style.opacity = '0.5';
+        }
+    };
+
+    const handleTouchEnd = (e) => {
+        if (!touchStart) return;
+        
+        const touch = e.changedTouches[0];
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        // Check if dropped on a group card
+        const groupCard = elementBelow?.closest('[data-group-id]');
+        if (groupCard && isDragging) {
+            const groupId = groupCard.getAttribute('data-group-id');
+            const event = new CustomEvent('receiptDrop', {
+                detail: {
+                    receiptId: receipt.id,
+                    groupId: groupId
+                }
+            });
+            window.dispatchEvent(event);
+        }
+        
+        setIsDragging(false);
+        setTouchStart(null);
+        e.currentTarget.style.opacity = '1';
+    };
 
     return (
         <div
-            onClick={() => navigate(`/receipts/${receipt.id}`)}
+            draggable={true}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => {
+                // Only navigate if not dragging
+                if (!isDragging) {
+                    navigate(`/receipts/${receipt.id}`);
+                }
+            }}
             className="card cursor-pointer hover:shadow-lg transition-shadow w-full"
+            style={{ opacity: isDragging ? 0.5 : 1 }}
         >
                 <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
