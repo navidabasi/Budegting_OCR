@@ -302,7 +302,14 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                 type="number"
                                 min="1"
                                 value={people}
-                                onChange={(e) => setPeople(Math.max(users.length, parseInt(e.target.value) || 1))}
+                                onChange={(e) => {
+                                    const newPeople = Math.max(1, parseInt(e.target.value) || 1);
+                                    setPeople(newPeople);
+                                    // If reducing people count, remove excess users
+                                    if (newPeople < users.length) {
+                                        setUsers(users.slice(0, newPeople));
+                                    }
+                                }}
                             />
                         </div>
 

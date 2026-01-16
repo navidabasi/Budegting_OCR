@@ -12,7 +12,7 @@ const Input = forwardRef(({
     return (
         <div className={`mb-4 ${type === 'date' ? 'w-full overflow-hidden' : ''}`}>
             {label && (
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     {label}
                     {required && <span className="text-red-500 ml-1">*</span>}
                 </label>

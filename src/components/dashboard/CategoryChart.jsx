@@ -121,11 +121,11 @@ export default function CategoryChart({ receipts }) {
                     }
                 },
                 labels: {
-                    padding: 8,
+                    padding: 12,
                     usePointStyle: true,
-                    boxWidth: 8,
+                    boxWidth: 10,
                     font: {
-                        size: 11
+                        size: 13
                     },
                     generateLabels: (chart) => {
                         // Generate labels for ALL categories, not just visible ones

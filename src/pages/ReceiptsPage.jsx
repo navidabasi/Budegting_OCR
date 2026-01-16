@@ -243,7 +243,7 @@ export default function ReceiptsPage() {
     const availableYears = getAvailableYears();
 
     return (
-        <div className="pb-20 px-4 pt-6">
+        <div className="pb-24 px-4 pt-6">
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <h1 className="text-3xl font-bold text-gray-900">Receipts</h1>

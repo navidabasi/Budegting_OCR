@@ -260,7 +260,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full overflow-hidden">
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Transaction Type *
                 </label>
                 <div className="flex gap-2">
@@ -269,8 +269,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         onClick={() => setValue('transactionType', 'expense')}
                         className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             watch('transactionType') === 'expense'
-                                ? 'border-red-500 bg-red-50 text-red-700'
-                                : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                ? 'border-red-500 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+                                : 'border-gray-300 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
                     >
                         Expense
@@ -280,8 +280,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         onClick={() => setValue('transactionType', 'income')}
                         className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
                             watch('transactionType') === 'income'
-                                ? 'border-green-500 bg-green-50 text-green-700'
-                                : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                ? 'border-green-500 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                : 'border-gray-300 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
                     >
                         Income
@@ -304,7 +304,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             />
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
                     Line Items
                 </label>
                 <div className="space-y-3">
@@ -317,6 +317,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     value={item.name}
                                     onChange={(e) => updateLineItem(index, 'name', e.target.value)}
                                     className="input text-sm"
+                                    style={{ padding: '0.75rem 1rem' }}
                                 />
                                 <div className="flex gap-2">
                                     <input
@@ -327,6 +328,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         className="input text-sm w-20"
                                         min="1"
                                         step="0.01"
+                                        style={{ padding: '0.75rem 1rem' }}
                                     />
                                     <input
                                         type="number"
@@ -336,11 +338,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         className="input text-sm flex-1"
                                         min="0"
                                         step="0.01"
+                                        style={{ padding: '0.75rem 1rem' }}
                                     />
                                     <select
                                         value={item.category}
                                         onChange={(e) => updateLineItem(index, 'category', e.target.value)}
                                         className="input text-sm flex-1"
+                                        style={{ padding: '0.75rem 1rem' }}
                                     >
                                         <option value="">Category</option>
                                         {categories.map(cat => (
@@ -372,12 +376,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Currency
                 </label>
                 <select
                     {...register('currency')}
                     className="input mb-4"
+                    style={{ padding: '0.75rem 1rem' }}
                 >
                     {currencies.map(curr => (
                         <option key={curr.code} value={curr.code}>
@@ -396,28 +401,29 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         {...register('total')}
                     />
                     {convertedAmount && selectedCurrency !== defaultCurrency && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
                             ≈ {formatCurrency(convertedAmount, defaultCurrency)} ({defaultCurrency})
                         </p>
                     )}
                 </div>
                 <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                         Items Total
                     </label>
-                    <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50" style={{ minHeight: '42px', display: 'flex', alignItems: 'center' }}>
+                    <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white" style={{ minHeight: '42px', display: 'flex', alignItems: 'center' }}>
                         {formatCurrency(itemsTotal, selectedCurrency)}
                     </div>
                 </div>
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Category
                 </label>
                 <select
                     {...register('category')}
                     className="input"
+                    style={{ padding: '0.75rem 1rem' }}
                 >
                     <option value="">Select category</option>
                     {categories.map(cat => (
@@ -432,71 +438,73 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             />
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Group (optional)
                 </label>
-                <div className="flex gap-2">
-                    <div className="flex-1">
-                        {watch('groupId') && watch('groupName') && (
-                            <div className="mb-2 flex items-center gap-2">
-                                <span className="text-sm text-gray-600">Selected:</span>
-                                <span className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 text-blue-700 rounded">
-                                    {watch('groupName')}
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setValue('groupId', '');
-                                            setValue('groupName', '');
-                                        }}
-                                        className="text-blue-700 hover:text-blue-900"
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </span>
-                            </div>
-                        )}
-                        <select
-                            {...register('groupId')}
-                            className="input"
-                            value={watch('groupId') || ''}
-                            onChange={(e) => {
-                                const selectedGroup = groups.find(g => g.id === e.target.value);
-                                const newGroupId = e.target.value || '';
-                                const newGroupName = selectedGroup?.name || '';
-                                
-                                setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
-                                setValue('groupName', newGroupName, { shouldValidate: true, shouldDirty: true });
-                                
-                                // Find the group's tags from receipts
-                                if (newGroupId && currentUser) {
-                                    storageService.getReceiptsByUserId(currentUser.userId).then(receipts => {
-                                        const groupReceipt = receipts.find(r => r.groupId === newGroupId);
-                                        if (groupReceipt && groupReceipt.groupTags) {
-                                            setValue('groupTags', groupReceipt.groupTags, { shouldValidate: true, shouldDirty: true });
-                                        } else {
-                                            setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
-                                        }
-                                    });
-                                } else {
-                                    setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
-                                }
-                            }}
+                <div className="flex flex-col gap-2">
+                    {watch('groupId') && watch('groupName') && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600 dark:text-gray-300">Selected:</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                {watch('groupName')}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setValue('groupId', '');
+                                        setValue('groupName', '');
+                                    }}
+                                    className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </span>
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <div className="flex-1">
+                            <select
+                                {...register('groupId')}
+                                className="input"
+                                value={watch('groupId') || ''}
+                                onChange={(e) => {
+                                    const selectedGroup = groups.find(g => g.id === e.target.value);
+                                    const newGroupId = e.target.value || '';
+                                    const newGroupName = selectedGroup?.name || '';
+                                    
+                                    setValue('groupId', newGroupId, { shouldValidate: true, shouldDirty: true });
+                                    setValue('groupName', newGroupName, { shouldValidate: true, shouldDirty: true });
+                                    
+                                    // Find the group's tags from receipts
+                                    if (newGroupId && currentUser) {
+                                        storageService.getReceiptsByUserId(currentUser.userId).then(receipts => {
+                                            const groupReceipt = receipts.find(r => r.groupId === newGroupId);
+                                            if (groupReceipt && groupReceipt.groupTags) {
+                                                setValue('groupTags', groupReceipt.groupTags, { shouldValidate: true, shouldDirty: true });
+                                            } else {
+                                                setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
+                                            }
+                                        });
+                                    } else {
+                                        setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
+                                    }
+                                }}
+                            >
+                                <option value="">No group</option>
+                                {groups.map(group => (
+                                    <option key={group.id} value={group.id}>
+                                        {group.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setShowNewGroupInput(!showNewGroupInput)}
                         >
-                            <option value="">No group</option>
-                            {groups.map(group => (
-                                <option key={group.id} value={group.id}>
-                                    {group.name}
-                                </option>
-                            ))}
-                        </select>
+                            <Plus size={18} />
+                        </Button>
                     </div>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => setShowNewGroupInput(!showNewGroupInput)}
-                    >
-                        <Plus size={18} />
-                    </Button>
                 </div>
                 {showNewGroupInput && (
                     <div className="mt-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
@@ -551,7 +559,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Split Receipt (optional)
                 </label>
                 <div className="flex items-center gap-2">

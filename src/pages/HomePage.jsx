@@ -52,7 +52,7 @@ export default function HomePage() {
     }
 
     return (
-        <div className="pb-20 px-4 pt-6">
+        <div className="pb-24 px-4 pt-6">
             <div className="mb-8">
                 <div className="flex items-start justify-between mb-1">
                     <div>
