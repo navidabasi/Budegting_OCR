@@ -698,13 +698,83 @@ export default function ReceiptsPage() {
                                 // Get nested groups for this parent group
                                 const nestedGroups = group.nestedGroups || [];
 
+                                const isParentDragOver = draggedOverGroup === `parent-${group.id}`;
+
                                 return (
                                     <div
                                         key={`expanded-${group.id}`}
-                                        className="mb-6 p-4 rounded-lg border-2 border-dashed w-full"
+                                        data-group-id={groupIdToUse}
+                                        className="mb-6 p-4 rounded-lg border-2 border-dashed w-full transition-all"
                                         style={{
-                                            backgroundColor: fadedBg,
-                                            borderColor: groupColor + '40'
+                                            backgroundColor: isParentDragOver ? groupColor + '20' : fadedBg,
+                                            borderColor: isParentDragOver ? groupColor + '60' : (groupColor + '40'),
+                                            borderStyle: isParentDragOver ? 'solid' : 'dashed'
+                                        }}
+                                        onDragOver={(e) => {
+                                            // Only handle if not dragging over a child element (nested group or receipt)
+                                            const target = e.target;
+                                            if (target.closest('[data-group-id]') && target.closest('[data-group-id]') !== e.currentTarget) {
+                                                return; // Let child handle it
+                                            }
+                                            if (target.closest('[data-receipt-id]')) {
+                                                return; // Let receipt handle it
+                                            }
+
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.dataTransfer.dropEffect = 'move';
+                                            if (draggedOverGroup !== `parent-${group.id}`) {
+                                                setDraggedOverGroup(`parent-${group.id}`);
+                                            }
+                                        }}
+                                        onDragLeave={(e) => {
+                                            // Only clear if we're leaving the container itself, not a child element
+                                            if (!e.currentTarget.contains(e.relatedTarget)) {
+                                                setDraggedOverGroup(null);
+                                            }
+                                        }}
+                                        onDrop={async (e) => {
+                                            // Only handle if not dropping on a child element
+                                            const target = e.target;
+                                            if (target.closest('[data-group-id]') && target.closest('[data-group-id]') !== e.currentTarget) {
+                                                return; // Let child handle it
+                                            }
+                                            if (target.closest('[data-receipt-id]')) {
+                                                return; // Let receipt handle it
+                                            }
+
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setDraggedOverGroup(null);
+
+                                            try {
+                                                const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                                const receiptId = data.receiptId;
+
+                                                // Check if receipt is already in this parent group
+                                                const receipt = receipts.find(r => r.id === receiptId);
+                                                if (receipt && receipt.groupId) {
+                                                    const currentGroupId = String(receipt.groupId);
+                                                    const targetGroupId = String(groupIdToUse);
+                                                    if (currentGroupId === targetGroupId) {
+                                                        showToast('Receipt is already in this group', 'info');
+                                                        return;
+                                                    }
+                                                }
+
+                                                // Assign receipt to parent group
+                                                await storageService.updateReceipt(receiptId, {
+                                                    groupId: groupIdToUse,
+                                                    groupName: group.name
+                                                });
+
+                                                await loadReceipts();
+                                                await loadGroups();
+                                                showToast(`Receipt added to ${group.name}`, 'success');
+                                            } catch (err) {
+                                                console.error('Failed to assign receipt to group:', err);
+                                                showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                                            }
                                         }}
                                     >
                                         {/* Show nested groups if any */}
@@ -866,10 +936,19 @@ export default function ReceiptsPage() {
                                                                 </div>
                                                                 {isNestedExpanded && nestedReceipts.length > 0 && (
                                                                     <div
+                                                                        data-nested-group-container={nestedGroupId}
                                                                         className="mt-2 ml-4 p-3 rounded-lg border border-dashed"
                                                                         style={{
                                                                             backgroundColor: nestedFadedBg,
                                                                             borderColor: nestedColor + '40'
+                                                                        }}
+                                                                        onDragOver={(e) => {
+                                                                            // Prevent parent from handling if dragging over nested group container
+                                                                            e.stopPropagation();
+                                                                        }}
+                                                                        onDrop={(e) => {
+                                                                            // Prevent parent from handling if dropping on nested group container
+                                                                            e.stopPropagation();
                                                                         }}
                                                                     >
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -960,7 +1039,17 @@ export default function ReceiptsPage() {
                                                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
                                                         Receipts
                                                     </h4>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                    <div
+                                                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                                                        onDragOver={(e) => {
+                                                            // Prevent parent from handling if dragging over receipts grid
+                                                            e.stopPropagation();
+                                                        }}
+                                                        onDrop={(e) => {
+                                                            // Prevent parent from handling if dropping on receipts grid
+                                                            e.stopPropagation();
+                                                        }}
+                                                    >
                                                         {parentOnlyReceipts.map(receipt => (
                                                             <ReceiptCard
                                                                 key={receipt.id}
