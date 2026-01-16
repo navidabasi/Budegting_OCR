@@ -76,20 +76,20 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                             {receipt.lineItems.map((item, index) => (
                                 <div
                                     key={index}
-                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
                                 >
                                     <div className="flex-1">
-                                        <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
-                                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">{item.name}</p>
+                                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                                             <span>Qty: {item.quantity}</span>
                                             {item.category && (
-                                                <span className="text-xs bg-gray-200 dark:bg-gray-700 dark:text-white px-2 py-0.5 rounded">
+                                                <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-0.5 rounded">
                                                     {item.category}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                    <p className="font-semibold text-gray-900 dark:text-gray-100">
                                         {formatCurrency(parseFloat(item.price || 0) * parseFloat(item.quantity || 1), receipt.currency || 'USD')}
                                     </p>
                                 </div>

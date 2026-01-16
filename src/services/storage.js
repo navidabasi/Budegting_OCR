@@ -1554,7 +1554,12 @@ export const storageService = {
         if (group.parentGroupId) {
             // This is a nested group - move receipts to parent group
             const parentGroupId = group.parentGroupId;
-            const parentGroup = await db.groups.where('id').equals(parentGroupId).or('supabaseId').equals(parentGroupId).first();
+            // Search for parent group by both id and supabaseId
+            const allGroups = await db.groups.toArray();
+            const parentGroup = allGroups.find(g => 
+                String(g.id) === String(parentGroupId) || 
+                String(g.supabaseId) === String(parentGroupId)
+            );
             
             if (parentGroup) {
                 const parentGroupIdToUse = parentGroup.supabaseId || parentGroup.id;
