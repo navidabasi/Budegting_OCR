@@ -260,7 +260,10 @@ export default function ExpenseChart({ receipts }) {
                     font: {
                         size: 8
                     },
-                    maxTicksLimit: 10
+                    maxTicksLimit: 10,
+                    color: document.documentElement.classList.contains('dark') 
+                        ? '#ffffff' 
+                        : '#374151'
                 },
                 grid: {
                     display: false
@@ -277,7 +280,10 @@ export default function ExpenseChart({ receipts }) {
                     },
                     font: {
                         size: 10
-                    }
+                    },
+                    color: document.documentElement.classList.contains('dark') 
+                        ? '#ffffff' 
+                        : '#374151'
                 }
             }
         }

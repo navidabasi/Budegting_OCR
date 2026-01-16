@@ -313,7 +313,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </label>
                 <div className="space-y-3">
                     {lineItems.map((item, index) => (
-                        <div key={index} className="flex gap-2 items-start p-3 border border-gray-200 rounded-lg">
+                        <div key={index} className="flex gap-2 items-start p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
                             <div className="flex-1 space-y-2">
                                 <input
                                     type="text"

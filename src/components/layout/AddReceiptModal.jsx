@@ -96,27 +96,27 @@ export default function AddReceiptModal() {
             <div className="space-y-4">
                 <button
                     onClick={handleCameraClick}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
                         <Camera size={24} style={{ color: '#00573f' }} />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-medium text-gray-900">Take Photo</h3>
-                        <p className="text-sm text-gray-500">Capture receipt with camera</p>
+                        <h3 className="font-medium text-gray-900 dark:text-white">Take Photo</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Capture receipt with camera</p>
                     </div>
                 </button>
 
                 <button
                     onClick={handleUploadClick}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
                         <Upload size={24} style={{ color: '#00573f' }} />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-medium text-gray-900">Upload Image</h3>
-                        <p className="text-sm text-gray-500">Select image from device</p>
+                        <h3 className="font-medium text-gray-900 dark:text-white">Upload Image</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Select image from device</p>
                     </div>
                 </button>
 
@@ -130,14 +130,14 @@ export default function AddReceiptModal() {
 
                 <button
                     onClick={handleManualClick}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
                         <FileText size={24} style={{ color: '#00573f' }} />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-medium text-gray-900">Enter Manually</h3>
-                        <p className="text-sm text-gray-500">Type receipt details</p>
+                        <h3 className="font-medium text-gray-900 dark:text-white">Enter Manually</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Type receipt details</p>
                     </div>
                 </button>
             </div>
