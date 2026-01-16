@@ -125,6 +125,11 @@ export default function ExpenseChart({ receipts }) {
         clearSelectedChartDate();
     };
 
+    // Calculate point radius: 0 for zero values, normal size for non-zero
+    const basePointRadius = window.innerWidth < 768 ? 6 : 4;
+    const expensePointRadius = expenseData.map(value => value > 0 ? basePointRadius : 0);
+    const incomePointRadius = incomeData.map(value => value > 0 ? basePointRadius : 0);
+
     const chartData = {
         labels,
         datasets: [
@@ -134,7 +139,9 @@ export default function ExpenseChart({ receipts }) {
                 borderColor: '#ef4444',
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 tension: 0.4,
-                fill: true
+                fill: true,
+                pointRadius: expensePointRadius,
+                pointHoverRadius: expenseData.map(value => value > 0 ? (window.innerWidth < 768 ? 10 : 6) : 0)
             },
             {
                 label: 'Daily Income',
@@ -142,7 +149,9 @@ export default function ExpenseChart({ receipts }) {
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
                 tension: 0.4,
-                fill: true
+                fill: true,
+                pointRadius: incomePointRadius,
+                pointHoverRadius: incomeData.map(value => value > 0 ? (window.innerWidth < 768 ? 10 : 6) : 0)
             }
         ]
     };
@@ -265,15 +274,22 @@ export default function ExpenseChart({ receipts }) {
     // Add visual indicator for highlighted point
     const chartDataWithHighlight = {
         ...chartData,
-        datasets: chartData.datasets.map((dataset, datasetIndex) => ({
-            ...dataset,
-            pointRadius: dataset.data.map((_, index) => 
-                highlightedIndex === index ? (window.innerWidth < 768 ? 10 : 8) : (window.innerWidth < 768 ? 6 : 4)
-            ),
-            pointBackgroundColor: dataset.data.map((_, index) => 
-                highlightedIndex === index ? '#00573f' : dataset.borderColor
-            )
-        }))
+        datasets: chartData.datasets.map((dataset, datasetIndex) => {
+            const data = dataset.data;
+            return {
+                ...dataset,
+                pointRadius: data.map((value, index) => {
+                    if (value === 0) return 0; // No point for zero values
+                    return highlightedIndex === index 
+                        ? (window.innerWidth < 768 ? 10 : 8) 
+                        : (window.innerWidth < 768 ? 6 : 4);
+                }),
+                pointBackgroundColor: data.map((value, index) => {
+                    if (value === 0) return dataset.borderColor; // Won't be visible anyway
+                    return highlightedIndex === index ? '#00573f' : dataset.borderColor;
+                })
+            };
+        })
     };
 
     return (

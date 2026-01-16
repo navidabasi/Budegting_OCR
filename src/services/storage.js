@@ -426,6 +426,11 @@ export const storageService = {
             notes: (localReceipt.notes || '') + (cloudReceipt.notes ? `\n[Cloud]: ${cloudReceipt.notes}` : ''),
             lineItems: mergedItems,
             isDemo: localReceipt.isDemo || cloudReceipt.isDemo || false,
+            transactionType: localReceipt.transactionType || cloudReceipt.transactionType || 'expense',
+            groupId: localReceipt.groupId || cloudReceipt.groupId || null,
+            groupName: localReceipt.groupName || cloudReceipt.groupName || null,
+            groupTags: localReceipt.groupTags || cloudReceipt.groupTags || [],
+            splitData: localReceipt.splitData || cloudReceipt.splitData || null,
             updatedAt: new Date().toISOString() // Mark as just merged
         };
     },
@@ -595,6 +600,11 @@ export const storageService = {
                                 category: cloudReceipt.category,
                                 notes: cloudReceipt.notes,
                                 lineItems: cloudReceipt.lineItems || [],
+                                transactionType: cloudReceipt.transactionType || 'expense',
+                                groupId: cloudReceipt.groupId || null,
+                                groupName: cloudReceipt.groupName || null,
+                                groupTags: cloudReceipt.groupTags || [],
+                                splitData: cloudReceipt.splitData || null,
                                 updatedAt: cloudReceipt.updatedAt,
                                 syncedAt: new Date().toISOString()
                             });
@@ -652,6 +662,11 @@ export const storageService = {
                             category: cloudReceipt.category,
                             notes: cloudReceipt.notes || '',
                             lineItems: cloudReceipt.lineItems || [],
+                            transactionType: cloudReceipt.transactionType || 'expense',
+                            groupId: cloudReceipt.groupId || null,
+                            groupName: cloudReceipt.groupName || null,
+                            groupTags: cloudReceipt.groupTags || [],
+                            splitData: cloudReceipt.splitData || null,
                             isDemo: cloudReceipt.isDemo || false,
                             createdAt: cloudReceipt.createdAt || new Date().toISOString(),
                             updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
@@ -690,6 +705,131 @@ export const storageService = {
                 );
             } else if (cloudSettings) {
                 await this.saveSettings(userId, cloudSettings);
+            }
+
+            // Step 5: Sync user categories
+            try {
+                const localCategories = await this.getUserCategories(userId);
+                const cloudCategories = await withTimeout(
+                    supabaseService.getUserCategories(userId),
+                    10000,
+                    'Get user categories timed out'
+                );
+
+                // Create maps for easier lookup
+                const localMap = new Map();
+                localCategories.forEach(cat => {
+                    const key = cat.supabaseId || `local_${cat.id}`;
+                    localMap.set(key, cat);
+                });
+
+                const cloudMap = new Map();
+                cloudCategories.forEach(cat => {
+                    cloudMap.set(cat.id, cat);
+                });
+
+                const processed = new Set();
+
+                // Process categories that exist in both local and cloud
+                for (const [supabaseId, cloudCategory] of cloudMap) {
+                    const localCategory = localMap.get(supabaseId);
+
+                    if (localCategory) {
+                        processed.add(supabaseId);
+
+                        const localUpdated = new Date(localCategory.updatedAt || 0);
+                        const cloudUpdated = new Date(cloudCategory.updatedAt || 0);
+
+                        if (localUpdated > cloudUpdated) {
+                            // Local is newer - upload to cloud
+                            try {
+                                await withTimeout(
+                                    supabaseService.updateUserCategory(supabaseId, {
+                                        name: localCategory.name,
+                                        color: localCategory.color
+                                    }),
+                                    10000,
+                                    'Update category timed out'
+                                );
+                                await db.userCategories.update(localCategory.id, {
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (error) {
+                                const errorMessage = error?.message || error?.error || String(error);
+                                errors.push({ type: 'category_upload', categoryId: localCategory.id, error: errorMessage });
+                            }
+                        } else if (cloudUpdated > localUpdated) {
+                            // Cloud is newer - download to local
+                            try {
+                                await db.userCategories.update(localCategory.id, {
+                                    name: cloudCategory.name,
+                                    color: cloudCategory.color,
+                                    updatedAt: cloudCategory.updatedAt,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } catch (error) {
+                                const errorMessage = error?.message || error?.error || String(error);
+                                errors.push({ type: 'category_download', categoryId: localCategory.id, error: errorMessage });
+                            }
+                        } else {
+                            // Already in sync
+                            await db.userCategories.update(localCategory.id, {
+                                syncedAt: new Date().toISOString()
+                            });
+                        }
+                    }
+                }
+
+                // Process local-only categories (upload to cloud)
+                for (const [key, localCategory] of localMap) {
+                    if (key.startsWith('local_') || !localCategory.supabaseId) {
+                        try {
+                            const cloudCategory = await withTimeout(
+                                supabaseService.createUserCategory(userId, {
+                                    name: localCategory.name,
+                                    color: localCategory.color
+                                }),
+                                10000,
+                                'Create category timed out'
+                            );
+                            await db.userCategories.update(localCategory.id, {
+                                supabaseId: cloudCategory.id,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'category_upload', categoryId: localCategory.id, error: errorMessage });
+                        }
+                    }
+                }
+
+                // Process cloud-only categories (download to local)
+                for (const [supabaseId, cloudCategory] of cloudMap) {
+                    if (!processed.has(supabaseId)) {
+                        try {
+                            await db.userCategories.add({
+                                userId: userId,
+                                supabaseId: cloudCategory.id,
+                                name: cloudCategory.name,
+                                color: cloudCategory.color,
+                                createdAt: cloudCategory.createdAt || new Date().toISOString(),
+                                updatedAt: cloudCategory.updatedAt || new Date().toISOString(),
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        } catch (error) {
+                            const errorMessage = error?.message || error?.error || String(error);
+                            errors.push({ type: 'category_download', categoryId: cloudCategory.id, error: errorMessage });
+                        }
+                    }
+                }
+            } catch (error) {
+                const errorMessage = error?.message || error?.error || String(error);
+                console.error('[Sync] Error syncing user categories:', error);
+                errors.push({ type: 'category_sync', error: errorMessage });
             }
 
         } catch (error) {
@@ -772,10 +912,15 @@ export const storageService = {
                                 merchant: cloudReceipt.merchant,
                                 date: cloudReceipt.date,
                                 total: cloudReceipt.total,
-                                currency: cloudReceipt.currency || 'USD',
+                                currency: cloudReceipt.currency || 'EUR',
                                 category: cloudReceipt.category,
                                 notes: cloudReceipt.notes,
                                 lineItems: cloudReceipt.lineItems || [],
+                                transactionType: cloudReceipt.transactionType || 'expense',
+                                groupId: cloudReceipt.groupId || null,
+                                groupName: cloudReceipt.groupName || null,
+                                groupTags: cloudReceipt.groupTags || [],
+                                splitData: cloudReceipt.splitData || null,
                                 isDemo: cloudReceipt.isDemo || false,
                                 updatedAt: cloudReceipt.updatedAt,
                                 syncedAt: new Date().toISOString()
@@ -795,10 +940,15 @@ export const storageService = {
                             merchant: cloudReceipt.merchant,
                             date: cloudReceipt.date,
                             total: cloudReceipt.total,
-                            currency: cloudReceipt.currency || 'USD',
+                            currency: cloudReceipt.currency || 'EUR',
                             category: cloudReceipt.category,
                             notes: cloudReceipt.notes || '',
                             lineItems: cloudReceipt.lineItems || [],
+                            transactionType: cloudReceipt.transactionType || 'expense',
+                            groupId: cloudReceipt.groupId || null,
+                            groupName: cloudReceipt.groupName || null,
+                            groupTags: cloudReceipt.groupTags || [],
+                            splitData: cloudReceipt.splitData || null,
                             isDemo: cloudReceipt.isDemo || false,
                             createdAt: cloudReceipt.createdAt || new Date().toISOString(),
                             updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
@@ -825,6 +975,55 @@ export const storageService = {
             if (cloudSettings) {
                 await this.saveSettings(userId, cloudSettings);
                 synced++;
+            }
+
+            // Sync user categories from cloud
+            try {
+                const cloudCategories = await supabaseService.getUserCategories(userId);
+                const localCategories = await this.getUserCategories(userId);
+
+                // Create a map of local categories by supabaseId
+                const localMap = new Map();
+                localCategories.forEach(cat => {
+                    if (cat.supabaseId) {
+                        localMap.set(cat.supabaseId, cat);
+                    }
+                });
+
+                for (const cloudCategory of cloudCategories) {
+                    const localCategory = localMap.get(cloudCategory.id);
+
+                    if (localCategory) {
+                        // Update existing local category if cloud is newer
+                        const cloudUpdated = new Date(cloudCategory.updatedAt || 0);
+                        const localUpdated = new Date(localCategory.updatedAt || 0);
+
+                        if (cloudUpdated > localUpdated) {
+                            await db.userCategories.update(localCategory.id, {
+                                name: cloudCategory.name,
+                                color: cloudCategory.color,
+                                updatedAt: cloudCategory.updatedAt,
+                                syncedAt: new Date().toISOString()
+                            });
+                            synced++;
+                        }
+                    } else {
+                        // Create new local category from cloud
+                        await db.userCategories.add({
+                            userId: userId,
+                            supabaseId: cloudCategory.id,
+                            name: cloudCategory.name,
+                            color: cloudCategory.color,
+                            createdAt: cloudCategory.createdAt || new Date().toISOString(),
+                            updatedAt: cloudCategory.updatedAt || new Date().toISOString(),
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    }
+                }
+            } catch (error) {
+                console.error('[Sync From Cloud] Failed to sync user categories:', error);
+                errors.push({ type: 'category_sync', error: error.message || String(error) });
             }
         } catch (error) {
             console.error('Failed to sync from cloud:', error);

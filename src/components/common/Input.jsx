@@ -21,7 +21,8 @@ const Input = forwardRef(({
                 ref={ref}
                 type={type}
                 placeholder={placeholder}
-                className={`input ${error ? 'border-red-500' : ''} ${className}`}
+                className={`input ${error ? 'border-red-500' : ''} ${type === 'date' ? 'max-w-full' : ''} ${className}`}
+                style={type === 'date' ? { maxWidth: '100%', boxSizing: 'border-box' } : {}}
                 {...props}
             />
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
