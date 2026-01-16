@@ -59,6 +59,7 @@ export const ocrApi = {
         formData.append('detectOrientation', 'true');
         formData.append('scale', 'true');
         formData.append('isTable', 'true');
+        formData.append('isOverlayRequired', 'true');
         formData.append('file', imageFile);
 
         const response = await fetch('https://api.ocr.space/parse/image', {
@@ -138,25 +139,23 @@ export const ocrApi = {
 
     parseOcrSpaceResponse(data) {
         const parsedText = data.ParsedResults?.[0]?.ParsedText || '';
+        const textOverlay = data.ParsedResults?.[0]?.TextOverlay || null;
 
         console.log('[OCR Parser] Raw text:', parsedText);
+        console.log('[OCR Parser] Has overlay:', !!textOverlay);
 
-        // Split text into parts (by tabs and newlines)
-        const parts = parsedText.split(/[\t\r\n]+/).map(p => p.trim()).filter(p => p);
+        let receipt;
 
-        console.log('[OCR Parser] Split parts:', parts);
-
-        // Extract data
-        const receipt = {
-            merchant: this.extractMerchant(parts),
-            date: extractDateFromText(parsedText) || new Date().toISOString(),
-            total: this.extractTotal(parts, parsedText),
-            currency: DEFAULT_CURRENCY,
-            category: 'Other',
-            lineItems: this.extractLineItems(parts),
-            notes: parsedText.substring(0, 500),
-            rawData: { parsedText, parts }
-        };
+        // Use overlay if available for better extraction
+        if (textOverlay && textOverlay.Lines && textOverlay.Lines.length > 0) {
+            console.log('[OCR Parser] Using overlay-based parsing');
+            receipt = this.parseWithOverlay(parsedText, textOverlay);
+        } else {
+            console.log('[OCR Parser] Using text-based parsing (fallback)');
+            // Fallback to text-based parsing
+            const parts = parsedText.split(/[\t\r\n]+/).map(p => p.trim()).filter(p => p);
+            receipt = this.parseWithoutOverlay(parts, parsedText);
+        }
 
         // Suggest category based on merchant
         if (receipt.merchant && receipt.merchant !== 'Unknown Merchant') {
@@ -175,6 +174,317 @@ export const ocrApi = {
 
         console.log('[OCR Parser] Final receipt:', receipt);
         return receipt;
+    },
+
+    // Fallback: Original text-based parsing
+    parseWithoutOverlay(parts, parsedText) {
+        return {
+            merchant: this.extractMerchant(parts),
+            date: extractDateFromText(parsedText) || new Date().toISOString(),
+            total: this.extractTotal(parts, parsedText),
+            currency: DEFAULT_CURRENCY,
+            category: 'Other',
+            lineItems: this.extractLineItems(parts),
+            notes: parsedText.substring(0, 500),
+            rawData: { parsedText, parts }
+        };
+    },
+
+    // NEW: Parse using overlay bounding boxes
+    parseWithOverlay(parsedText, textOverlay) {
+        const lines = textOverlay.Lines;
+        
+        if (!lines || lines.length === 0) {
+            console.log('[OCR Parser] No lines in overlay, falling back to text parsing');
+            const parts = parsedText.split(/[\t\r\n]+/).map(p => p.trim()).filter(p => p);
+            return this.parseWithoutOverlay(parts, parsedText);
+        }
+
+        // Calculate document dimensions
+        const maxHeight = Math.max(...lines.map(l => (l.MinTop || 0) + (l.MaxHeight || 0)));
+        const maxWidth = Math.max(...lines.flatMap(l => 
+            (l.Words || []).map(w => (w.Left || 0) + (w.Width || 0))
+        ));
+
+        console.log('[OCR Parser] Document dimensions:', { maxHeight, maxWidth });
+
+        // Divide receipt into sections by Y position
+        const headerThreshold = maxHeight * 0.25;  // Top 25%
+        const footerThreshold = maxHeight * 0.75;  // Bottom 25%
+
+        const headerLines = [];
+        const bodyLines = [];
+        const footerLines = [];
+
+        lines.forEach(line => {
+            const yPos = line.MinTop || 0;
+            if (yPos < headerThreshold) {
+                headerLines.push(line);
+            } else if (yPos > footerThreshold) {
+                footerLines.push(line);
+            } else {
+                bodyLines.push(line);
+            }
+        });
+
+        console.log('[OCR Parser] Section distribution:', {
+            header: headerLines.length,
+            body: bodyLines.length,
+            footer: footerLines.length
+        });
+
+        // Extract data
+        const merchant = this.extractMerchantFromOverlay(headerLines);
+        const date = this.extractDateFromOverlay(headerLines, parsedText);
+        const lineItems = this.extractLineItemsFromOverlay(bodyLines);
+        const total = this.extractTotalFromOverlay(footerLines);
+
+        return {
+            merchant: merchant || 'Unknown Merchant',
+            date: date || new Date().toISOString(),
+            total: total || 0,
+            currency: DEFAULT_CURRENCY,
+            category: 'Other',
+            lineItems: lineItems,
+            notes: parsedText.substring(0, 500),
+            rawData: { parsedText, overlay: textOverlay }
+        };
+    },
+
+    // Extract merchant from header section
+    extractMerchantFromOverlay(headerLines) {
+        if (headerLines.length === 0) return null;
+
+        // Merchant is usually the first line, largest text, or most prominent
+        const firstLine = headerLines[0];
+        if (firstLine && firstLine.Words && firstLine.Words.length > 0) {
+            const merchantText = firstLine.Words
+                .map(w => w.WordText || '')
+                .join(' ')
+                .trim();
+
+            // Skip if it looks like an address or date
+            if (merchantText && !merchantText.match(/^\d+|^\d{1,2}[\/\-\.]/)) {
+                const cleaned = cleanText(merchantText);
+                if (cleaned.length >= 2 && cleaned.length <= 60) {
+                    console.log('[OCR Parser] Found merchant from overlay:', cleaned);
+                    return cleaned;
+                }
+            }
+        }
+
+        // Try second line if first doesn't work
+        if (headerLines.length > 1) {
+            const secondLine = headerLines[1];
+            if (secondLine && secondLine.Words && secondLine.Words.length > 0) {
+                const merchantText = secondLine.Words
+                    .map(w => w.WordText || '')
+                    .join(' ')
+                    .trim();
+                const cleaned = cleanText(merchantText);
+                if (cleaned.length >= 2 && cleaned.length <= 60) {
+                    console.log('[OCR Parser] Found merchant from overlay (line 2):', cleaned);
+                    return cleaned;
+                }
+            }
+        }
+
+        return null;
+    },
+
+    // Extract date from header (look for date patterns)
+    extractDateFromOverlay(headerLines, fullText) {
+        // Check header lines for date patterns
+        for (const line of headerLines) {
+            if (line.Words && line.Words.length > 0) {
+                const lineText = line.Words.map(w => w.WordText || '').join(' ');
+                const dateMatch = extractDateFromText(lineText);
+                if (dateMatch) {
+                    console.log('[OCR Parser] Found date from overlay:', dateMatch);
+                    return dateMatch;
+                }
+            }
+        }
+
+        // Fallback to full text search
+        const dateMatch = extractDateFromText(fullText);
+        if (dateMatch) {
+            console.log('[OCR Parser] Found date from full text:', dateMatch);
+            return dateMatch;
+        }
+
+        return null;
+    },
+
+    // Group words into rows (same Y position ± threshold)
+    groupWordsIntoRows(lines) {
+        const rows = [];
+        const yThreshold = 5; // Pixels
+
+        lines.forEach(line => {
+            if (!line.Words || line.Words.length === 0) return;
+
+            const yPos = line.MinTop || 0;
+
+            // Find existing row with similar Y position
+            let foundRow = rows.find(row => 
+                row.length > 0 && Math.abs((row[0].Top || 0) - yPos) < yThreshold
+            );
+
+            if (foundRow) {
+                // Add words to existing row
+                foundRow.push(...line.Words);
+            } else {
+                // Create new row
+                rows.push([...line.Words]);
+            }
+        });
+
+        // Sort words in each row by X position (left to right)
+        rows.forEach(row => {
+            row.sort((a, b) => (a.Left || 0) - (b.Left || 0));
+        });
+
+        return rows;
+    },
+
+    // Extract line items using column alignment
+    extractLineItemsFromOverlay(bodyLines) {
+        const lineItems = [];
+        const seenItems = new Set();
+
+        if (bodyLines.length === 0) {
+            console.log('[OCR Parser] No body lines for line items');
+            return lineItems;
+        }
+
+        // Group words into rows
+        const rows = this.groupWordsIntoRows(bodyLines);
+        console.log('[OCR Parser] Grouped into', rows.length, 'rows');
+
+        // Skip patterns for non-item parts
+        const skipPatterns = [
+            /^total|^tot\.|^subtotal/i,
+            /^tax|^iva$/i,
+            /^descrizione|^prezzo/i,
+            /^partita|^documento/i,
+            /^\d{5,}$/, // Long numbers (phone, VAT, etc.)
+            /via\s+|strada\s+/i, // Addresses
+        ];
+
+        rows.forEach(row => {
+            // Find price (usually right-aligned, matches price pattern)
+            const prices = row.filter(w => {
+                const text = w.WordText || '';
+                return text.match(/^\$?\d+[.,]\d{2}$/);
+            });
+
+            if (prices.length > 0) {
+                // Item name is everything before the price
+                const priceWord = prices[0];
+                const itemWords = row.filter(w => {
+                    const text = w.WordText || '';
+                    return (w.Left || 0) < (priceWord.Left || 0) && 
+                           !text.match(/^\d+[.,]\d{2}%?$/) && // Not a price or percentage
+                           !text.match(/^\d+$/); // Not just numbers
+                });
+
+                if (itemWords.length > 0) {
+                    const itemName = itemWords
+                        .map(w => w.WordText || '')
+                        .join(' ')
+                        .trim();
+
+                    const priceText = (priceWord.WordText || '').replace('$', '');
+                    const price = parseLocalNumber(priceText);
+
+                    if (itemName.length >= 2 && price > 0 && price < 10000) {
+                        const cleanedName = cleanText(itemName);
+                        const shouldSkip = skipPatterns.some(p => p.test(cleanedName));
+
+                        if (!shouldSkip && !seenItems.has(cleanedName.toLowerCase())) {
+                            seenItems.add(cleanedName.toLowerCase());
+                            lineItems.push({
+                                name: cleanedName,
+                                quantity: 1,
+                                price: price,
+                                category: this.suggestCategory(cleanedName)
+                            });
+                            console.log('[OCR Parser] Found item from overlay:', cleanedName, '=', price);
+                        }
+                    }
+                }
+            }
+        });
+
+        console.log('[OCR Parser] Total line items from overlay:', lineItems.length);
+        return lineItems;
+    },
+
+    // Extract total from footer (look for "Total" keyword)
+    extractTotalFromOverlay(footerLines) {
+        const totalKeywords = [
+            /total|totale/i,
+            /tot\.?\s*parziale/i,
+            /grand\s*total/i,
+            /total\s*due/i,
+            /amount\s*due/i,
+            /balance/i,
+        ];
+
+        for (const line of footerLines) {
+            if (!line.Words || line.Words.length === 0) continue;
+
+            const words = line.Words;
+            const lineText = words.map(w => w.WordText || '').join(' ').toLowerCase();
+
+            // Check if line contains "total" keyword
+            const hasTotalKeyword = totalKeywords.some(keyword => keyword.test(lineText));
+
+            if (hasTotalKeyword) {
+                // Find price in this line
+                const priceWord = words.find(w => {
+                    const text = w.WordText || '';
+                    return text.match(/^\$?\d+[.,]\d{2}$/);
+                });
+
+                if (priceWord) {
+                    const priceText = (priceWord.WordText || '').replace('$', '');
+                    const total = parseLocalNumber(priceText);
+                    if (total > 0) {
+                        console.log('[OCR Parser] Found total from overlay:', total);
+                        return total;
+                    }
+                }
+            }
+        }
+
+        // Also check body lines for total (sometimes it's not in footer)
+        const allLines = footerLines;
+        for (const line of allLines) {
+            if (!line.Words || line.Words.length === 0) continue;
+
+            const words = line.Words;
+            // Look for any price in footer lines (might be the largest)
+            const prices = words
+                .filter(w => {
+                    const text = w.WordText || '';
+                    return text.match(/^\$?\d+[.,]\d{2}$/);
+                })
+                .map(w => {
+                    const text = (w.WordText || '').replace('$', '');
+                    return parseLocalNumber(text);
+                })
+                .filter(p => p > 0);
+
+            if (prices.length > 0) {
+                const maxPrice = Math.max(...prices);
+                console.log('[OCR Parser] Using max price from footer as total:', maxPrice);
+                return maxPrice;
+            }
+        }
+
+        return 0;
     },
 
     extractMerchant(parts) {

@@ -107,6 +107,13 @@ export default async function handler(req, res) {
             `true${CRLF}`
         );
         
+        // isOverlayRequired (returns bounding boxes for better parsing)
+        formParts.push(
+            `--${boundary}${CRLF}` +
+            `Content-Disposition: form-data; name="isOverlayRequired"${CRLF}${CRLF}` +
+            `true${CRLF}`
+        );
+        
         // File header
         const fileHeader = 
             `--${boundary}${CRLF}` +
