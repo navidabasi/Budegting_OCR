@@ -56,15 +56,15 @@ export default function HomePage() {
             <div className="mb-8">
                 <div className="flex items-start justify-between mb-1">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-1">Dashboard</h1>
-                        <p className="text-sm text-gray-500">Overview of your expenses</p>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Dashboard</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Overview of your expenses</p>
                     </div>
                     <button
                         onClick={() => setSidebarOpen(true)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         aria-label="Settings"
                     >
-                        <Settings size={24} className="text-gray-600" />
+                        <Settings size={24} className="text-gray-600 dark:text-white" />
                     </button>
                 </div>
             </div>

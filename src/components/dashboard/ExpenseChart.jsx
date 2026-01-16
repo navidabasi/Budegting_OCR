@@ -228,7 +228,19 @@ export default function ExpenseChart({ receipts }) {
         plugins: {
             legend: {
                 display: true,
-                position: 'top'
+                position: 'top',
+                labels: {
+                    usePointStyle: true,
+                    boxWidth: 12,
+                    boxHeight: 12,
+                    padding: 10,
+                    font: {
+                        size: 12
+                    },
+                    color: document.documentElement.classList.contains('dark') 
+                        ? '#ffffff' 
+                        : '#374151'
+                }
             },
             tooltip: {
                 callbacks: {
@@ -295,7 +307,7 @@ export default function ExpenseChart({ receipts }) {
     return (
         <div className="contents">
             <div className="card h-64 w-full overflow-hidden">
-                <h3 className="text-base sm:text-lg font-semibold mb-2">Last 30 Days (Income & Expenses)</h3>
+                <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">Last 30 Days (Income & Expenses)</h3>
                 <div 
                     className="h-52 -mx-2"
                     onTouchStart={handleTouchStart}
@@ -305,7 +317,7 @@ export default function ExpenseChart({ receipts }) {
                     <Line data={highlightedIndex !== null ? chartDataWithHighlight : chartData} options={options} />
                 </div>
                 {swipeCurrent !== null && highlightedIndex !== null && (
-                    <div className="text-xs text-gray-500 mt-1 text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-300 mt-1 text-center">
                         {format(last30Days[highlightedIndex], 'MMM dd')}
                     </div>
                 )}
@@ -315,16 +327,16 @@ export default function ExpenseChart({ receipts }) {
                 <div className="card w-full mt-4 animate-slide-in col-span-1 lg:col-span-2">
                     <div className="flex items-center justify-between mb-4">
                         <div>
-                            <h4 className="text-lg font-semibold text-gray-900">
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                                 {format(selectedDate, 'EEEE, MMMM dd, yyyy')}
                             </h4>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-500 dark:text-gray-300">
                                 {selectedDayReceipts.length} receipt{selectedDayReceipts.length !== 1 ? 's' : ''}
                             </p>
                         </div>
                         <button
                             onClick={handleClose}
-                            className="text-gray-400 hover:text-gray-600"
+                            className="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100"
                         >
                             <X size={20} />
                         </button>
@@ -343,15 +355,15 @@ export default function ExpenseChart({ receipts }) {
                                     onClick={() => navigate(`/receipts/${receipt.id}`)}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-gray-900">{receipt.merchant}</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">{receipt.merchant}</span>
                                         <span className={`font-bold ${
-                                            isIncome ? 'text-green-700' : 'text-red-700'
+                                            isIncome ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
                                         }`}>
                                             <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                                         </span>
                                     </div>
                                     {receipt.category && (
-                                        <span className="text-xs text-gray-600">{receipt.category}</span>
+                                        <span className="text-xs text-gray-600 dark:text-gray-300">{receipt.category}</span>
                                     )}
                                 </div>
                             );

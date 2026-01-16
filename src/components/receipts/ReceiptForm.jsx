@@ -290,18 +290,22 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 <input type="hidden" {...register('transactionType', { value: 'expense' })} />
             </div>
 
-            <Input
-                label="Merchant"
-                {...register('merchant', { required: 'Merchant name is required' })}
-                error={errors.merchant?.message}
-            />
+            <div style={{ padding: '0 2px' }}>
+                <Input
+                    label="Merchant"
+                    {...register('merchant', { required: 'Merchant name is required' })}
+                    error={errors.merchant?.message}
+                />
+            </div>
 
-            <Input
-                label="Date"
-                type="date"
-                {...register('date', { required: 'Date is required' })}
-                error={errors.date?.message}
-            />
+            <div style={{ padding: '0 2px' }}>
+                <Input
+                    label="Date"
+                    type="date"
+                    {...register('date', { required: 'Date is required' })}
+                    error={errors.date?.message}
+                />
+            </div>
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
@@ -317,7 +321,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     value={item.name}
                                     onChange={(e) => updateLineItem(index, 'name', e.target.value)}
                                     className="input text-sm"
-                                    style={{ padding: '0.75rem 1rem' }}
+                                    style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 />
                                 <div className="flex gap-2">
                                     <input
@@ -328,7 +332,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         className="input text-sm w-20"
                                         min="1"
                                         step="0.01"
-                                        style={{ padding: '0.75rem 1rem' }}
+                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
                                     />
                                     <input
                                         type="number"
@@ -338,13 +342,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         className="input text-sm flex-1"
                                         min="0"
                                         step="0.01"
-                                        style={{ padding: '0.75rem 1rem' }}
+                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
                                     />
                                     <select
                                         value={item.category}
                                         onChange={(e) => updateLineItem(index, 'category', e.target.value)}
                                         className="input text-sm flex-1"
-                                        style={{ padding: '0.75rem 1rem' }}
+                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
                                     >
                                         <option value="">Category</option>
                                         {categories.map(cat => (
@@ -375,14 +379,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </button>
             </div>
 
-            <div>
+            <div style={{ padding: '0 2px' }}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Currency
                 </label>
                 <select
                     {...register('currency')}
                     className="input mb-4"
-                    style={{ padding: '0.75rem 1rem' }}
+                    style={{ padding: '0.75rem 1rem', margin: 0 }}
                 >
                     {currencies.map(curr => (
                         <option key={curr.code} value={curr.code}>
@@ -393,12 +397,20 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             </div>
 
             <div className="flex gap-4">
-                <div className="flex-1">
-                    <Input
-                        label="Total Amount"
+                <div className="flex-1" style={{ padding: '0 2px' }}>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
+                        Total Amount
+                    </label>
+                    <input
                         type="number"
                         step="0.01"
                         {...register('total')}
+                        className="input"
+                        style={{ 
+                            padding: '0.75rem 1rem',
+                            minHeight: '42px',
+                            margin: 0
+                        }}
                     />
                     {convertedAmount && selectedCurrency !== defaultCurrency && (
                         <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
@@ -406,7 +418,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         </p>
                     )}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1" style={{ padding: '0 2px' }}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                         Items Total
                     </label>
@@ -416,14 +428,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </div>
             </div>
 
-            <div>
+            <div style={{ padding: '0 2px' }}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Category
                 </label>
                 <select
                     {...register('category')}
                     className="input"
-                    style={{ padding: '0.75rem 1rem' }}
+                    style={{ padding: '0.75rem 1rem', margin: 0 }}
                 >
                     <option value="">Select category</option>
                     {categories.map(cat => (
@@ -432,12 +444,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </select>
             </div>
 
-            <Input
-                label="Notes (optional)"
-                {...register('notes')}
-            />
+            <div style={{ padding: '0 2px' }}>
+                <Input
+                    label="Notes (optional)"
+                    {...register('notes')}
+                />
+            </div>
 
-            <div>
+            <div style={{ padding: '0 2px' }}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Group (optional)
                 </label>
@@ -466,6 +480,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 {...register('groupId')}
                                 className="input"
                                 value={watch('groupId') || ''}
+                                style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 onChange={(e) => {
                                     const selectedGroup = groups.find(g => g.id === e.target.value);
                                     const newGroupId = e.target.value || '';

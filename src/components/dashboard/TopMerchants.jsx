@@ -21,29 +21,29 @@ export default function TopMerchants({ receipts }) {
     if (topMerchants.length === 0) {
         return (
             <div className="card">
-                <h3 className="text-lg font-semibold mb-4">Top Merchants</h3>
-                <p className="text-gray-500">No data to display</p>
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Merchants</h3>
+                <p className="text-gray-500 dark:text-gray-300">No data to display</p>
             </div>
         );
     }
 
     return (
         <div className="card">
-            <h3 className="text-lg font-semibold mb-4">Top Merchants</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Merchants</h3>
             <div className="space-y-3">
                 {topMerchants.map(([merchant, total], index) => (
                     <div 
                         key={merchant} 
-                        className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                        className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
                         onClick={() => handleMerchantClick(merchant)}
                     >
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm" style={{ backgroundColor: '#e6f5f2', color: '#00573f' }}>
                                 {index + 1}
                             </div>
-                            <span className="font-medium text-gray-900">{merchant}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{merchant}</span>
                         </div>
-                        <div className="font-semibold text-gray-900">
+                        <div className="font-semibold text-gray-900 dark:text-white">
                             <CurrencyTotalDisplay 
                                 receipts={receipts.filter(r => (r.merchant || 'Unknown') === merchant)} 
                                 amount={total} 

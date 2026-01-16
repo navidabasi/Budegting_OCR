@@ -97,7 +97,7 @@ export default function CurrencyTotalDisplay({ receipts, amount }) {
         return (
             <div>
                 <div>{formatCurrency(amount, singleCurrency)}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">
                     ≈ {formatCurrency(convertedAmount, defaultCurrency)} ({defaultCurrency})
                 </div>
             </div>
@@ -108,7 +108,7 @@ export default function CurrencyTotalDisplay({ receipts, amount }) {
         return (
             <div>
                 <div>{formatCurrency(convertedAmount, defaultCurrency)}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">
                     Converted from multiple currencies
                 </div>
             </div>

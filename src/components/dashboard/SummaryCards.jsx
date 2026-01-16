@@ -53,8 +53,8 @@ export default function SummaryCards({ receipts }) {
             <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Income</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600 truncate">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Total Income</p>
+                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 truncate">
                             <CurrencyTotalDisplay receipts={income} amount={totalIncome} />
                         </div>
                     </div>
@@ -67,8 +67,8 @@ export default function SummaryCards({ receipts }) {
             <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Expenses</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-600 truncate">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Total Expenses</p>
+                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-600 dark:text-red-400 truncate">
                             <CurrencyTotalDisplay receipts={expenses} amount={totalExpenses} />
                         </div>
                     </div>
@@ -81,8 +81,8 @@ export default function SummaryCards({ receipts }) {
             <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Net</p>
-                        <div className={`text-lg sm:text-xl md:text-2xl font-bold truncate ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Net</p>
+                        <div className={`text-lg sm:text-xl md:text-2xl font-bold truncate ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                             <CurrencyTotalDisplay receipts={receipts} amount={net} />
                         </div>
                     </div>
@@ -95,12 +95,12 @@ export default function SummaryCards({ receipts }) {
             <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleThisMonthClick}>
                 <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1">This Month</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">This Month</p>
+                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate">
                             <CurrencyTotalDisplay receipts={monthlyReceipts} amount={monthlyExpenses} />
                         </div>
                         {monthlyIncome > 0 && (
-                            <div className="text-xs text-green-600">
+                            <div className="text-xs text-green-600 dark:text-green-400">
                                 +<CurrencyTotalDisplay receipts={monthlyReceipts.filter(r => r.transactionType === 'income')} amount={monthlyIncome} />
                             </div>
                         )}

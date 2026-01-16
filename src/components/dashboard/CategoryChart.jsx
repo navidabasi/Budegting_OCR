@@ -166,7 +166,7 @@ export default function CategoryChart({ receipts }) {
     if (categories.length === 0) {
         return (
             <div className="card h-64 flex items-center justify-center">
-                <p className="text-gray-500">No data to display</p>
+                <p className="text-gray-500 dark:text-gray-300">No data to display</p>
             </div>
         );
     }
@@ -174,13 +174,13 @@ export default function CategoryChart({ receipts }) {
     return (
         <div className="card h-64 w-full overflow-hidden flex flex-col relative">
             <div className="flex items-start justify-between mb-2">
-                <h3 className="text-base sm:text-lg font-semibold">Expenses by Category</h3>
+                <h3 className="text-base sm:text-lg font-semibold dark:text-white">Expenses by Category</h3>
                 <div className="text-right">
-                    <div className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                         {formatCurrency(visibleTotal)}
                     </div>
                     {hiddenTotal > 0 && (
-                        <div className="text-xs text-gray-500 line-through whitespace-nowrap">
+                        <div className="text-xs text-gray-500 dark:text-gray-300 line-through whitespace-nowrap">
                             {formatCurrency(hiddenTotal)}
                         </div>
                     )}
