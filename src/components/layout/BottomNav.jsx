@@ -43,7 +43,7 @@ export default function BottomNav() {
                 </button>
 
                 {/* Center spacer for notch (72px wide) */}
-                <div style={{ width: '72px', flexShrink: 0 }} />
+                <div className="bottom-nav-spacer" />
 
                 {/* Right side - Receipts (from right edge of notch to right edge) */}
                 <button
@@ -61,7 +61,7 @@ export default function BottomNav() {
             </div>
 
             {/* Center - Plus Button (aligned with navbar top edge) */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 z-50" style={{ bottom: 'calc(1rem + 1rem + 3.5rem - 1.75rem)' }}>
+            <div className="floating-button-container">
                 <button
                     onClick={() => setAddReceiptModalOpen(true)}
                     className="flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-lg hover:bg-gray-50 transition-colors"

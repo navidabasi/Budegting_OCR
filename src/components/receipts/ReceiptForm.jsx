@@ -9,6 +9,7 @@ import { formatCurrency } from '../../utils/helpers';
 import { storageService } from '../../services/storage';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
+import { useCategories } from '../../hooks/useCategories';
 
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -16,7 +17,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [selectedCurrency, setSelectedCurrency] = useState('EUR');
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [converting, setConverting] = useState(false);
-    const [categories, setCategories] = useState([]);
+    const categories = useCategories();
     const [groups, setGroups] = useState([]);
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
@@ -90,20 +91,6 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     }, [currentUser, initialData, setValue]);
 
     useEffect(() => {
-        const loadCategories = async () => {
-            if (currentUser) {
-                try {
-                    const cats = await categoryService.getAllCategories(currentUser.userId);
-                    setCategories(cats);
-                } catch (error) {
-                    console.error('Failed to load categories:', error);
-                    setCategories(categoryService.getAllCategoriesSync()); // Fallback to default
-                }
-            } else {
-                setCategories(categoryService.getAllCategoriesSync()); // Fallback to default
-            }
-        };
-        loadCategories();
         loadGroups();
     }, [currentUser]);
 
@@ -327,7 +314,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 <input type="hidden" {...register('transactionType', { value: 'expense' })} />
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <Input
                     label="Merchant"
                     {...register('merchant', { required: 'Merchant name is required' })}
@@ -335,7 +322,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 />
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <Input
                     label="Date"
                     type="date"
@@ -357,8 +344,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     placeholder="Item name"
                                     value={item.name}
                                     onChange={(e) => updateLineItem(index, 'name', e.target.value)}
-                                    className="input text-sm"
-                                    style={{ padding: '0.75rem 1rem', margin: 0 }}
+                                    className="input text-sm input-line-item"
                                 />
                                 <div className="flex gap-2">
                                     <input
@@ -366,26 +352,23 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         placeholder="Qty"
                                         value={item.quantity}
                                         onChange={(e) => updateLineItem(index, 'quantity', parseFloat(e.target.value) || 1)}
-                                        className="input text-sm w-20"
+                                        className="input text-sm w-20 input-line-item"
                                         min="1"
                                         step="0.01"
-                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
                                     />
                                     <input
                                         type="number"
                                         placeholder="Price"
                                         value={item.price}
                                         onChange={(e) => updateLineItem(index, 'price', e.target.value)}
-                                        className="input text-sm flex-1"
+                                        className="input text-sm flex-1 input-line-item"
                                         min="0"
                                         step="0.01"
-                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
                                     />
                                     <select
                                         value={item.category}
                                         onChange={(e) => updateLineItem(index, 'category', e.target.value)}
-                                        className="input text-sm flex-1"
-                                        style={{ padding: '0.75rem 1rem', margin: 0 }}
+                                        className="input text-sm flex-1 input-line-item"
                                     >
                                         <option value="">Category</option>
                                         {categories.map(cat => (
@@ -416,14 +399,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </button>
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Currency
                 </label>
                 <select
                     {...register('currency')}
-                    className="input mb-4"
-                    style={{ padding: '0.75rem 1rem', margin: 0 }}
+                    className="input mb-4 input-line-item"
                 >
                     {currencies.map(curr => (
                         <option key={curr.code} value={curr.code}>
@@ -434,7 +416,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             </div>
 
             <div className="flex gap-4">
-                <div className="flex-1" style={{ padding: '0 2px' }}>
+                <div className="flex-1 input-wrapper">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                         Total Amount
                     </label>
@@ -442,12 +424,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         type="number"
                         step="0.01"
                         {...register('total')}
-                        className="input"
-                        style={{ 
-                            padding: '0.75rem 1rem',
-                            minHeight: '42px',
-                            margin: 0
-                        }}
+                        className="input input-line-item"
+                        style={{ minHeight: '42px' }}
                     />
                     {convertedAmount && selectedCurrency !== defaultCurrency && (
                         <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
@@ -455,24 +433,23 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         </p>
                     )}
                 </div>
-                <div className="flex-1" style={{ padding: '0 2px' }}>
+                <div className="flex-1 input-wrapper">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                         Items Total
                     </label>
-                    <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white" style={{ minHeight: '42px', display: 'flex', alignItems: 'center' }}>
+                    <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white items-total-display">
                         {formatCurrency(itemsTotal, selectedCurrency)}
                     </div>
                 </div>
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Category
                 </label>
                 <select
                     {...register('category')}
-                    className="input"
-                    style={{ padding: '0.75rem 1rem', margin: 0 }}
+                    className="input input-line-item"
                 >
                     <option value="">Select category</option>
                     {categories.map(cat => (
@@ -481,14 +458,14 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </select>
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <Input
                     label="Notes (optional)"
                     {...register('notes')}
                 />
             </div>
 
-            <div style={{ padding: '0 2px' }}>
+            <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                     Group (optional)
                 </label>
@@ -553,9 +530,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     <div className="flex gap-2">
                         <div className="flex-1">
                             <select
-                                className="input"
+                                className="input input-line-item"
                                 value={watch('groupId') || ''}
-                                style={{ padding: '0.75rem 1rem', margin: 0 }}
                                 onChange={(e) => {
                                     // Find the selected group (could be in parent or nested)
                                     let selectedGroup = null;

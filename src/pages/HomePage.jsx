@@ -1,83 +1,180 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import SummaryCards from '../components/dashboard/SummaryCards';
 import CategoryChart from '../components/dashboard/CategoryChart';
 import ExpenseChart from '../components/dashboard/ExpenseChart';
 import TopMerchants from '../components/dashboard/TopMerchants';
-import { Loader, Settings } from 'lucide-react';
+import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
+import { WIDGET_TYPES } from '../components/dashboard/WidgetRegistry';
+import PageLayout from '../components/common/PageLayout';
+import PageHeader from '../components/common/PageHeader';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import IconButton from '../components/common/IconButton';
+import { useReceipts } from '../hooks/useReceipts';
+import { useUserLayout } from '../hooks/useUserLayout';
+import { useCustomEvent } from '../hooks/useCustomEvent';
+import { Settings, Layout } from 'lucide-react';
 
 export default function HomePage() {
     const currentUser = useAppStore((state) => state.currentUser);
     const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-    const [receipts, setReceipts] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    const loadReceipts = useCallback(async () => {
-        if (!currentUser) return;
-
-        setLoading(true);
-        try {
-            const userReceipts = await storageService.getReceiptsByUserId(currentUser.userId);
-            setReceipts(userReceipts || []);
-        } catch (err) {
-            console.error('Failed to load receipts:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [currentUser]);
-
-    useEffect(() => {
-        loadReceipts();
-    }, [loadReceipts]);
+    const showToast = useAppStore((state) => state.showToast);
+    const { receipts, loading: receiptsLoading, reload: reloadReceipts } = useReceipts();
+    const { layout, loading: layoutLoading, reload: reloadLayout } = useUserLayout();
+    const [showCustomizer, setShowCustomizer] = useState(false);
 
     // Listen for refresh event when already on home page
-    useEffect(() => {
-        const handleRefresh = () => {
-            loadReceipts();
-        };
+    useCustomEvent('refreshDashboard', reloadReceipts, [reloadReceipts]);
 
-        window.addEventListener('refreshDashboard', handleRefresh);
-        return () => {
-            window.removeEventListener('refreshDashboard', handleRefresh);
-        };
-    }, [loadReceipts]);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader className="animate-spin text-primary-600" size={32} />
-            </div>
-        );
+    const loading = receiptsLoading || layoutLoading;
+    if (loading || !layout) {
+        return <LoadingSpinner />;
     }
 
-    return (
-        <div className="pb-24 px-4 pt-6">
-            <div className="mb-8">
-                <div className="flex items-start justify-between mb-1">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Dashboard</h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">Overview of your expenses</p>
+    const handleSaveLayout = async (newLayout) => {
+        if (!currentUser) return;
+
+        try {
+            console.log('[HomePage] Saving layout:', newLayout);
+            await storageService.saveUserLayout(currentUser.userId, newLayout);
+            // Reload layout from storage to ensure consistency
+            await reloadLayout();
+            showToast('Dashboard layout saved', 'success');
+            // Dispatch event to refresh layout in other components
+            window.dispatchEvent(new CustomEvent('refreshLayout'));
+        } catch (err) {
+            console.error('Failed to save layout:', err);
+            showToast('Failed to save layout', 'error');
+        }
+    };
+
+    const renderWidget = (widgetId) => {
+        switch (widgetId) {
+            case WIDGET_TYPES.SUMMARY_CARDS:
+                return <SummaryCards receipts={receipts} />;
+            case WIDGET_TYPES.CATEGORY_CHART:
+                return <CategoryChart receipts={receipts} />;
+            case WIDGET_TYPES.EXPENSE_CHART:
+                return <ExpenseChart receipts={receipts} />;
+            case WIDGET_TYPES.TOP_MERCHANTS:
+                return <TopMerchants receipts={receipts} />;
+            default:
+                return null;
+        }
+    };
+
+    if (!layout) {
+        return <LoadingSpinner />;
+    }
+
+    // Get enabled widgets sorted by order
+    const enabledWidgets = (layout.widgets || [])
+        .filter(w => layout.enabled && layout.enabled.includes(w.id))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    console.log('[HomePage] Enabled widgets in order:', enabledWidgets.map(w => ({ id: w.id, order: w.order })));
+
+    // Render widgets in the exact order they appear in enabledWidgets
+    // Charts (CategoryChart and ExpenseChart) should be in a grid when they appear together
+    const renderWidgetsInOrder = () => {
+        const widgets = [];
+        let chartGroup = [];
+
+        enabledWidgets.forEach((widget, index) => {
+            const isChart = widget.id === WIDGET_TYPES.CATEGORY_CHART || widget.id === WIDGET_TYPES.EXPENSE_CHART;
+
+            if (isChart) {
+                chartGroup.push(widget);
+            } else {
+                // If we have accumulated charts, render them first
+                if (chartGroup.length > 0) {
+                    if (chartGroup.length === 1) {
+                        // Single chart - render full width
+                        widgets.push(
+                            <div key={chartGroup[0].id} className="mb-6">
+                                {renderWidget(chartGroup[0].id)}
+                            </div>
+                        );
+                    } else {
+                        // Multiple charts - render in grid
+                        widgets.push(
+                            <div key={`chart-group-${index}`} className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                {chartGroup.map((chartWidget) => (
+                                    <div key={chartWidget.id}>
+                                        {renderWidget(chartWidget.id)}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    }
+                    chartGroup = [];
+                }
+
+                // Render the non-chart widget
+                widgets.push(
+                    <div key={widget.id} className="mb-6">
+                        {renderWidget(widget.id)}
                     </div>
-                    <button
-                        onClick={() => setSidebarOpen(true)}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        aria-label="Settings"
-                    >
-                        <Settings size={24} className="text-gray-600 dark:text-white" />
-                    </button>
-                </div>
-            </div>
+                );
+            }
+        });
 
-            <SummaryCards receipts={receipts} />
+        // Render any remaining charts
+        if (chartGroup.length > 0) {
+            if (chartGroup.length === 1) {
+                widgets.push(
+                    <div key={chartGroup[0].id} className="mb-6">
+                        {renderWidget(chartGroup[0].id)}
+                    </div>
+                );
+            } else {
+                widgets.push(
+                    <div key="chart-group-final" className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        {chartGroup.map((chartWidget) => (
+                            <div key={chartWidget.id}>
+                                {renderWidget(chartWidget.id)}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+        }
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <CategoryChart receipts={receipts} />
-                <ExpenseChart receipts={receipts} />
-            </div>
+        return widgets;
+    };
 
-            <TopMerchants receipts={receipts} />
-        </div>
+    return (
+        <PageLayout>
+            <PageHeader
+                title="Dashboard"
+                subtitle="Overview of your expenses"
+                actions={
+                    <>
+                        <IconButton
+                            icon={Layout}
+                            onClick={() => setShowCustomizer(true)}
+                            ariaLabel="Customize Dashboard"
+                        />
+                        <IconButton
+                            icon={Settings}
+                            onClick={() => setSidebarOpen(true)}
+                            ariaLabel="Settings"
+                        />
+                    </>
+                }
+            />
+
+            {/* Render widgets in the exact order from layout */}
+            {renderWidgetsInOrder()}
+
+            <WidgetCustomizer
+                isOpen={showCustomizer}
+                onClose={() => setShowCustomizer(false)}
+                currentLayout={layout}
+                onSave={handleSaveLayout}
+            />
+        </PageLayout>
     );
 }
 

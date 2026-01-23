@@ -1,9 +1,10 @@
-import { useNavigate } from 'react-router-dom';
-import { DollarSign, Receipt, TrendingUp, Calendar, TrendingDown, ArrowUpDown } from 'lucide-react';
+import { TrendingUp, Calendar, TrendingDown, ArrowUpDown } from 'lucide-react';
+import SummaryCard from './SummaryCard';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
+import { useReceiptNavigation } from '../../hooks/useNavigation';
 
 export default function SummaryCards({ receipts }) {
-    const navigate = useNavigate();
+    const nav = useReceiptNavigation();
     
     // Separate income and expenses
     const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');
@@ -13,7 +14,6 @@ export default function SummaryCards({ receipts }) {
     const totalIncome = income.reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
     const net = totalIncome - totalExpenses;
     
-    const totalReceipts = receipts.length;
     const thisMonth = new Date().getMonth();
     const thisYear = new Date().getFullYear();
     const monthlyReceipts = receipts.filter(r => {
@@ -27,89 +27,53 @@ export default function SummaryCards({ receipts }) {
         .filter(r => r.transactionType === 'income')
         .reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
 
-    const categories = {};
-    expenses.forEach(r => {
-        const cat = r.category || 'Other';
-        categories[cat] = (categories[cat] || 0) + (parseFloat(r.total) || 0);
-    });
-    const topCategory = Object.entries(categories).sort((a, b) => b[1] - a[1])[0];
-
-    const handleThisMonthClick = () => {
-        navigate(`/receipts?filter=month&month=${thisMonth + 1}&year=${thisYear}`);
-    };
-
-    const handleTopCategoryClick = () => {
-        if (topCategory) {
-            navigate(`/receipts?filter=category&category=${encodeURIComponent(topCategory[0])}`);
-        }
-    };
-
-    const handleTotalReceiptsClick = () => {
-        navigate('/receipts');
-    };
+    const monthlyIncomeSubtitle = monthlyIncome > 0 ? (
+        <span>+<CurrencyTotalDisplay receipts={monthlyReceipts.filter(r => r.transactionType === 'income')} amount={monthlyIncome} /></span>
+    ) : null;
 
     return (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6">
-            <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
-                <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Total Income</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 truncate">
-                            <CurrencyTotalDisplay receipts={income} amount={totalIncome} />
-                        </div>
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                        <TrendingUp className="text-green-600" size={20} />
-                    </div>
-                </div>
-            </div>
-
-            <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
-                <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Total Expenses</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-600 dark:text-red-400 truncate">
-                            <CurrencyTotalDisplay receipts={expenses} amount={totalExpenses} />
-                        </div>
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                        <TrendingDown className="text-red-600" size={20} />
-                    </div>
-                </div>
-            </div>
-
-            <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleTotalReceiptsClick}>
-                <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">Net</p>
-                        <div className={`text-lg sm:text-xl md:text-2xl font-bold truncate ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            <CurrencyTotalDisplay receipts={receipts} amount={net} />
-                        </div>
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
-                        <ArrowUpDown className="text-blue-600" size={20} />
-                    </div>
-                </div>
-            </div>
-
-            <div className="card cursor-pointer hover:shadow-lg transition-shadow p-4 sm:p-6" onClick={handleThisMonthClick}>
-                <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-1">This Month</p>
-                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                            <CurrencyTotalDisplay receipts={monthlyReceipts} amount={monthlyExpenses} />
-                        </div>
-                        {monthlyIncome > 0 && (
-                            <div className="text-xs text-green-600 dark:text-green-400">
-                                +<CurrencyTotalDisplay receipts={monthlyReceipts.filter(r => r.transactionType === 'income')} amount={monthlyIncome} />
-                            </div>
-                        )}
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0 ml-2" style={{ backgroundColor: '#e6f5f2' }}>
-                        <Calendar size={20} style={{ color: '#00573f' }} />
-                    </div>
-                </div>
-            </div>
+            <SummaryCard
+                label="Total Income"
+                amount={totalIncome}
+                receipts={income}
+                icon={TrendingUp}
+                iconBg="bg-green-100"
+                iconColor="text-green-600"
+                textColor="text-green-600 dark:text-green-400"
+                onClick={nav.toReceipts}
+            />
+            <SummaryCard
+                label="Total Expenses"
+                amount={totalExpenses}
+                receipts={expenses}
+                icon={TrendingDown}
+                iconBg="bg-red-100"
+                iconColor="text-red-600"
+                textColor="text-red-600 dark:text-red-400"
+                onClick={nav.toReceipts}
+            />
+            <SummaryCard
+                label="Net"
+                amount={net}
+                receipts={receipts}
+                icon={ArrowUpDown}
+                iconBg="bg-blue-100"
+                iconColor="text-blue-600"
+                textColor={net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}
+                onClick={nav.toReceipts}
+            />
+            <SummaryCard
+                label="This Month"
+                amount={monthlyExpenses}
+                receipts={monthlyReceipts}
+                icon={Calendar}
+                iconBg="primary-bg"
+                iconColor="primary-color"
+                textColor="text-gray-900 dark:text-white"
+                onClick={() => nav.toMonth(thisMonth + 1, thisYear)}
+                subtitle={monthlyIncomeSubtitle}
+            />
         </div>
     );
 }

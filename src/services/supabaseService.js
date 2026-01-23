@@ -138,6 +138,16 @@ export const authHelpers = {
         if (!supabase) return { data: { subscription: null }, error: new Error('Supabase not configured') };
 
         return supabase.auth.onAuthStateChange(callback);
+    },
+
+    async signInWithOAuth(options) {
+        if (!supabase) {
+            throw new Error('Supabase not configured');
+        }
+
+        const { data, error } = await supabase.auth.signInWithOAuth(options);
+        if (error) throw error;
+        return { data, error: null };
     }
 };
 
@@ -616,14 +626,21 @@ export const supabaseService = {
     async updateGroup(groupId, updates) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        const updateData = {
+            name: updates.name,
+            color: updates.color,
+            is_pinned: updates.isPinned,
+            updated_at: new Date().toISOString()
+        };
+
+        // Include parentGroupId if provided
+        if (updates.parentGroupId !== undefined) {
+            updateData.parent_group_id = updates.parentGroupId || null;
+        }
+
         const { data, error } = await supabase
             .from('groups')
-            .update({
-                name: updates.name,
-                color: updates.color,
-                is_pinned: updates.isPinned,
-                updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', groupId)
             .select()
             .single();
@@ -731,6 +748,100 @@ export const supabaseService = {
             createdAt: supabaseGroup.created_at,
             updatedAt: supabaseGroup.updated_at
         };
+    },
+
+    // User Layout operations
+    async saveUserLayout(userId, layoutData) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        // Check if layout exists
+        const { data: existing, error: selectError } = await supabase
+            .from('user_layouts')
+            .select('user_id')
+            .eq('user_id', authenticatedUserId)
+            .single();
+
+        // If table doesn't exist, just return without error (layout saved locally)
+        if (selectError && (selectError.code === '42P01' || selectError.message?.includes('user_layouts') || selectError.message?.includes('schema cache'))) {
+            console.warn('[Supabase] user_layouts table not found. Layout saved locally only. Please run supabase_migration_v6.sql');
+            return layoutData;
+        }
+
+        const layoutRecord = {
+            user_id: authenticatedUserId,
+            layout: layoutData,
+            updated_at: new Date().toISOString()
+        };
+
+        if (existing) {
+            const { error } = await supabase
+                .from('user_layouts')
+                .update(layoutRecord)
+                .eq('user_id', authenticatedUserId);
+
+            if (error) {
+                // If table doesn't exist, just return without error
+                if (error.code === '42P01' || error.message?.includes('user_layouts') || error.message?.includes('schema cache')) {
+                    console.warn('[Supabase] user_layouts table not found. Layout saved locally only.');
+                    return layoutData;
+                }
+                throw error;
+            }
+        } else {
+            layoutRecord.created_at = new Date().toISOString();
+            const { error } = await supabase
+                .from('user_layouts')
+                .insert([layoutRecord]);
+
+            if (error) {
+                // If table doesn't exist, just return without error
+                if (error.code === '42P01' || error.message?.includes('user_layouts') || error.message?.includes('schema cache')) {
+                    console.warn('[Supabase] user_layouts table not found. Layout saved locally only.');
+                    return layoutData;
+                }
+                throw error;
+            }
+        }
+
+        return layoutData;
+    },
+
+    async getUserLayout(userId) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const { data, error } = await supabase
+            .from('user_layouts')
+            .select('layout')
+            .eq('user_id', authenticatedUserId)
+            .single();
+
+        if (error) {
+            // If table doesn't exist, return null instead of throwing
+            if (error.code === '42P01' || error.message?.includes('user_layouts') || error.message?.includes('schema cache')) {
+                console.warn('[Supabase] user_layouts table not found. Please run supabase_migration_v6.sql');
+                return null;
+            }
+            // PGRST116 is "not found" - that's okay, return null
+            if (error.code !== 'PGRST116') {
+                throw error;
+            }
+        }
+
+        return data?.layout || null;
     }
 };
 

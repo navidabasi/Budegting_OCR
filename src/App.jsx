@@ -57,6 +57,8 @@ function App() {
                         // Trigger refresh on pages that display receipts
                         window.dispatchEvent(new CustomEvent('refreshDashboard'));
                         window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                        // Also trigger a refresh for groups
+                        window.dispatchEvent(new CustomEvent('refreshGroups'));
                     }
                 }
             }
@@ -68,16 +70,41 @@ function App() {
         }
     };
 
-    // Check for existing Supabase session on mount
+    // Check for existing Supabase session on mount and handle OAuth callback
     useEffect(() => {
         const checkSession = async () => {
             try {
+                // Check for OAuth callback in URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const hash = window.location.hash;
+                const hasOAuthCallback = urlParams.has('code') || hash.includes('access_token') || hash.includes('type=recovery');
+
+                if (hasOAuthCallback) {
+                    // OAuth callback detected - Supabase will handle it via auth state change
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+
                 const session = await authService.getCurrentSession();
                 if (session?.user) {
                     setCurrentUser({
                         userId: session.user.id,
                         email: session.user.email
                     });
+                    
+                    // Save user locally if not already saved
+                    try {
+                        const localUser = await storageService.getUserByEmail(session.user.email);
+                        if (!localUser) {
+                            await storageService.createUser({
+                                email: session.user.email,
+                                supabaseId: session.user.id,
+                                supabaseUserId: session.user.id
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Failed to save user locally:', err);
+                    }
                 }
             } catch (error) {
                 console.error('Error checking session:', error);
@@ -99,6 +126,20 @@ function App() {
                                     email: session.user.email
                                 });
                                 
+                                // Save user locally if not already saved (for OAuth users)
+                                try {
+                                    const localUser = await storageService.getUserByEmail(session.user.email);
+                                    if (!localUser) {
+                                        await storageService.createUser({
+                                            email: session.user.email,
+                                            supabaseId: session.user.id,
+                                            supabaseUserId: session.user.id
+                                        });
+                                    }
+                                } catch (err) {
+                                    console.error('Failed to save user locally:', err);
+                                }
+                                
                                 // Force sync from cloud on sign in
                                 try {
                                     const result = await storageService.syncAllFromCloud(session.user.id);
@@ -107,6 +148,8 @@ function App() {
                                         // Trigger refresh
                                         window.dispatchEvent(new CustomEvent('refreshDashboard'));
                                         window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                                        // Also trigger a refresh for groups specifically
+                                        window.dispatchEvent(new CustomEvent('refreshGroups'));
                                     }
                                 } catch (syncError) {
                                     console.error('Failed to sync from cloud on sign in:', syncError);

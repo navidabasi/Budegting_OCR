@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
+import { useReceiptNavigation } from '../../hooks/useNavigation';
 
 export default function TopMerchants({ receipts }) {
-    const navigate = useNavigate();
+    const nav = useReceiptNavigation();
     const merchantTotals = {};
     
     receipts.forEach(receipt => {
@@ -13,10 +13,6 @@ export default function TopMerchants({ receipts }) {
     const topMerchants = Object.entries(merchantTotals)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
-
-    const handleMerchantClick = (merchant) => {
-        navigate(`/receipts?filter=merchant&merchant=${encodeURIComponent(merchant)}`);
-    };
 
     if (topMerchants.length === 0) {
         return (
@@ -35,10 +31,10 @@ export default function TopMerchants({ receipts }) {
                     <div 
                         key={merchant} 
                         className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
-                        onClick={() => handleMerchantClick(merchant)}
+                        onClick={() => nav.toMerchant(merchant)}
                     >
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm" style={{ backgroundColor: '#e6f5f2', color: '#00573f' }}>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm primary-bg primary-color">
                                 {index + 1}
                             </div>
                             <span className="font-medium text-gray-900 dark:text-white">{merchant}</span>

@@ -31,8 +31,10 @@ export default function AddReceiptModal() {
             });
             showToast('Receipt saved successfully', 'success');
             handleClose();
-            // Reload the page to show new receipt
-            window.location.reload();
+            // Dispatch events to refresh components using hooks
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast('Failed to save receipt', 'error');
         }
@@ -98,8 +100,8 @@ export default function AddReceiptModal() {
                     onClick={handleCameraClick}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
-                        <Camera size={24} style={{ color: '#00573f' }} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
+                        <Camera size={24} className="primary-color" />
                     </div>
                     <div className="text-left">
                         <h3 className="font-medium text-gray-900 dark:text-white">Take Photo</h3>
@@ -111,8 +113,8 @@ export default function AddReceiptModal() {
                     onClick={handleUploadClick}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
-                        <Upload size={24} style={{ color: '#00573f' }} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
+                        <Upload size={24} className="primary-color" />
                     </div>
                     <div className="text-left">
                         <h3 className="font-medium text-gray-900 dark:text-white">Upload Image</h3>
@@ -132,8 +134,8 @@ export default function AddReceiptModal() {
                     onClick={handleManualClick}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f5f2' }}>
-                        <FileText size={24} style={{ color: '#00573f' }} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
+                        <FileText size={24} className="primary-color" />
                     </div>
                     <div className="text-left">
                         <h3 className="font-medium text-gray-900 dark:text-white">Enter Manually</h3>

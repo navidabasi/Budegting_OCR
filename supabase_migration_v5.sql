@@ -16,15 +16,18 @@ CREATE TABLE IF NOT EXISTS groups (
   name TEXT NOT NULL,
   color TEXT DEFAULT '#3b82f6', -- Default blue color
   is_pinned BOOLEAN DEFAULT FALSE,
+  parent_group_id UUID, -- For nested groups support
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, name)
+  UNIQUE(user_id, name),
+  CONSTRAINT fk_groups_parent_group FOREIGN KEY (parent_group_id) REFERENCES groups(id) ON DELETE SET NULL
 );
 
 -- Step 2: Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_groups_user_id ON groups(user_id);
 CREATE INDEX IF NOT EXISTS idx_groups_is_pinned ON groups(is_pinned);
 CREATE INDEX IF NOT EXISTS idx_groups_user_pinned ON groups(user_id, is_pinned);
+CREATE INDEX IF NOT EXISTS idx_groups_parent_group_id ON groups(parent_group_id);
 
 -- Step 3: Enable RLS on groups
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
@@ -87,3 +90,4 @@ WHERE r.user_id = g.user_id
 COMMENT ON TABLE groups IS 'User-created groups for organizing receipts with colors and pinning';
 COMMENT ON COLUMN groups.color IS 'Hex color code for group display (e.g., #3b82f6)';
 COMMENT ON COLUMN groups.is_pinned IS 'Whether the group should appear at the top of the list';
+COMMENT ON COLUMN groups.parent_group_id IS 'Reference to parent group for nested group hierarchy (NULL for top-level groups)';

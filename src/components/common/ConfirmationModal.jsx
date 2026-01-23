@@ -80,7 +80,7 @@ export default function ConfirmationModal({
                     <button
                         onClick={onClose}
                         className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 touch-manipulation"
-                        style={{ minWidth: '44px', minHeight: '44px' }}
+                        className="touch-target"
                     >
                         <X size={20} />
                     </button>
@@ -92,16 +92,14 @@ export default function ConfirmationModal({
                     <Button
                         variant="secondary"
                         onClick={onClose}
-                        className="flex-1 touch-manipulation"
-                        style={{ minHeight: '44px' }}
+                        className="flex-1 touch-manipulation touch-target"
                     >
                         {cancelText}
                     </Button>
                     <Button
                         variant={danger ? 'danger' : variant}
                         onClick={handleConfirm}
-                        className="flex-1 touch-manipulation"
-                        style={{ minHeight: '44px' }}
+                        className="flex-1 touch-manipulation touch-target"
                     >
                         {confirmText}
                     </Button>

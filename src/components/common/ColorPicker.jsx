@@ -59,7 +59,7 @@ export default function ColorPicker({ value = '#3b82f6', onChange, label = 'Colo
                             <Check 
                                 size={20} 
                                 className="text-white mx-auto"
-                                style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}
+                                className="color-swatch-shadow"
                             />
                         )}
                     </button>
@@ -88,10 +88,10 @@ export default function ColorPicker({ value = '#3b82f6', onChange, label = 'Colo
             </div>
 
             {/* Color Preview */}
-            <div className="mt-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600" style={{ backgroundColor: selectedColor + '20' }}>
+            <div className="mt-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 color-picker-preview" style={{ backgroundColor: selectedColor + '20' }}>
                 <div className="flex items-center gap-2">
                     <div 
-                        className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600"
+                        className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 color-swatch"
                         style={{ backgroundColor: selectedColor }}
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">

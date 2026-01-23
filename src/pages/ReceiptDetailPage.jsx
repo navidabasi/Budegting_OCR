@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { storageService } from '../services/storage';
 import ReceiptDetail from '../components/receipts/ReceiptDetail';
-import { Loader } from 'lucide-react';
+import PageLayout from '../components/common/PageLayout';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import EmptyState from '../components/common/EmptyState';
 
 export default function ReceiptDetailPage() {
     const { id } = useParams();
@@ -27,31 +29,31 @@ export default function ReceiptDetailPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen pb-20">
-                <Loader className="animate-spin text-primary-600" size={32} />
-            </div>
-        );
+        return <LoadingSpinner className="pb-20" />;
     }
 
     if (!receipt) {
         return (
-            <div className="pb-20 px-4 pt-6">
-                <div className="card text-center py-12">
-                    <p className="text-gray-500">Receipt not found</p>
-                </div>
-            </div>
+            <PageLayout>
+                <EmptyState message="Receipt not found" />
+            </PageLayout>
         );
     }
 
+    const handleDelete = () => {
+        // ReceiptDetail already dispatches refresh events
+        // Just reload the receipt list by navigating away
+        loadReceipt();
+    };
+
     return (
-        <div className="pb-20 px-4 pt-6">
+        <PageLayout>
             <ReceiptDetail
                 receipt={receipt}
                 onUpdate={loadReceipt}
-                onDelete={() => { }}
+                onDelete={handleDelete}
             />
-        </div>
+        </PageLayout>
     );
 }
 

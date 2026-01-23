@@ -88,7 +88,7 @@ db.version(5).stores({
     // Migrate existing groups from receipts to groups table
     const receipts = await tx.table('receipts').toArray();
     const groupMap = new Map();
-    
+
     // Collect unique groups from receipts
     receipts.forEach(receipt => {
         if (receipt.groupId && receipt.groupName) {
@@ -106,11 +106,21 @@ db.version(5).stores({
             }
         }
     });
-    
+
     // Create groups in IndexedDB
     for (const group of groupMap.values()) {
         await tx.table('groups').add(group);
     }
+});
+
+// Version 6: Add userLayouts table for customizable dashboard
+db.version(6).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
+    userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt',
+    groups: '++id, userId, supabaseId, name, color, isPinned, parentGroupId, createdAt, updatedAt, syncedAt',
+    userLayouts: 'userId, layout, createdAt, updatedAt, syncedAt'
 });
 
 export const storageService = {
@@ -999,11 +1009,22 @@ export const storageService = {
                         if (localUpdated > cloudUpdated) {
                             // Local is newer - upload to cloud
                             try {
+                                // Resolve parentGroupId to Supabase ID
+                                const allLocalGroups = Array.from(localMap.values());
+                                const resolvedParentId = localGroup.parentGroupId ? (() => {
+                                    const parentGroup = allLocalGroups.find(g =>
+                                        String(g.id) === String(localGroup.parentGroupId) ||
+                                        String(g.supabaseId) === String(localGroup.parentGroupId)
+                                    );
+                                    return parentGroup?.supabaseId || null;
+                                })() : null;
+
                                 await withTimeout(
                                     supabaseService.updateGroup(supabaseId, {
                                         name: localGroup.name,
                                         color: localGroup.color,
-                                        isPinned: localGroup.isPinned
+                                        isPinned: localGroup.isPinned,
+                                        parentGroupId: resolvedParentId
                                     }),
                                     10000,
                                     'Update group timed out'
@@ -1014,7 +1035,31 @@ export const storageService = {
                                 synced++;
                             } catch (error) {
                                 const errorMessage = error?.message || error?.error || String(error);
-                                errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                                // If it's a FK constraint error, try without parent
+                                if (errorMessage.includes('foreign key constraint') && localGroup.parentGroupId) {
+                                    console.warn(`[Sync] Parent group not synced yet for group ${localGroup.id}, updating without parent`);
+                                    try {
+                                        await withTimeout(
+                                            supabaseService.updateGroup(supabaseId, {
+                                                name: localGroup.name,
+                                                color: localGroup.color,
+                                                isPinned: localGroup.isPinned,
+                                                parentGroupId: null
+                                            }),
+                                            10000,
+                                            'Update group timed out'
+                                        );
+                                        await db.groups.update(localGroup.id, {
+                                            syncedAt: new Date().toISOString()
+                                        });
+                                        synced++;
+                                    } catch (retryError) {
+                                        const retryErrorMessage = retryError?.message || retryError?.error || String(retryError);
+                                        errors.push({ type: 'group_upload', groupId: localGroup.id, error: retryErrorMessage });
+                                    }
+                                } else {
+                                    errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                                }
                             }
                         } else if (cloudUpdated > localUpdated) {
                             // Cloud is newer - download to local
@@ -1023,6 +1068,7 @@ export const storageService = {
                                     name: cloudGroup.name,
                                     color: cloudGroup.color,
                                     isPinned: cloudGroup.isPinned,
+                                    parentGroupId: cloudGroup.parentGroupId || null,
                                     updatedAt: cloudGroup.updatedAt,
                                     syncedAt: new Date().toISOString()
                                 });
@@ -1040,38 +1086,147 @@ export const storageService = {
                     }
                 }
 
-                // Process local-only groups (upload to cloud)
-                for (const [key, localGroup] of localMap) {
+                // Helper function to resolve parentGroupId to Supabase ID
+                const resolveParentGroupId = (parentGroupId) => {
+                    if (!parentGroupId) return null;
+                    // Check if it's already a Supabase ID (UUID format)
+                    const allLocalGroups = Array.from(localMap.values());
+                    const parentGroup = allLocalGroups.find(g =>
+                        String(g.id) === String(parentGroupId) ||
+                        String(g.supabaseId) === String(parentGroupId)
+                    );
+                    if (parentGroup && parentGroup.supabaseId) {
+                        return parentGroup.supabaseId;
+                    }
+                    // Check in cloud groups
+                    const cloudParent = Array.from(cloudMap.values()).find(g =>
+                        String(g.id) === String(parentGroupId)
+                    );
+                    if (cloudParent) {
+                        return cloudParent.id;
+                    }
+                    // If parent doesn't have Supabase ID yet, return null to avoid FK error
+                    // The parent will be synced first, then this group will be synced in next sync
+                    return null;
+                };
+
+                // Sort local groups: parent groups first (no parentGroupId), then nested groups
+                const sortedLocalGroups = Array.from(localMap.entries()).sort(([keyA, groupA], [keyB, groupB]) => {
+                    // Groups without parent come first
+                    if (!groupA.parentGroupId && groupB.parentGroupId) return -1;
+                    if (groupA.parentGroupId && !groupB.parentGroupId) return 1;
+                    return 0;
+                });
+
+                // Process local-only groups (upload to cloud) - sorted so parents sync first
+                for (const [key, localGroup] of sortedLocalGroups) {
                     if (key.startsWith('local_') || !localGroup.supabaseId) {
-                        // New local group - create in cloud
+                        // New local group - check if group with same name exists in cloud first
                         try {
-                            const cloudGroup = await withTimeout(
-                                supabaseService.createGroup(userId, {
-                                    name: localGroup.name,
-                                    color: localGroup.color,
-                                    isPinned: localGroup.isPinned
-                                }),
-                                10000,
-                                'Create group timed out'
+                            // Check if a group with the same name already exists in cloud
+                            const existingCloudGroup = Array.from(cloudMap.values()).find(g =>
+                                g.name === localGroup.name &&
+                                (!localGroup.parentGroupId || g.parentGroupId === resolveParentGroupId(localGroup.parentGroupId))
                             );
-                            await db.groups.update(localGroup.id, {
-                                supabaseId: cloudGroup.id,
-                                syncedAt: new Date().toISOString()
-                            });
-                            synced++;
+
+                            if (existingCloudGroup) {
+                                // Group with same name exists - link local group to existing cloud group
+                                console.log(`[Sync] Group "${localGroup.name}" already exists in cloud, linking to existing group`);
+                                await db.groups.update(localGroup.id, {
+                                    supabaseId: existingCloudGroup.id,
+                                    name: existingCloudGroup.name, // Use cloud name in case of slight differences
+                                    color: existingCloudGroup.color,
+                                    isPinned: existingCloudGroup.isPinned,
+                                    parentGroupId: existingCloudGroup.parentGroupId || null,
+                                    updatedAt: existingCloudGroup.updatedAt,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            } else {
+                                // No existing group - create new one in cloud
+                                // Resolve parentGroupId to Supabase ID
+                                const resolvedParentId = resolveParentGroupId(localGroup.parentGroupId);
+                                const cloudGroup = await withTimeout(
+                                    supabaseService.createGroup(userId, {
+                                        name: localGroup.name,
+                                        color: localGroup.color,
+                                        isPinned: localGroup.isPinned,
+                                        parentGroupId: resolvedParentId
+                                    }),
+                                    10000,
+                                    'Create group timed out'
+                                );
+                                await db.groups.update(localGroup.id, {
+                                    supabaseId: cloudGroup.id,
+                                    syncedAt: new Date().toISOString()
+                                });
+                                synced++;
+                            }
                         } catch (error) {
                             const errorMessage = error?.message || error?.error || String(error);
-                            errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                            // If it's a unique constraint error, try to find and link to existing group
+                            if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+                                console.warn(`[Sync] Group "${localGroup.name}" already exists, attempting to find and link`);
+                                try {
+                                    // Fetch all groups from cloud to find the duplicate
+                                    const allCloudGroups = await withTimeout(
+                                        supabaseService.getGroups(userId),
+                                        10000,
+                                        'Get groups timed out'
+                                    );
+                                    const existingGroup = allCloudGroups.find(g => g.name === localGroup.name);
+                                    if (existingGroup) {
+                                        await db.groups.update(localGroup.id, {
+                                            supabaseId: existingGroup.id,
+                                            syncedAt: new Date().toISOString()
+                                        });
+                                        synced++;
+                                    } else {
+                                        errors.push({ type: 'group_upload', groupId: localGroup.id, error: 'Duplicate group name but could not find existing group' });
+                                    }
+                                } catch (findError) {
+                                    const findErrorMessage = findError?.message || findError?.error || String(findError);
+                                    errors.push({ type: 'group_upload', groupId: localGroup.id, error: `Duplicate name: ${errorMessage}, Find failed: ${findErrorMessage}` });
+                                }
+                            } else if (errorMessage.includes('foreign key constraint') && localGroup.parentGroupId) {
+                                // If it's a FK constraint error and parentGroupId exists, try again without parent
+                                console.warn(`[Sync] Parent group not synced yet for group ${localGroup.id}, syncing without parent`);
+                                try {
+                                    const cloudGroup = await withTimeout(
+                                        supabaseService.createGroup(userId, {
+                                            name: localGroup.name,
+                                            color: localGroup.color,
+                                            isPinned: localGroup.isPinned,
+                                            parentGroupId: null // Sync without parent first
+                                        }),
+                                        10000,
+                                        'Create group timed out'
+                                    );
+                                    await db.groups.update(localGroup.id, {
+                                        supabaseId: cloudGroup.id,
+                                        syncedAt: new Date().toISOString()
+                                    });
+                                    synced++;
+                                } catch (retryError) {
+                                    const retryErrorMessage = retryError?.message || retryError?.error || String(retryError);
+                                    errors.push({ type: 'group_upload', groupId: localGroup.id, error: retryErrorMessage });
+                                }
+                            } else {
+                                errors.push({ type: 'group_upload', groupId: localGroup.id, error: errorMessage });
+                            }
                         }
                     } else if (localGroup.supabaseId && !processed.has(localGroup.supabaseId)) {
                         // Local group has supabaseId but wasn't in cloudMap
                         // Try to update first, if that fails (404), create a new one
                         try {
+                            // Resolve parentGroupId to Supabase ID
+                            const resolvedParentId = resolveParentGroupId(localGroup.parentGroupId);
                             await withTimeout(
                                 supabaseService.updateGroup(localGroup.supabaseId, {
                                     name: localGroup.name,
                                     color: localGroup.color,
-                                    isPinned: localGroup.isPinned
+                                    isPinned: localGroup.isPinned,
+                                    parentGroupId: resolvedParentId
                                 }),
                                 10000,
                                 'Update group timed out'
@@ -1085,11 +1240,14 @@ export const storageService = {
                             // Create a new one and update the local supabaseId
                             try {
                                 console.log(`[Sync] Group ${localGroup.supabaseId} not found in cloud, creating new one`);
+                                // Resolve parentGroupId to Supabase ID
+                                const resolvedParentId = resolveParentGroupId(localGroup.parentGroupId);
                                 const cloudGroup = await withTimeout(
                                     supabaseService.createGroup(userId, {
                                         name: localGroup.name,
                                         color: localGroup.color,
-                                        isPinned: localGroup.isPinned
+                                        isPinned: localGroup.isPinned,
+                                        parentGroupId: resolvedParentId
                                     }),
                                     10000,
                                     'Create group timed out'
@@ -1101,11 +1259,72 @@ export const storageService = {
                                 synced++;
                             } catch (createError) {
                                 const errorMessage = createError?.message || createError?.error || String(createError);
-                                errors.push({
-                                    type: 'group_upload',
-                                    groupId: localGroup.id,
-                                    error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}`
-                                });
+                                // If it's a unique constraint error, try to find and link to existing group
+                                if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+                                    console.warn(`[Sync] Group "${localGroup.name}" already exists, attempting to find and link`);
+                                    try {
+                                        // Fetch all groups from cloud to find the duplicate
+                                        const allCloudGroups = await withTimeout(
+                                            supabaseService.getGroups(userId),
+                                            10000,
+                                            'Get groups timed out'
+                                        );
+                                        const existingGroup = allCloudGroups.find(g => g.name === localGroup.name);
+                                        if (existingGroup) {
+                                            await db.groups.update(localGroup.id, {
+                                                supabaseId: existingGroup.id,
+                                                syncedAt: new Date().toISOString()
+                                            });
+                                            synced++;
+                                        } else {
+                                            errors.push({
+                                                type: 'group_upload',
+                                                groupId: localGroup.id,
+                                                error: `Update failed: ${updateError?.message}, Duplicate name but could not find existing group`
+                                            });
+                                        }
+                                    } catch (findError) {
+                                        const findErrorMessage = findError?.message || findError?.error || String(findError);
+                                        errors.push({
+                                            type: 'group_upload',
+                                            groupId: localGroup.id,
+                                            error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}, Find failed: ${findErrorMessage}`
+                                        });
+                                    }
+                                } else if (errorMessage.includes('foreign key constraint') && localGroup.parentGroupId) {
+                                    // If it's a FK constraint error, try without parent
+                                    console.warn(`[Sync] Parent group not synced yet, creating group ${localGroup.id} without parent`);
+                                    try {
+                                        const cloudGroup = await withTimeout(
+                                            supabaseService.createGroup(userId, {
+                                                name: localGroup.name,
+                                                color: localGroup.color,
+                                                isPinned: localGroup.isPinned,
+                                                parentGroupId: null
+                                            }),
+                                            10000,
+                                            'Create group timed out'
+                                        );
+                                        await db.groups.update(localGroup.id, {
+                                            supabaseId: cloudGroup.id,
+                                            syncedAt: new Date().toISOString()
+                                        });
+                                        synced++;
+                                    } catch (retryError) {
+                                        const retryErrorMessage = retryError?.message || retryError?.error || String(retryError);
+                                        errors.push({
+                                            type: 'group_upload',
+                                            groupId: localGroup.id,
+                                            error: `Update failed: ${updateError?.message}, Create failed: ${retryErrorMessage}`
+                                        });
+                                    }
+                                } else {
+                                    errors.push({
+                                        type: 'group_upload',
+                                        groupId: localGroup.id,
+                                        error: `Update failed: ${updateError?.message}, Create failed: ${errorMessage}`
+                                    });
+                                }
                             }
                         }
                     }
@@ -1121,6 +1340,7 @@ export const storageService = {
                                 name: cloudGroup.name,
                                 color: cloudGroup.color || '#3b82f6',
                                 isPinned: cloudGroup.isPinned || false,
+                                parentGroupId: cloudGroup.parentGroupId || null,
                                 createdAt: cloudGroup.createdAt || new Date().toISOString(),
                                 updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
                                 syncedAt: new Date().toISOString()
@@ -1136,6 +1356,55 @@ export const storageService = {
                 const errorMessage = error?.message || error?.error || String(error);
                 console.error('[Sync] Error syncing groups:', error);
                 errors.push({ type: 'group_sync', error: errorMessage });
+            }
+
+            // Sync user layout bidirectionally (gracefully handle if table doesn't exist)
+            try {
+                const localLayout = await this.getUserLayout(userId);
+                const cloudLayout = await supabaseService.getUserLayout(userId);
+
+                if (localLayout && cloudLayout) {
+                    // Both exist - compare timestamps (we'll use updatedAt from layout record)
+                    const localRecord = await db.userLayouts.where('userId').equals(userId).first();
+                    const localUpdated = localRecord?.updatedAt ? new Date(localRecord.updatedAt) : new Date(0);
+
+                    // For cloud, we don't have updatedAt easily accessible, so we'll prefer local if it exists
+                    // In a real scenario, you'd want to store updatedAt in the layout JSON or have a separate field
+                    // For now, we'll upload local if it exists
+                    if (localLayout) {
+                        await supabaseService.saveUserLayout(userId, localLayout);
+                        await db.userLayouts.where('userId').equals(userId).modify({
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    }
+                } else if (localLayout && !cloudLayout) {
+                    // Local only - upload to cloud
+                    await supabaseService.saveUserLayout(userId, localLayout);
+                    await db.userLayouts.where('userId').equals(userId).modify({
+                        syncedAt: new Date().toISOString()
+                    });
+                    synced++;
+                } else if (!localLayout && cloudLayout) {
+                    // Cloud only - download to local
+                    await db.userLayouts.add({
+                        userId: userId,
+                        layout: cloudLayout,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        syncedAt: new Date().toISOString()
+                    });
+                    synced++;
+                }
+            } catch (error) {
+                // If table doesn't exist, just log a warning instead of adding to errors
+                if (error.message && error.message.includes('user_layouts')) {
+                    console.warn('[Sync] user_layouts table not found. Please run supabase_migration_v6.sql in Supabase.');
+                } else {
+                    const errorMessage = error?.message || error?.error || String(error);
+                    console.error('[Sync] Error syncing layout:', error);
+                    errors.push({ type: 'layout_sync', error: errorMessage });
+                }
             }
 
         } catch (error) {
@@ -1276,6 +1545,24 @@ export const storageService = {
                 }
             }
 
+            // Delete local receipts that no longer exist in cloud
+            try {
+                const localReceipts = await this.getReceiptsByUserId(userId);
+                const cloudReceiptIds = new Set(cloudReceipts.map(r => r.id));
+
+                for (const localReceipt of localReceipts) {
+                    // Only delete if it has a supabaseId (was synced before) and doesn't exist in cloud
+                    if (localReceipt.supabaseId && !cloudReceiptIds.has(localReceipt.supabaseId)) {
+                        console.log('[Sync From Cloud] Deleting local receipt not in cloud:', localReceipt.id);
+                        await db.receipts.delete(localReceipt.id);
+                        synced++;
+                    }
+                }
+            } catch (error) {
+                console.error('[Sync From Cloud] Failed to delete orphaned receipts:', error);
+                errors.push({ type: 'delete_receipts', error: error.message || String(error) });
+            }
+
             // Sync settings
             const cloudSettings = await supabaseService.getSettings(userId);
             if (cloudSettings) {
@@ -1327,6 +1614,16 @@ export const storageService = {
                         synced++;
                     }
                 }
+
+                // Delete local categories that no longer exist in cloud
+                const cloudCategoryIds = new Set(cloudCategories.map(c => c.id));
+                for (const localCategory of localCategories) {
+                    if (localCategory.supabaseId && !cloudCategoryIds.has(localCategory.supabaseId)) {
+                        console.log('[Sync From Cloud] Deleting local category not in cloud:', localCategory.id);
+                        await db.userCategories.delete(localCategory.id);
+                        synced++;
+                    }
+                }
             } catch (error) {
                 console.error('[Sync From Cloud] Failed to sync user categories:', error);
                 errors.push({ type: 'category_sync', error: error.message || String(error) });
@@ -1358,6 +1655,7 @@ export const storageService = {
                                 name: cloudGroup.name,
                                 color: cloudGroup.color,
                                 isPinned: cloudGroup.isPinned,
+                                parentGroupId: cloudGroup.parentGroupId || null,
                                 updatedAt: cloudGroup.updatedAt,
                                 syncedAt: new Date().toISOString()
                             });
@@ -1371,6 +1669,7 @@ export const storageService = {
                             name: cloudGroup.name,
                             color: cloudGroup.color || '#3b82f6',
                             isPinned: cloudGroup.isPinned || false,
+                            parentGroupId: cloudGroup.parentGroupId || null,
                             createdAt: cloudGroup.createdAt || new Date().toISOString(),
                             updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
                             syncedAt: new Date().toISOString()
@@ -1378,9 +1677,54 @@ export const storageService = {
                         synced++;
                     }
                 }
+
+                // Delete local groups that no longer exist in cloud
+                const cloudGroupIds = new Set(cloudGroups.map(g => g.id));
+                for (const localGroup of localGroups) {
+                    if (localGroup.supabaseId && !cloudGroupIds.has(localGroup.supabaseId)) {
+                        console.log('[Sync From Cloud] Deleting local group not in cloud:', localGroup.id);
+                        await db.groups.delete(localGroup.id);
+                        synced++;
+                    }
+                }
             } catch (error) {
                 console.error('[Sync From Cloud] Failed to sync groups:', error);
                 errors.push({ type: 'group_sync', error: error.message || String(error) });
+            }
+
+            // Sync user layout from cloud (gracefully handle if table doesn't exist)
+            try {
+                const cloudLayout = await supabaseService.getUserLayout(userId);
+                if (cloudLayout) {
+                    const localLayout = await this.getUserLayout(userId);
+
+                    if (localLayout) {
+                        // Update local layout with cloud version
+                        await db.userLayouts.where('userId').equals(userId).modify({
+                            layout: cloudLayout,
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    } else {
+                        // Create local layout from cloud
+                        await db.userLayouts.add({
+                            userId: userId,
+                            layout: cloudLayout,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            syncedAt: new Date().toISOString()
+                        });
+                        synced++;
+                    }
+                }
+            } catch (error) {
+                // If table doesn't exist, just log a warning instead of adding to errors
+                if (error.message && error.message.includes('user_layouts')) {
+                    console.warn('[Sync From Cloud] user_layouts table not found. Please run supabase_migration_v6.sql in Supabase.');
+                } else {
+                    console.error('[Sync From Cloud] Failed to sync user layout:', error);
+                    errors.push({ type: 'layout_sync', error: error.message || String(error) });
+                }
             }
         } catch (error) {
             console.error('Failed to sync from cloud:', error);
@@ -1432,7 +1776,7 @@ export const storageService = {
     async createGroup(userId, groupData) {
         // groupData should contain: name, color, isPinned, parentGroupId (optional)
         const now = new Date().toISOString();
-        
+
         // Save locally FIRST
         const id = await db.groups.add({
             userId,
@@ -1449,13 +1793,29 @@ export const storageService = {
         // Try to sync to Supabase in background
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured()) {
+            // Resolve parentGroupId to Supabase ID if it exists
+            let resolvedParentId = null;
+            if (groupData.parentGroupId) {
+                const allGroups = await this.getAllGroups(userId);
+                const parentGroup = allGroups.find(g =>
+                    String(g.id) === String(groupData.parentGroupId) ||
+                    String(g.supabaseId) === String(groupData.parentGroupId)
+                );
+                if (parentGroup && parentGroup.supabaseId) {
+                    resolvedParentId = parentGroup.supabaseId;
+                } else {
+                    // Parent doesn't have Supabase ID yet - will sync in next sync cycle
+                    console.warn('[Storage] Parent group not synced yet, will sync group without parent first');
+                }
+            }
+
             const syncPromise = Promise.race([
                 supabaseService.createGroup({
                     userId,
                     name: groupData.name,
                     color: groupData.color || '#3b82f6',
                     isPinned: groupData.isPinned || false,
-                    parentGroupId: groupData.parentGroupId || null
+                    parentGroupId: resolvedParentId
                 }),
                 new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
@@ -1467,7 +1827,12 @@ export const storageService = {
                 });
                 console.log('[Storage] Group synced to Supabase:', supabaseGroup.id);
             }).catch((error) => {
-                console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                // If FK constraint error and we have a parentGroupId, it's okay - will retry in sync
+                if (error?.message?.includes('foreign key constraint') && groupData.parentGroupId) {
+                    console.warn('[Storage] Parent group not synced yet, will retry in next sync cycle');
+                } else {
+                    console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                }
             });
 
             syncPromise.catch(() => { });
@@ -1537,7 +1902,7 @@ export const storageService = {
 
         // Get groupId to match (could be local id or supabaseId)
         const groupIdToMatch = group.supabaseId || group.id;
-        
+
         // Remove groupId from all receipts in this group
         // Match by both local id and supabaseId to catch all receipts
         const allReceipts = await db.receipts.toArray();
@@ -1545,22 +1910,22 @@ export const storageService = {
             if (!r.groupId) return false;
             const receiptGroupId = String(r.groupId);
             const targetGroupId = String(groupIdToMatch);
-            return receiptGroupId === targetGroupId || 
-                   receiptGroupId === String(group.id) ||
-                   receiptGroupId === String(group.supabaseId);
+            return receiptGroupId === targetGroupId ||
+                receiptGroupId === String(group.id) ||
+                receiptGroupId === String(group.supabaseId);
         });
-        
+
         // Check if this is a nested group (has parentGroupId)
         if (group.parentGroupId) {
             // This is a nested group - move receipts to parent group
             const parentGroupId = group.parentGroupId;
             // Search for parent group by both id and supabaseId
             const allGroups = await db.groups.toArray();
-            const parentGroup = allGroups.find(g => 
-                String(g.id) === String(parentGroupId) || 
+            const parentGroup = allGroups.find(g =>
+                String(g.id) === String(parentGroupId) ||
                 String(g.supabaseId) === String(parentGroupId)
             );
-            
+
             if (parentGroup) {
                 const parentGroupIdToUse = parentGroup.supabaseId || parentGroup.id;
                 // Move all receipts to parent group
@@ -1617,6 +1982,68 @@ export const storageService = {
             return [];
         }
         return await db.userCategories.where('userId').equals(userId).toArray();
+    },
+
+    // User Layout operations
+    async getUserLayout(userId) {
+        if (!userId || typeof userId !== 'string') {
+            return null;
+        }
+        const layout = await db.userLayouts.where('userId').equals(userId).first();
+        return layout ? layout.layout : null;
+    },
+
+    async saveUserLayout(userId, layoutData) {
+        if (!userId || typeof userId !== 'string') {
+            throw new Error('Invalid userId');
+        }
+
+        const existing = await db.userLayouts.where('userId').equals(userId).first();
+
+        const layoutRecord = {
+            userId: String(userId),
+            layout: layoutData,
+            updatedAt: new Date().toISOString(),
+            syncedAt: null
+        };
+
+        if (existing) {
+            // Use the primary key (userId) to update
+            await db.userLayouts.update(existing.userId, layoutRecord);
+        } else {
+            layoutRecord.createdAt = new Date().toISOString();
+            await db.userLayouts.add(layoutRecord);
+        }
+
+        // Verify the save by reading it back (for debugging)
+        const saved = await db.userLayouts.where('userId').equals(userId).first();
+        if (!saved || !saved.layout) {
+            console.warn('[Storage] Layout save verification failed');
+        }
+
+        // Try to sync to Supabase in background
+        const supabaseService = await getSupabaseService();
+        if (supabaseService.isConfigured()) {
+            const syncPromise = Promise.race([
+                supabaseService.saveUserLayout(userId, layoutData),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                )
+            ]).then(async () => {
+                const updated = await db.userLayouts.where('userId').equals(userId).first();
+                if (updated) {
+                    await db.userLayouts.update(updated.userId, {
+                        syncedAt: new Date().toISOString()
+                    });
+                }
+            }).catch((error) => {
+                console.warn('[Storage] Background sync failed for layout:', error.message);
+            });
+
+            syncPromise.catch(() => { });
+        }
+
+        return layoutData;
     },
 
     async updateUserCategory(id, updates) {

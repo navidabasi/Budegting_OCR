@@ -103,6 +103,10 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
             });
             showToast('Receipt saved successfully', 'success');
             handleClose();
+            // Dispatch events to refresh components using hooks
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast('Failed to save receipt', 'error');
         }

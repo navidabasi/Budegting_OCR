@@ -44,13 +44,14 @@
     /* Ensure date picker doesn't overflow on mobile */
     @media (max-width: 640px) {
         input[type="date"] {
-            font-size: 16px; /* Prevents zoom on iOS */
+            font-size: 16px;
+            /* Prevents zoom on iOS */
             padding: 0.75rem;
             max-width: 100% !important;
             width: 100% !important;
             border-radius: 0.5rem;
         }
-        
+
         /* Ensure parent containers don't overflow */
         .card input[type="date"],
         form input[type="date"] {
@@ -62,6 +63,169 @@
 
     .card {
         @apply bg-white rounded-lg shadow-md p-4 sm:p-6 w-full dark:bg-gray-800 dark:shadow-gray-900/50;
+    }
+
+    /* Input wrapper for focus ring visibility */
+    .input-wrapper {
+        padding: 0 2px;
+    }
+
+    /* Input padding for line items */
+    .input-line-item {
+        padding: 0.75rem 1rem;
+        margin: 0;
+    }
+
+    /* Items total display box */
+    .items-total-display {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Primary color badge/icon background */
+    .primary-bg {
+        background-color: #e6f5f2;
+    }
+
+    .primary-color {
+        color: #00573f;
+    }
+
+    /* Interactive card styles */
+    .interactive-card {
+        @apply card cursor-pointer hover:shadow-lg transition-all w-full;
+    }
+
+    /* Drag states */
+    .drag-over {
+        background-color: rgba(59, 130, 246, 0.15);
+        border: 2px dashed #3b82f6;
+    }
+
+    .dragging {
+        opacity: 0.5;
+    }
+
+    /* Group color badge */
+    .group-color-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    /* Category color swatch */
+    .color-swatch {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 9999px;
+        flex-shrink: 0;
+    }
+
+    /* Icon button background */
+    .icon-button-bg {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Modal backdrop */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(107, 114, 128, 0.75);
+        transition: opacity 0.2s;
+    }
+
+    .dark .modal-backdrop {
+        background-color: rgba(17, 24, 39, 0.75);
+    }
+
+    /* Modal content */
+    .modal-content {
+        position: relative;
+        z-index: 10000;
+    }
+
+    /* Touch target minimum size */
+    .touch-target {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Chart container */
+    .chart-container {
+        min-height: 0;
+    }
+
+    /* Bottom nav spacer */
+    .bottom-nav-spacer {
+        width: 72px;
+        flex-shrink: 0;
+    }
+
+    /* Bottom nav floating button position */
+    .floating-button-container {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 50;
+        bottom: calc(1rem + 1rem + 3.5rem - 1.75rem);
+    }
+
+    /* Nested group receipt styling */
+    .nested-receipt {
+        border-left-width: 4px;
+        margin-left: 1rem;
+    }
+
+    /* Group card with color background */
+    .group-card-bg {
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+
+    /* Color picker preview */
+    .color-picker-preview {
+        margin-top: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        border-width: 1px;
+        border-color: rgb(229, 231, 235);
+    }
+
+    .dark .color-picker-preview {
+        border-color: rgb(75, 85, 99);
+    }
+
+    /* Color picker swatch */
+    .color-picker-swatch {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        border-width: 2px;
+        border-color: transparent;
+        transition: all 0.2s;
+    }
+
+    .color-picker-swatch:hover {
+        transform: scale(1.1);
+    }
+
+    .color-picker-swatch.selected {
+        border-color: rgb(59, 130, 246);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Drop shadow for color swatches */
+    .color-swatch-shadow {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
     }
 }
 

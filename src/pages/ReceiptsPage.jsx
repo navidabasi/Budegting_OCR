@@ -3,10 +3,20 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
 import ReceiptCard from '../components/receipts/ReceiptCard';
-import { Search, Loader, X, Filter, ChevronDown, ChevronUp, Plus, Tag, Pin, PinOff, Edit2, Trash2 } from 'lucide-react';
+import { Search, X, Filter, ChevronDown, ChevronUp, Plus, Tag, Pin, PinOff, Edit2, Trash2 } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { categoryService } from '../services/categoryService';
+import ActionButton from '../components/common/ActionButton';
+import PageLayout from '../components/common/PageLayout';
+import PageHeader from '../components/common/PageHeader';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import EmptyState from '../components/common/EmptyState';
+import SectionHeader from '../components/common/SectionHeader';
+import Card from '../components/common/Card';
+import { useReceipts } from '../hooks/useReceipts';
+import { useGroups } from '../hooks/useGroups';
+import { useCategories } from '../hooks/useCategories';
+import { useCustomEvent } from '../hooks/useCustomEvent';
 import { useNavigate } from 'react-router-dom';
 
 export default function ReceiptsPage() {
@@ -14,9 +24,10 @@ export default function ReceiptsPage() {
     const showToast = useAppStore((state) => state.showToast);
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [receipts, setReceipts] = useState([]);
+    const { receipts, loading: receiptsLoading, reload: reloadReceipts } = useReceipts();
+    const { groups: allGroups, loading: groupsLoading, reload: reloadGroups } = useGroups();
+    const categories = useCategories();
     const [filteredReceipts, setFilteredReceipts] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('');
@@ -30,17 +41,12 @@ export default function ReceiptsPage() {
     const [newGroupColor, setNewGroupColor] = useState('#3b82f6');
     const [newGroupPinned, setNewGroupPinned] = useState(false);
     const [editingGroup, setEditingGroup] = useState(null);
-    const [categories, setCategories] = useState([]);
     const [draggedOverGroup, setDraggedOverGroup] = useState(null);
     const [expandedGroups, setExpandedGroups] = useState(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [groupToDelete, setGroupToDelete] = useState(null);
 
-    useEffect(() => {
-        loadReceipts();
-        loadCategories();
-        loadGroups();
-    }, [currentUser]);
+    const loading = receiptsLoading || groupsLoading;
 
     // Helper function to get next available group number
     const getNextAvailableGroupNumber = async (parentGroupId = null) => {
@@ -67,69 +73,61 @@ export default function ReceiptsPage() {
         return nextNumber;
     };
 
-    const loadGroups = async () => {
-        if (!currentUser?.userId) return;
+    // Process groups with receipt counts and nested groups
+    useEffect(() => {
+        if (!allGroups || receipts.length === 0) {
+            setGroups([]);
+            return;
+        }
 
-        try {
-            const allGroups = await storageService.getAllGroups(currentUser.userId);
+        // Filter out nested groups (they'll be shown within their parent groups)
+        const topLevelGroups = allGroups.filter(group => !group.parentGroupId);
 
-            // Filter out nested groups (they'll be shown within their parent groups)
-            const topLevelGroups = allGroups.filter(group => !group.parentGroupId);
+        // Count receipts per group - match by groupId (UUID) only
+        const groupsWithCounts = topLevelGroups.map(group => {
+            // Use supabaseId if available, otherwise use local id
+            const groupIdToMatch = group.supabaseId || group.id;
 
-            // Count receipts per group - match by groupId (UUID) only
-            const groupsWithCounts = topLevelGroups.map(group => {
-                // Use supabaseId if available, otherwise use local id
-                const groupIdToMatch = group.supabaseId || group.id;
+            const groupReceipts = receipts.filter(r => {
+                // Match by exact groupId (UUID) - be strict about matching
+                if (!r.groupId) return false;
 
-                const groupReceipts = receipts.filter(r => {
-                    // Match by exact groupId (UUID) - be strict about matching
-                    if (!r.groupId) return false;
+                // Convert both to strings for comparison
+                const receiptGroupId = String(r.groupId);
+                const targetGroupId = String(groupIdToMatch);
 
-                    // Convert both to strings for comparison
-                    const receiptGroupId = String(r.groupId);
-                    const targetGroupId = String(groupIdToMatch);
-
-                    return receiptGroupId === targetGroupId;
-                });
-
-                // Get nested groups for this group
-                const nestedGroups = allGroups.filter(g => {
-                    const gParentId = String(g.parentGroupId || '');
-                    const gId = String(groupIdToMatch);
-                    return gParentId === gId;
-                }).sort((a, b) => {
-                    // Sort nested groups: pinned first, then by name
-                    if (a.isPinned && !b.isPinned) return -1;
-                    if (!a.isPinned && b.isPinned) return 1;
-                    return a.name.localeCompare(b.name);
-                });
-
-                return {
-                    ...group,
-                    receiptCount: groupReceipts.length,
-                    receipts: groupReceipts,
-                    nestedGroups: nestedGroups
-                };
+                return receiptGroupId === targetGroupId;
             });
 
-            // Sort: pinned first, then by name
-            groupsWithCounts.sort((a, b) => {
+            // Get nested groups for this group
+            const nestedGroups = allGroups.filter(g => {
+                const gParentId = String(g.parentGroupId || '');
+                const gId = String(groupIdToMatch);
+                return gParentId === gId;
+            }).sort((a, b) => {
+                // Sort nested groups: pinned first, then by name
                 if (a.isPinned && !b.isPinned) return -1;
                 if (!a.isPinned && b.isPinned) return 1;
                 return a.name.localeCompare(b.name);
             });
 
-            setGroups(groupsWithCounts);
-        } catch (error) {
-            console.error('Failed to load groups:', error);
-        }
-    };
+            return {
+                ...group,
+                receiptCount: groupReceipts.length,
+                receipts: groupReceipts,
+                nestedGroups: nestedGroups
+            };
+        });
 
-    useEffect(() => {
-        if (receipts.length > 0) {
-            loadGroups();
-        }
-    }, [receipts, currentUser]);
+        // Sort: pinned first, then by name
+        groupsWithCounts.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        setGroups(groupsWithCounts);
+    }, [allGroups, receipts]);
 
     // Listen for touch-based drops
     useEffect(() => {
@@ -172,8 +170,8 @@ export default function ReceiptsPage() {
                     groupName: group.name
                 });
 
-                await loadReceipts();
-                await loadGroups();
+                await reloadReceipts();
+                await reloadGroups();
                 showToast(`Receipt added to ${group.name}`, 'success');
             } catch (err) {
                 console.error('Failed to assign receipt to group:', err);
@@ -213,8 +211,8 @@ export default function ReceiptsPage() {
                     groupName: createdGroup.name
                 });
 
-                await loadReceipts();
-                await loadGroups();
+                await reloadReceipts();
+                await reloadGroups();
                 showToast(`Group "${groupName}" created with 2 receipts`, 'success');
             } catch (err) {
                 console.error('Failed to create group from receipts:', err);
@@ -230,51 +228,10 @@ export default function ReceiptsPage() {
         };
     }, [groups, receipts, showToast, currentUser]);
 
-    const loadCategories = async () => {
-        if (currentUser) {
-            try {
-                const cats = await categoryService.getAllCategories(currentUser.userId);
-                setCategories(cats);
-            } catch (error) {
-                console.error('Failed to load categories:', error);
-                setCategories(categoryService.getAllCategories()); // Fallback
-            }
-        } else {
-            setCategories(categoryService.getAllCategoriesSync()); // Fallback
-        }
-    };
-
-    // Listen for refresh event when data is synced from cloud
-    useEffect(() => {
-        const handleRefresh = () => {
-            loadReceipts();
-        };
-
-        window.addEventListener('refreshReceipts', handleRefresh);
-        return () => {
-            window.removeEventListener('refreshReceipts', handleRefresh);
-        };
-    }, []);
-
     useEffect(() => {
         applyFilters();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear]);
-
-
-    const loadReceipts = async () => {
-        if (!currentUser) return;
-
-        setLoading(true);
-        try {
-            const userReceipts = await storageService.getReceiptsByUserId(currentUser.userId);
-            setReceipts(userReceipts || []);
-        } catch (err) {
-            console.error('Failed to load receipts:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // Get unique years from receipts
     const getAvailableYears = () => {
@@ -424,11 +381,7 @@ export default function ReceiptsPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen pb-20">
-                <Loader className="animate-spin text-primary-600" size={32} />
-            </div>
-        );
+        return <LoadingSpinner className="pb-20" />;
     }
 
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -436,110 +389,105 @@ export default function ReceiptsPage() {
     const availableYears = getAvailableYears();
 
     return (
-        <div className="pb-24 px-4 pt-6">
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Receipts</h1>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="primary"
+        <PageLayout>
+            <PageHeader
+                title="Receipts"
+                actions={
+                    <>
+                        <ActionButton
+                            icon={Plus}
                             onClick={() => setShowCreateGroup(true)}
-                            className="text-sm px-3 py-1.5 flex items-center gap-1"
+                            variant="primary"
                         >
-                            <Plus size={16} />
                             New Group
-                        </Button>
-                        <Button
-                            variant="secondary"
+                        </ActionButton>
+                        <ActionButton
+                            icon={Filter}
                             onClick={() => setShowFilters(!showFilters)}
-                            className="text-sm px-3 py-1.5 flex items-center gap-1"
+                            variant="secondary"
                         >
-                            <Filter size={16} />
                             Filters
-                        </Button>
+                        </ActionButton>
                         {activeFilter && (
-                            <Button
-                                variant="secondary"
+                            <ActionButton
+                                icon={X}
                                 onClick={clearFilters}
-                                className="text-sm px-3 py-1.5"
+                                variant="secondary"
                             >
-                                <X size={16} className="inline mr-1" />
                                 Clear
-                            </Button>
+                            </ActionButton>
                         )}
-                    </div>
-                </div>
+                    </>
+                }
+            />
 
 
-                {showFilters && (
-                    <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                                <select
-                                    value={selectedCategory}
-                                    onChange={(e) => handleCategoryChange(e.target.value)}
-                                    className="input text-sm py-2"
-                                >
-                                    <option value="">All Categories</option>
-                                    {categories.map(cat => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Month</label>
-                                <select
-                                    value={selectedMonth}
-                                    onChange={(e) => handleMonthChange(e.target.value)}
-                                    className="input text-sm py-2"
-                                >
-                                    <option value="">All Months</option>
-                                    {monthNames.map((month, index) => (
-                                        <option key={index} value={String(index + 1)}>{month}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
-                                <select
-                                    value={selectedYear}
-                                    onChange={(e) => handleYearChange(e.target.value)}
-                                    className="input text-sm py-2"
-                                >
-                                    <option value="">All Years</option>
-                                    {availableYears.map(year => (
-                                        <option key={year} value={String(year)}>{year}</option>
-                                    ))}
-                                </select>
-                            </div>
+            {showFilters && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => handleCategoryChange(e.target.value)}
+                                className="input text-sm py-2"
+                            >
+                                <option value="">All Categories</option>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Month</label>
+                            <select
+                                value={selectedMonth}
+                                onChange={(e) => handleMonthChange(e.target.value)}
+                                className="input text-sm py-2"
+                            >
+                                <option value="">All Months</option>
+                                {monthNames.map((month, index) => (
+                                    <option key={index} value={String(index + 1)}>{month}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
+                            <select
+                                value={selectedYear}
+                                onChange={(e) => handleYearChange(e.target.value)}
+                                className="input text-sm py-2"
+                            >
+                                <option value="">All Years</option>
+                                {availableYears.map(year => (
+                                    <option key={year} value={String(year)}>{year}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
-                )}
-
-                {activeFilter && (
-                    <div className="mb-4 px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg">
-                        <p className="text-sm text-primary-800">
-                            <span className="font-medium">Active Filter:</span>{' '}
-                            {activeFilter.type === 'category' && `Category: ${activeFilter.value}`}
-                            {activeFilter.type === 'month' && `Month: ${activeFilter.value}`}
-                            {activeFilter.type === 'merchant' && `Merchant: ${activeFilter.value}`}
-                        </p>
-                    </div>
-                )}
-
-                <div className="relative mt-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search receipts or items..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input pl-10"
-                    />
                 </div>
+            )}
+
+            {activeFilter && (
+                <div className="mb-4 px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg">
+                    <p className="text-sm text-primary-800">
+                        <span className="font-medium">Active Filter:</span>{' '}
+                        {activeFilter.type === 'category' && `Category: ${activeFilter.value}`}
+                        {activeFilter.type === 'month' && `Month: ${activeFilter.value}`}
+                        {activeFilter.type === 'merchant' && `Merchant: ${activeFilter.value}`}
+                    </p>
+                </div>
+            )}
+
+            <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                    type="text"
+                    placeholder="Search receipts or items..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="input pl-10"
+                />
             </div>
 
             {/* Groups Section */}
@@ -611,7 +559,7 @@ export default function ReceiptsPage() {
                                                     await storageService.updateGroup(group.id, {
                                                         isPinned: !group.isPinned
                                                     });
-                                                    await loadGroups();
+                                                    await reloadGroups();
                                                     showToast(group.isPinned ? 'Group unpinned' : 'Group pinned', 'success');
                                                 } catch (err) {
                                                     showToast(`Failed to ${group.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
@@ -660,8 +608,8 @@ export default function ReceiptsPage() {
                                                         groupName: group.name
                                                     });
 
-                                                    await loadReceipts();
-                                                    await loadGroups();
+                                                    await reloadReceipts();
+                                                    await reloadGroups();
                                                     showToast(`Receipt added to ${group.name}`, 'success');
                                                 } catch (err) {
                                                     console.error('Failed to assign receipt to group:', err);
@@ -787,8 +735,8 @@ export default function ReceiptsPage() {
                                                     groupName: group.name
                                                 });
 
-                                                await loadReceipts();
-                                                await loadGroups();
+                                                await reloadReceipts();
+                                                await reloadGroups();
                                                 showToast(`Receipt added to ${group.name}`, 'success');
                                             } catch (err) {
                                                 console.error('Failed to assign receipt to group:', err);
@@ -885,7 +833,7 @@ export default function ReceiptsPage() {
                                                                             });
 
                                                                             await loadReceipts();
-                                                                            await loadGroups();
+                                                                            await reloadGroups();
                                                                             showToast(`Receipt added to ${nestedGroup.name}`, 'success');
                                                                         } catch (err) {
                                                                             console.error('Failed to assign receipt to nested group:', err);
@@ -912,7 +860,7 @@ export default function ReceiptsPage() {
                                                                                         await storageService.updateGroup(nestedGroup.id, {
                                                                                             isPinned: !nestedGroup.isPinned
                                                                                         });
-                                                                                        await loadGroups();
+                                                                                        await reloadGroups();
                                                                                         showToast(nestedGroup.isPinned ? 'Group unpinned' : 'Group pinned', 'success');
                                                                                     } catch (err) {
                                                                                         showToast(`Failed to ${nestedGroup.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
@@ -1012,7 +960,7 @@ export default function ReceiptsPage() {
                                                                                             });
 
                                                                                             await loadReceipts();
-                                                                                            await loadGroups();
+                                                                                            await reloadGroups();
                                                                                             showToast(`Group "${groupName}" created with 2 receipts`, 'success');
                                                                                         } catch (err) {
                                                                                             console.error('Failed to create group from receipts:', err);
@@ -1098,7 +1046,7 @@ export default function ReceiptsPage() {
                                                                         });
 
                                                                         await loadReceipts();
-                                                                        await loadGroups();
+                                                                        await reloadGroups();
                                                                         showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
                                                                     } catch (err) {
                                                                         console.error('Failed to create group from receipts:', err);
@@ -1120,19 +1068,19 @@ export default function ReceiptsPage() {
             )}
 
             {/* Receipts Section Header */}
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Receipts</h2>
-            </div>
+            <SectionHeader title="Receipts" />
 
             {filteredReceipts.length === 0 ? (
-                <div className="card text-center py-12">
-                    <p className="text-gray-500 mb-4">
-                        {searchQuery ? 'No receipts found matching your search' : 'No receipts yet'}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                        {searchQuery ? 'Try a different search term' : 'Tap the + button to add your first receipt'}
-                    </p>
-                </div>
+                <EmptyState
+                    message={searchQuery ? 'No receipts found matching your search' : 'No receipts yet'}
+                    action={
+                        !searchQuery && (
+                            <p className="text-sm text-gray-400">
+                                Tap the + button to add your first receipt
+                            </p>
+                        )
+                    }
+                />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredReceipts.filter(receipt => !receipt.groupId).map(receipt => (
@@ -1181,8 +1129,8 @@ export default function ReceiptsPage() {
                                         groupName: createdGroup.name
                                     });
 
-                                    await loadReceipts();
-                                    await loadGroups();
+                                    await reloadReceipts();
+                                    await reloadGroups();
                                     showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
                                 } catch (err) {
                                     console.error('Failed to create group from receipts:', err);
@@ -1280,12 +1228,15 @@ export default function ReceiptsPage() {
                                                 color: newGroupColor,
                                                 isPinned: newGroupPinned
                                             });
-                                            await loadGroups();
+                                            await reloadGroups();
                                             setShowCreateGroup(false);
                                             setNewGroupName('');
                                             setNewGroupColor('#3b82f6');
                                             setNewGroupPinned(false);
                                             showToast('Group created', 'success');
+                                            // Dispatch events to refresh components
+                                            window.dispatchEvent(new CustomEvent('refreshGroups'));
+                                            window.dispatchEvent(new CustomEvent('refreshReceipts'));
                                         } catch (err) {
                                             showToast(`Failed to create group: ${err.message}`, 'error');
                                         }
@@ -1408,8 +1359,8 @@ export default function ReceiptsPage() {
                                                 }
                                             }
 
-                                            await loadReceipts();
-                                            await loadGroups();
+                                            await reloadReceipts();
+                                            await reloadGroups();
                                             setEditingGroup(null);
                                             setNewGroupName('');
                                             setNewGroupColor('#3b82f6');
@@ -1476,8 +1427,8 @@ export default function ReceiptsPage() {
                                     if (!groupToDelete) return;
                                     try {
                                         await storageService.deleteGroup(groupToDelete.id);
-                                        await loadReceipts();
-                                        await loadGroups();
+                                        await reloadReceipts();
+                                        await reloadGroups();
                                         showToast('Group deleted', 'success');
                                         setShowDeleteConfirm(false);
                                         setGroupToDelete(null);
@@ -1493,7 +1444,7 @@ export default function ReceiptsPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </PageLayout>
     );
 }
 
@@ -1506,7 +1457,7 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver =
     return (
         <div
             data-group-id={groupId}
-            className="card cursor-pointer hover:shadow-lg transition-all w-full"
+            className="interactive-card"
             style={{
                 backgroundColor: isDragOver ? groupColor + '30' : fadedColor,
                 borderLeft: `4px solid ${groupColor}`,

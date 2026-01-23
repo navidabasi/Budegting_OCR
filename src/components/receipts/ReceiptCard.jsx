@@ -156,11 +156,10 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                     navigate(`/receipts/${receipt.id}`);
                 }
             }}
-            className="card cursor-pointer hover:shadow-lg transition-all w-full"
+            className={`interactive-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isNested ? 'nested-receipt' : ''}`}
             style={{ 
-                opacity: isDragging ? 0.5 : 1,
-                backgroundColor: isDragOver ? '#3b82f615' : (isNested && nestedGroupColor ? `${nestedGroupColor}08` : undefined),
-                border: isDragOver ? '2px dashed #3b82f6' : (isNested && nestedGroupColor ? `2px solid ${nestedGroupColor}40` : undefined),
+                backgroundColor: isNested && nestedGroupColor ? `${nestedGroupColor}08` : undefined,
+                border: isNested && nestedGroupColor ? `2px solid ${nestedGroupColor}40` : undefined,
                 borderLeft: isNested && nestedGroupColor ? `4px solid ${nestedGroupColor}` : undefined,
                 marginLeft: isNested ? '0.5rem' : undefined
             }}
@@ -183,7 +182,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                         <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                     </div>
                     {receipt.category && (
-                        <span className="inline-block mt-1 px-2 py-1 text-xs rounded dark:bg-primary-800 dark:text-primary-200" style={{ backgroundColor: '#e6f5f2', color: '#00573f' }}>
+                        <span className="inline-block mt-1 px-2 py-1 text-xs rounded dark:bg-primary-800 dark:text-primary-200 primary-bg primary-color">
                             {receipt.category}
                         </span>
                     )}

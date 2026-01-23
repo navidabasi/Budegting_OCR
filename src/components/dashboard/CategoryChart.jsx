@@ -186,7 +186,7 @@ export default function CategoryChart({ receipts }) {
                     )}
                 </div>
             </div>
-            <div className="flex-1 relative" style={{ minHeight: 0 }}>
+            <div className="flex-1 relative chart-container">
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-full h-full max-w-full max-h-full">
                         <Pie data={data} options={options} />

@@ -22,6 +22,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             onUpdate();
             setIsEditing(false);
             showToast('Receipt updated successfully', 'success');
+            // Dispatch events to refresh components using hooks
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast('Failed to update receipt', 'error');
         }
@@ -31,6 +35,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
         try {
             await storageService.deleteReceipt(receipt.id);
             showToast('Receipt deleted successfully', 'success');
+            // Dispatch events to refresh components using hooks
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
             navigate('/receipts');
             onDelete();
         } catch (err) {
@@ -62,7 +70,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                             <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                         </div>
                         {receipt.category && (
-                            <span className="inline-block px-3 py-1 text-sm rounded" style={{ backgroundColor: '#e6f5f2', color: '#00573f' }}>
+                            <span className="inline-block px-3 py-1 text-sm rounded primary-bg primary-color">
                                 {receipt.category}
                             </span>
                         )}

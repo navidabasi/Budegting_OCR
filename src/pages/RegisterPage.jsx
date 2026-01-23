@@ -5,6 +5,10 @@ import { authService } from '../services/authService';
 import { useAppStore } from '../store/appStore';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
+import AuthLayout from '../components/common/AuthLayout';
+import Divider from '../components/common/Divider';
+import GoogleButton from '../components/common/GoogleButton';
+import Card from '../components/common/Card';
 
 export default function RegisterPage() {
     const navigate = useNavigate();
@@ -29,74 +33,89 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-            <div className="max-w-md w-full">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Create Account</h1>
-                    <p className="text-gray-600 dark:text-gray-400">Sign up to start managing your receipts</p>
-                </div>
+        <AuthLayout
+            title="Create Account"
+            subtitle="Sign up to start managing your receipts"
+        >
+            <Card>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    <Input
+                        label="Email"
+                        type="email"
+                        {...register('email', {
+                            required: 'Email is required',
+                            pattern: {
+                                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                                message: 'Invalid email format'
+                            }
+                        })}
+                        error={errors.email?.message}
+                    />
 
-                <div className="card">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    <Input
+                        label="Password"
+                        type="password"
+                        {...register('password', {
+                            required: 'Password is required',
+                            minLength: {
+                                value: 6,
+                                message: 'Password must be at least 6 characters'
+                            }
+                        })}
+                        error={errors.password?.message}
+                    />
+
+                    <div>
                         <Input
-                            label="Email"
-                            type="email"
-                            {...register('email', {
-                                required: 'Email is required',
-                                pattern: {
-                                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                    message: 'Invalid email format'
-                                }
-                            })}
-                            error={errors.email?.message}
+                            label="OCR API Key (Optional)"
+                            type="text"
+                            placeholder="Leave empty to use free OCR tier"
+                            {...register('ocrApiKey')}
                         />
-
-                        <Input
-                            label="Password"
-                            type="password"
-                            {...register('password', {
-                                required: 'Password is required',
-                                minLength: {
-                                    value: 6,
-                                    message: 'Password must be at least 6 characters'
-                                }
-                            })}
-                            error={errors.password?.message}
-                        />
-
-                        <div>
-                            <Input
-                                label="OCR API Key (Optional)"
-                                type="text"
-                                placeholder="Leave empty to use free OCR tier"
-                                {...register('ocrApiKey')}
-                            />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                OCR works without an API key. You can add one later in Settings for higher limits.
-                            </p>
-                        </div>
-
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            className="w-full"
-                            disabled={loading}
-                        >
-                            {loading ? 'Creating account...' : 'Create Account'}
-                        </Button>
-                    </form>
-
-                    <div className="mt-6 text-center">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Already have an account?{' '}
-                            <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-                                Sign in
-                            </Link>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            OCR works without an API key. You can add one later in Settings for higher limits.
                         </p>
                     </div>
+
+                    <Button
+                        type="submit"
+                        variant="primary"
+                        className="w-full"
+                        disabled={loading}
+                    >
+                        {loading ? 'Creating account...' : 'Create Account'}
+                    </Button>
+                </form>
+
+                <div className="mt-6">
+                    <Divider />
+
+                    <GoogleButton
+                        onClick={async () => {
+                            try {
+                                setLoading(true);
+                                await authService.signInWithGoogle();
+                            } catch (err) {
+                                showToast(err.message || 'Failed to sign in with Google', 'error');
+                                setLoading(false);
+                            }
+                        }}
+                        disabled={loading}
+                    >
+                        Sign up with Google
+                    </GoogleButton>
                 </div>
-            </div>
-        </div>
+
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Already have an account?{' '}
+                        <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                            Sign in
+                        </Link>
+                    </p>
+                </div>
+            </Card>
+        </AuthLayout>
     );
 }
 

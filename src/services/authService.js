@@ -119,6 +119,31 @@ export const authService = {
     async getCurrentUser() {
         const authHelpers = await getAuthHelpers();
         return await authHelpers.getUser();
+    },
+
+    async signInWithGoogle() {
+        const authHelpers = await getAuthHelpers();
+        
+        try {
+            // Get the current origin for redirect URL
+            const redirectUrl = `${window.location.origin}/auth/callback`;
+            
+            const { data, error } = await authHelpers.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: redirectUrl
+                }
+            });
+
+            if (error) throw error;
+            
+            // OAuth redirects the user, so we don't return here
+            // The callback will be handled in App.jsx
+            return { redirecting: true, url: data?.url };
+        } catch (error) {
+            console.error('Google sign-in error:', error);
+            throw new Error(error.message || 'Failed to sign in with Google');
+        }
     }
 };
 
