@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { storageService } from '../../services/storage';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
@@ -57,7 +57,8 @@ export default function CurrencyTotalDisplay({ receipts, amount }) {
                     let totalConverted = 0;
                     for (const receipt of receipts) {
                         const receiptCurrency = receipt.currency || 'USD';
-                        const receiptAmount = parseFloat(receipt.total) || 0;
+                        // Use effective amount (user's share if split)
+                        const receiptAmount = getEffectiveAmount(receipt);
                         if (receiptCurrency === defaultCurrency) {
                             totalConverted += receiptAmount;
                         } else {

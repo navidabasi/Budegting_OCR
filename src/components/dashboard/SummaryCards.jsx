@@ -2,18 +2,20 @@ import { TrendingUp, Calendar, TrendingDown, ArrowUpDown } from 'lucide-react';
 import SummaryCard from './SummaryCard';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
+import { getEffectiveAmount } from '../../utils/helpers';
 
 export default function SummaryCards({ receipts }) {
     const nav = useReceiptNavigation();
-    
+
     // Separate income and expenses
     const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');
     const income = receipts.filter(r => r.transactionType === 'income');
-    
-    const totalExpenses = expenses.reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
-    const totalIncome = income.reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
+
+    // Use effective amount (user's share if split)
+    const totalExpenses = expenses.reduce((sum, r) => sum + getEffectiveAmount(r), 0);
+    const totalIncome = income.reduce((sum, r) => sum + getEffectiveAmount(r), 0);
     const net = totalIncome - totalExpenses;
-    
+
     const thisMonth = new Date().getMonth();
     const thisYear = new Date().getFullYear();
     const monthlyReceipts = receipts.filter(r => {
@@ -22,10 +24,10 @@ export default function SummaryCards({ receipts }) {
     });
     const monthlyExpenses = monthlyReceipts
         .filter(r => (r.transactionType || 'expense') === 'expense')
-        .reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
+        .reduce((sum, r) => sum + getEffectiveAmount(r), 0);
     const monthlyIncome = monthlyReceipts
         .filter(r => r.transactionType === 'income')
-        .reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
+        .reduce((sum, r) => sum + getEffectiveAmount(r), 0);
 
     const monthlyIncomeSubtitle = monthlyIncome > 0 ? (
         <span>+<CurrencyTotalDisplay receipts={monthlyReceipts.filter(r => r.transactionType === 'income')} amount={monthlyIncome} /></span>

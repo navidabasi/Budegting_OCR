@@ -393,11 +393,13 @@ export const supabaseService = {
             notes: supabaseReceipt.notes,
             lineItems: supabaseReceipt.line_items || [],
             isDemo: supabaseReceipt.is_demo || false,
+            isPinned: supabaseReceipt.is_pinned || false,
             transactionType: supabaseReceipt.transaction_type || 'expense',
             groupId: supabaseReceipt.group_id || null,
             groupName: supabaseReceipt.group_name || null,
             groupTags: supabaseReceipt.group_tags || [],
             splitData: supabaseReceipt.split_data || null,
+            recurringData: supabaseReceipt.recurring_data || null,
             createdAt: supabaseReceipt.created_at,
             updatedAt: supabaseReceipt.updated_at
         };
@@ -427,11 +429,13 @@ export const supabaseService = {
             notes: receipt.notes,
             line_items: receipt.lineItems || [],
             is_demo: receipt.isDemo || false,
+            is_pinned: receipt.isPinned || false,
             transaction_type: receipt.transactionType || 'expense',
             group_id: groupId,
             group_name: receipt.groupName || null,
             group_tags: receipt.groupTags || [],
-            split_data: receipt.splitData || null
+            split_data: receipt.splitData || null,
+            recurring_data: receipt.recurringData || null
         };
     },
 

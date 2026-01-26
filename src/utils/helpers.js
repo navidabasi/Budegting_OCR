@@ -177,16 +177,16 @@ export const extractDateFromText = (text) => {
  */
 export const extractPricesFromText = (text) => {
     if (!text) return [];
-    
+
     const prices = [];
-    
+
     // Pattern matches: €1,49 | $1.49 | 1,49 | 1.49 | €1.234,56
     const pricePatterns = [
         /[€$£¥]\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g,  // Currency symbol + number
         /(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*[€$£¥]/g,  // Number + currency symbol
         /(?<![.,\d])(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?![.,\d])/g,  // Plain number with decimals
     ];
-    
+
     for (const pattern of pricePatterns) {
         let match;
         while ((match = pattern.exec(text)) !== null) {
@@ -199,7 +199,46 @@ export const extractPricesFromText = (text) => {
             }
         }
     }
-    
+
     return prices;
+};
+
+/**
+ * Get the effective amount for a receipt - the user's share if split, or full amount if not
+ * @param {Object} receipt - The receipt object
+ * @returns {number} - The effective amount the user is responsible for
+ */
+export const getEffectiveAmount = (receipt) => {
+    if (!receipt) return 0;
+
+    const total = parseFloat(receipt.total) || 0;
+
+    // If not split, return full amount
+    if (!receipt.splitData) {
+        return total;
+    }
+
+    // If split, return the user's share
+    const { splitData } = receipt;
+
+    // If yourShare is explicitly stored, use it
+    if (splitData.yourShare !== undefined && splitData.yourShare !== null) {
+        return parseFloat(splitData.yourShare) || 0;
+    }
+
+    // Calculate based on split method
+    if (splitData.method === 'equal') {
+        const people = splitData.people || 1;
+        return total / people;
+    }
+
+    // For custom split, first user is "You"
+    if (splitData.users && splitData.users.length > 0) {
+        return parseFloat(splitData.users[0].amount) || 0;
+    }
+
+    // Fallback to equal split
+    const people = splitData.people || 1;
+    return total / people;
 };
 

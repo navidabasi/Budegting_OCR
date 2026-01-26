@@ -3,7 +3,10 @@ export const WIDGET_TYPES = {
     SUMMARY_CARDS: 'summary_cards',
     CATEGORY_CHART: 'category_chart',
     EXPENSE_CHART: 'expense_chart',
-    TOP_MERCHANTS: 'top_merchants'
+    TOP_MERCHANTS: 'top_merchants',
+    TOP_EXPENSES: 'top_expenses',
+    CASH_FLOW: 'cash_flow',
+    RECURRING_PAYMENTS: 'recurring_payments'
 };
 
 export const WIDGET_CONFIG = {
@@ -34,6 +37,27 @@ export const WIDGET_CONFIG = {
         description: 'List of merchants with highest spending',
         defaultEnabled: true,
         defaultOrder: 3
+    },
+    [WIDGET_TYPES.TOP_EXPENSES]: {
+        id: WIDGET_TYPES.TOP_EXPENSES,
+        name: 'Top Expenses of the Month',
+        description: 'Shows the highest expenses for the current month',
+        defaultEnabled: false,
+        defaultOrder: 4
+    },
+    [WIDGET_TYPES.CASH_FLOW]: {
+        id: WIDGET_TYPES.CASH_FLOW,
+        name: 'Cash Flow',
+        description: 'Horizontal bar chart showing income vs expenses',
+        defaultEnabled: false,
+        defaultOrder: 5
+    },
+    [WIDGET_TYPES.RECURRING_PAYMENTS]: {
+        id: WIDGET_TYPES.RECURRING_PAYMENTS,
+        name: 'Recurring Payments',
+        description: 'Track upcoming recurring bills and subscriptions',
+        defaultEnabled: false,
+        defaultOrder: 6
     }
 };
 

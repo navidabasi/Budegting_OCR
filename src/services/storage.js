@@ -123,6 +123,34 @@ db.version(6).stores({
     userLayouts: 'userId, layout, createdAt, updatedAt, syncedAt'
 });
 
+// Version 7: Add isPinned field to receipts
+db.version(7).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, isPinned, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
+    userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt',
+    groups: '++id, userId, supabaseId, name, color, isPinned, parentGroupId, createdAt, updatedAt, syncedAt',
+    userLayouts: 'userId, layout, createdAt, updatedAt, syncedAt'
+}).upgrade(async (tx) => {
+    // Set isPinned to false for all existing receipts
+    const receipts = await tx.table('receipts').toArray();
+    for (const receipt of receipts) {
+        if (receipt.isPinned === undefined) {
+            await tx.table('receipts').update(receipt.id, { isPinned: false });
+        }
+    }
+});
+
+// Version 8: Add recurringData field to receipts for recurring payments
+db.version(8).stores({
+    users: '++id, email, supabaseId, createdAt',
+    receipts: '++id, userId, supabaseId, merchant, date, total, currency, transactionType, groupId, isPinned, createdAt, updatedAt, syncedAt',
+    settings: 'userId, ocrApiKey, defaultCurrency, createdAt, updatedAt, syncedAt',
+    userCategories: '++id, userId, supabaseId, name, createdAt, updatedAt, syncedAt',
+    groups: '++id, userId, supabaseId, name, color, isPinned, parentGroupId, createdAt, updatedAt, syncedAt',
+    userLayouts: 'userId, layout, createdAt, updatedAt, syncedAt'
+});
+
 export const storageService = {
     // User operations
     async createUser(userData) {
@@ -411,20 +439,83 @@ export const storageService = {
 
     // Demo data
     async seedDemoData(userId) {
+        // Check if demo data already exists to prevent duplicates
+        const existingReceipts = await this.getReceiptsByUserId(userId);
+        const existingGroups = await this.getAllGroups(userId);
+
+        const hasDemoReceipts = existingReceipts.some(r => r.isDemo === true);
+        const hasDemoGroups = existingGroups.some(g => g.isDemo === true);
+
+        if (hasDemoReceipts || hasDemoGroups) {
+            console.log('[Storage] Demo data already exists, skipping seed');
+            return 0; // Return 0 to indicate no new items added
+        }
+
+        const supabaseService = await getSupabaseService();
+        const isSupabaseConfigured = supabaseService.isConfigured();
+
         // Create demo groups first
         const demoGroups = generateDemoGroups(userId);
         const groupIds = {};
+        const groupSupabaseIds = {};
 
         for (const group of demoGroups) {
             const id = await db.groups.add(group);
             groupIds[group.name] = id;
+
+            // Sync group to Supabase
+            if (isSupabaseConfigured) {
+                try {
+                    const supabaseGroup = await supabaseService.createGroup(userId, {
+                        name: group.name,
+                        color: group.color,
+                        isPinned: group.isPinned,
+                        parentGroupId: null
+                    });
+                    groupSupabaseIds[group.name] = supabaseGroup.id;
+                    await db.groups.update(id, {
+                        supabaseId: supabaseGroup.id,
+                        syncedAt: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.warn('[Storage] Failed to sync demo group to Supabase:', error.message);
+                }
+            }
         }
 
         // Create demo receipts with group assignments
         const demoReceipts = generateDemoReceipts(userId, groupIds);
         // Remove id field to let Dexie auto-generate
-        const receiptsWithoutId = demoReceipts.map(({ id, ...receipt }) => receipt);
-        await db.receipts.bulkAdd(receiptsWithoutId);
+        const receiptsWithoutId = demoReceipts.map(({ id, ...receipt }) => {
+            // Use Supabase group ID if available
+            if (receipt.groupName && groupSupabaseIds[receipt.groupName]) {
+                receipt.groupId = groupSupabaseIds[receipt.groupName];
+            }
+            return receipt;
+        });
+
+        const addedIds = await db.receipts.bulkAdd(receiptsWithoutId, { allKeys: true });
+
+        // Sync receipts to Supabase
+        if (isSupabaseConfigured) {
+            for (let i = 0; i < addedIds.length; i++) {
+                const localId = addedIds[i];
+                const receipt = receiptsWithoutId[i];
+                try {
+                    const supabaseReceipt = await supabaseService.createReceipt({
+                        ...receipt,
+                        userId
+                    });
+                    await db.receipts.update(localId, {
+                        supabaseId: supabaseReceipt.id,
+                        syncedAt: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.warn('[Storage] Failed to sync demo receipt to Supabase:', error.message);
+                }
+            }
+        }
+
         return receiptsWithoutId.length;
     },
 
@@ -495,6 +586,7 @@ export const storageService = {
             groupName: localReceipt.groupName || cloudReceipt.groupName || null,
             groupTags: localReceipt.groupTags || cloudReceipt.groupTags || [],
             splitData: localReceipt.splitData || cloudReceipt.splitData || null,
+            recurringData: localReceipt.recurringData || cloudReceipt.recurringData || null,
             updatedAt: new Date().toISOString() // Mark as just merged
         };
     },
@@ -673,6 +765,7 @@ export const storageService = {
                                 groupName: cloudReceipt.groupName || null,
                                 groupTags: cloudReceipt.groupTags || [],
                                 splitData: cloudReceipt.splitData || null,
+                                recurringData: cloudReceipt.recurringData || null,
                                 updatedAt: cloudReceipt.updatedAt,
                                 syncedAt: new Date().toISOString()
                             });
@@ -783,6 +876,7 @@ export const storageService = {
                             groupName: cloudReceipt.groupName || null,
                             groupTags: cloudReceipt.groupTags || [],
                             splitData: cloudReceipt.splitData || null,
+                            recurringData: cloudReceipt.recurringData || null,
                             isDemo: cloudReceipt.isDemo || false,
                             createdAt: cloudReceipt.createdAt || new Date().toISOString(),
                             updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
@@ -1431,6 +1525,13 @@ export const storageService = {
             errors.push({ type: 'sync', error: errorMessage });
         }
 
+        // Clean up any orphaned group references
+        try {
+            await this.cleanupOrphanedGroupReferences(userId);
+        } catch (cleanupError) {
+            console.warn('[Sync] Failed to cleanup orphaned groups:', cleanupError.message);
+        }
+
         return { synced, errors, conflicts };
     },
 
@@ -1514,6 +1615,7 @@ export const storageService = {
                                 groupName: cloudReceipt.groupName || null,
                                 groupTags: cloudReceipt.groupTags || [],
                                 splitData: cloudReceipt.splitData || null,
+                                recurringData: cloudReceipt.recurringData || null,
                                 isDemo: cloudReceipt.isDemo || false,
                                 updatedAt: cloudReceipt.updatedAt,
                                 syncedAt: new Date().toISOString()
@@ -1542,6 +1644,7 @@ export const storageService = {
                             groupName: cloudReceipt.groupName || null,
                             groupTags: cloudReceipt.groupTags || [],
                             splitData: cloudReceipt.splitData || null,
+                            recurringData: cloudReceipt.recurringData || null,
                             isDemo: cloudReceipt.isDemo || false,
                             createdAt: cloudReceipt.createdAt || new Date().toISOString(),
                             updatedAt: cloudReceipt.updatedAt || new Date().toISOString(),
@@ -1749,6 +1852,13 @@ export const storageService = {
             errors.push({ type: 'sync', error: error.message });
         }
 
+        // Clean up any orphaned group references
+        try {
+            await this.cleanupOrphanedGroupReferences(userId);
+        } catch (cleanupError) {
+            console.warn('[Sync] Failed to cleanup orphaned groups:', cleanupError.message);
+        }
+
         return { synced, errors };
     },
 
@@ -1845,6 +1955,20 @@ export const storageService = {
                     syncedAt: new Date().toISOString()
                 });
                 console.log('[Storage] Group synced to Supabase:', supabaseGroup.id);
+
+                // Update any child groups that reference this group by local ID
+                // to use the new Supabase ID instead
+                const allGroups = await db.groups.where('userId').equals(userId).toArray();
+                const childGroups = allGroups.filter(g =>
+                    g.parentGroupId && String(g.parentGroupId) === String(id)
+                );
+                for (const childGroup of childGroups) {
+                    await db.groups.update(childGroup.id, {
+                        parentGroupId: supabaseGroup.id,
+                        updatedAt: new Date().toISOString()
+                    });
+                    console.log('[Storage] Updated child group parentGroupId:', childGroup.id, '->', supabaseGroup.id);
+                }
             } catch (error) {
                 // If FK constraint error and we have a parentGroupId, it's okay - will retry in sync
                 if (error?.message?.includes('foreign key constraint') && groupData.parentGroupId) {
@@ -1979,17 +2103,34 @@ export const storageService = {
 
         // Try to sync deletion to Supabase in background
         const supabaseService = await getSupabaseService();
-        if (supabaseService.isConfigured() && group.supabaseId) {
-            const syncPromise = Promise.race([
-                supabaseService.deleteGroup(group.supabaseId),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Sync timed out')), 5000)
-                )
-            ]).catch((error) => {
-                console.warn('[Storage] Background sync failed (will retry later):', error.message);
-            });
+        if (supabaseService.isConfigured()) {
+            // Sync receipt updates to Supabase (clear groupId for orphaned receipts)
+            for (const receipt of groupReceipts) {
+                if (receipt.supabaseId) {
+                    const updatedReceipt = await db.receipts.get(receipt.id);
+                    supabaseService.updateReceipt(receipt.supabaseId, {
+                        groupId: updatedReceipt?.groupId || null,
+                        groupName: updatedReceipt?.groupName || null,
+                        groupTags: updatedReceipt?.groupTags || []
+                    }).catch(err => {
+                        console.warn('[Storage] Failed to sync receipt group cleanup:', err.message);
+                    });
+                }
+            }
 
-            syncPromise.catch(() => { });
+            // Delete group from Supabase
+            if (group.supabaseId) {
+                const syncPromise = Promise.race([
+                    supabaseService.deleteGroup(group.supabaseId),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Sync timed out')), 5000)
+                    )
+                ]).catch((error) => {
+                    console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                });
+
+                syncPromise.catch(() => { });
+            }
         }
 
         return id;
@@ -2110,6 +2251,41 @@ export const storageService = {
             });
             syncPromise.catch(() => { });
         }
+    },
+
+    // Cleanup orphaned group references in receipts
+    async cleanupOrphanedGroupReferences(userId) {
+        if (!userId) return { cleaned: 0 };
+
+        const allGroups = await db.groups.where('userId').equals(userId).toArray();
+        const receipts = await db.receipts.where('userId').equals(userId).toArray();
+
+        // Build a set of valid group IDs (both local and supabase)
+        const validGroupIds = new Set();
+        allGroups.forEach(g => {
+            validGroupIds.add(String(g.id));
+            if (g.supabaseId) {
+                validGroupIds.add(String(g.supabaseId));
+            }
+        });
+
+        let cleaned = 0;
+        for (const receipt of receipts) {
+            if (receipt.groupId && !validGroupIds.has(String(receipt.groupId))) {
+                // This receipt references a group that no longer exists
+                console.log('[Storage] Cleaning orphaned group reference on receipt:', receipt.id);
+                await db.receipts.update(receipt.id, {
+                    groupId: null,
+                    groupName: null,
+                    groupTags: [],
+                    updatedAt: new Date().toISOString()
+                });
+                cleaned++;
+            }
+        }
+
+        console.log('[Storage] Cleaned', cleaned, 'orphaned group references');
+        return { cleaned };
     }
 };
 

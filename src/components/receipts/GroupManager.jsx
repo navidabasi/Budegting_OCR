@@ -525,7 +525,7 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin }) {
                 <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
                         onClick={onTogglePin}
-                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                        className={`p-1.5 rounded ${group.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                         title={group.isPinned ? 'Unpin group' : 'Pin group'}
                     >
                         {group.isPinned ? <PinOff size={16} /> : <Pin size={16} />}

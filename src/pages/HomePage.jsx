@@ -5,6 +5,9 @@ import SummaryCards from '../components/dashboard/SummaryCards';
 import CategoryChart from '../components/dashboard/CategoryChart';
 import ExpenseChart from '../components/dashboard/ExpenseChart';
 import TopMerchants from '../components/dashboard/TopMerchants';
+import TopExpenses from '../components/dashboard/TopExpenses';
+import CashFlow from '../components/dashboard/CashFlow';
+import RecurringPayments from '../components/dashboard/RecurringPayments';
 import WidgetCustomizer from '../components/dashboard/WidgetCustomizer';
 import { WIDGET_TYPES } from '../components/dashboard/WidgetRegistry';
 import PageLayout from '../components/common/PageLayout';
@@ -59,6 +62,12 @@ export default function HomePage() {
                 return <ExpenseChart receipts={receipts} />;
             case WIDGET_TYPES.TOP_MERCHANTS:
                 return <TopMerchants receipts={receipts} />;
+            case WIDGET_TYPES.TOP_EXPENSES:
+                return <TopExpenses receipts={receipts} />;
+            case WIDGET_TYPES.CASH_FLOW:
+                return <CashFlow receipts={receipts} />;
+            case WIDGET_TYPES.RECURRING_PAYMENTS:
+                return <RecurringPayments receipts={receipts} />;
             default:
                 return null;
         }

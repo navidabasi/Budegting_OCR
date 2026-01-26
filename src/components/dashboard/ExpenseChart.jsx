@@ -11,7 +11,7 @@ import {
     Legend
 } from 'chart.js';
 import { format, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { formatCurrency, formatDate, getEffectiveAmount } from '../../utils/helpers';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +41,8 @@ export default function ExpenseChart({ receipts }) {
     const [highlightedIndex, setHighlightedIndex] = useState(null);
     const [isTouchDevice, setIsTouchDevice] = useState(false);
     const [navIndex, setNavIndex] = useState(null);
+    const [showMobileNav, setShowMobileNav] = useState(false);
+    const [navTimeout, setNavTimeout] = useState(null);
 
     // Restore state from store on mount and when receipts change
     useEffect(() => {
@@ -105,7 +107,8 @@ export default function ExpenseChart({ receipts }) {
     receipts.forEach(receipt => {
         const dateStr = format(new Date(receipt.date), 'yyyy-MM-dd');
         if (dailyExpenses.hasOwnProperty(dateStr)) {
-            const amount = parseFloat(receipt.total) || 0;
+            // Use effective amount (user's share if split)
+            const amount = getEffectiveAmount(receipt);
             const transactionType = receipt.transactionType || 'expense';
             if (transactionType === 'income') {
                 dailyIncome[dateStr] += amount;
@@ -128,9 +131,22 @@ export default function ExpenseChart({ receipts }) {
         })
         .filter(index => index !== null);
 
+    // Show mobile nav with auto-hide after 4 seconds
+    const showMobileNavWithTimeout = () => {
+        setShowMobileNav(true);
+        if (navTimeout) {
+            clearTimeout(navTimeout);
+        }
+        const timeout = setTimeout(() => {
+            setShowMobileNav(false);
+        }, 4000);
+        setNavTimeout(timeout);
+    };
+
     // Navigation functions for mobile arrows
     const handleNavPrevious = () => {
         if (daysWithDataIndices.length === 0) return;
+        showMobileNavWithTimeout(); // Keep nav visible when using it
 
         let newIndex;
         if (navIndex === null) {
@@ -153,6 +169,7 @@ export default function ExpenseChart({ receipts }) {
 
     const handleNavNext = () => {
         if (daysWithDataIndices.length === 0) return;
+        showMobileNavWithTimeout(); // Keep nav visible when using it
 
         let newIndex;
         if (navIndex === null) {
@@ -246,6 +263,10 @@ export default function ExpenseChart({ receipts }) {
             const rect = e.currentTarget.getBoundingClientRect();
             const x = touch.clientX - rect.left;
             setSwipeStart({ x, time: Date.now() });
+            // Show mobile nav when user touches the chart
+            if (isTouchDevice && daysWithDataIndices.length > 0) {
+                showMobileNavWithTimeout();
+            }
         }
     };
 
@@ -395,12 +416,12 @@ export default function ExpenseChart({ receipts }) {
 
     return (
         <div className="contents">
-            <div className="card h-auto w-full overflow-hidden">
+            <div className="card h-64 w-full overflow-hidden">
                 <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">Last 30 Days (Income & Expenses)</h3>
 
-                {/* Mobile Navigation Bar */}
+                {/* Mobile Navigation Bar - only shows on interaction */}
                 {isTouchDevice && daysWithDataIndices.length > 0 && (
-                    <div className="flex items-center justify-between bg-gray-700 dark:bg-gray-800 rounded-lg px-3 py-2 mb-2">
+                    <div className={`flex items-center justify-between bg-gray-700 dark:bg-gray-800 rounded-lg px-3 py-2 mb-2 transition-all duration-300 ${showMobileNav ? 'opacity-100 max-h-12' : 'opacity-0 max-h-0 overflow-hidden py-0 mb-0'}`}>
                         <button
                             onClick={handleNavPrevious}
                             className="flex items-center gap-1 text-white hover:text-gray-300 active:text-gray-400 p-1"
@@ -469,22 +490,22 @@ export default function ExpenseChart({ receipts }) {
                                 <div
                                     key={receipt.id}
                                     className={`p-3 border rounded-lg cursor-pointer hover:shadow-md transition-shadow ${
-                                        isIncome 
-                                            ? 'bg-green-50 border-green-200' 
-                                            : 'bg-red-50 border-red-200'
+                                        isIncome
+                                            ? 'bg-green-50 border-green-200 dark:bg-green-100 dark:border-green-300'
+                                            : 'bg-red-50 border-red-200 dark:bg-red-100 dark:border-red-300'
                                     }`}
                                     onClick={() => navigate(`/receipts/${receipt.id}`)}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-gray-900 dark:text-white">{receipt.merchant}</span>
+                                        <span className="font-medium text-gray-900">{receipt.merchant}</span>
                                         <span className={`font-bold ${
-                                            isIncome ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+                                            isIncome ? 'text-green-700' : 'text-red-700'
                                         }`}>
                                             <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                                         </span>
                                     </div>
                                     {receipt.category && (
-                                        <span className="text-xs text-gray-600 dark:text-gray-300">{receipt.category}</span>
+                                        <span className="text-xs text-gray-600">{receipt.category}</span>
                                     )}
                                 </div>
                             );

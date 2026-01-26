@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pie } from 'react-chartjs-2';
 import {
@@ -7,22 +7,38 @@ import {
     Tooltip,
     Legend
 } from 'chart.js';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function CategoryChart({ receipts }) {
     const navigate = useNavigate();
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    // Detect dark mode
+    useEffect(() => {
+        const checkDarkMode = () => {
+            setIsDarkMode(document.documentElement.classList.contains('dark'));
+        };
+        checkDarkMode();
+
+        // Watch for dark mode changes
+        const observer = new MutationObserver(checkDarkMode);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+        return () => observer.disconnect();
+    }, []);
 
     const categoryTotals = {};
     const categoryIncome = {};
 
     receipts.forEach(receipt => {
         const category = receipt.category || 'Other';
-        const amount = parseFloat(receipt.total) || 0;
+        // Use effective amount (user's share if split)
+        const amount = getEffectiveAmount(receipt);
         const transactionType = receipt.transactionType || 'expense';
-        
+
         if (transactionType === 'income') {
             categoryIncome[category] = (categoryIncome[category] || 0) + amount;
         } else {
@@ -140,7 +156,7 @@ export default function CategoryChart({ receipts }) {
                                 fillStyle: isHidden ? '#d1d5db' : getCategoryColor(category),
                                 hidden: false, // Always show in legend
                                 index: categoryIndexMap[category],
-                                fontColor: isHidden ? '#9ca3af' : '#374151',
+                                fontColor: isHidden ? '#9ca3af' : (isDarkMode ? '#f3f4f6' : '#374151'),
                                 fontStyle: isHidden ? 'line-through' : 'normal',
                                 strokeStyle: isHidden ? '#d1d5db' : getCategoryColor(category),
                                 lineWidth: 0

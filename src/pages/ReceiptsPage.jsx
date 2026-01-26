@@ -73,6 +73,19 @@ export default function ReceiptsPage() {
         return nextNumber;
     };
 
+    // Handler to toggle receipt pin status
+    const handleToggleReceiptPin = async (receiptId, currentPinned) => {
+        try {
+            await storageService.updateReceipt(receiptId, {
+                isPinned: !currentPinned
+            });
+            await reloadReceipts();
+            showToast(currentPinned ? 'Receipt unpinned' : 'Receipt pinned', 'success');
+        } catch (err) {
+            showToast(`Failed to ${currentPinned ? 'unpin' : 'pin'} receipt: ${err.message}`, 'error');
+        }
+    };
+
     // Process groups with receipt counts and nested groups
     useEffect(() => {
         if (!allGroups || receipts.length === 0) {
@@ -100,10 +113,13 @@ export default function ReceiptsPage() {
             });
 
             // Get nested groups for this group
+            // Match by both supabaseId and local id since parentGroupId could be either
             const nestedGroups = allGroups.filter(g => {
-                const gParentId = String(g.parentGroupId || '');
-                const gId = String(groupIdToMatch);
-                return gParentId === gId;
+                if (!g.parentGroupId) return false;
+                const gParentId = String(g.parentGroupId);
+                const groupSupabaseId = group.supabaseId ? String(group.supabaseId) : null;
+                const groupLocalId = String(group.id);
+                return gParentId === groupSupabaseId || gParentId === groupLocalId;
             }).sort((a, b) => {
                 // Sort nested groups: pinned first, then by name
                 if (a.isPinned && !b.isPinned) return -1;
@@ -492,7 +508,7 @@ export default function ReceiptsPage() {
 
             {/* Groups Section */}
             {groups.length > 0 && (
-                <div className="mb-8">
+                <div className="mb-8 mt-6">
                     <div className="flex items-center justify-between mb-4">
                         <button
                             onClick={() => setShowGroupsSection(!showGroupsSection)}
@@ -866,7 +882,7 @@ export default function ReceiptsPage() {
                                                                                         showToast(`Failed to ${nestedGroup.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
                                                                                     }
                                                                                 }}
-                                                                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                                                                                className={`p-1 rounded ${nestedGroup.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                                                                                 title={nestedGroup.isPinned ? 'Unpin group' : 'Pin group'}
                                                                             >
                                                                                 {nestedGroup.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -911,12 +927,19 @@ export default function ReceiptsPage() {
                                                                         }}
                                                                     >
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                            {nestedReceipts.map(receipt => (
+                                                                            {nestedReceipts
+                                                                                .sort((a, b) => {
+                                                                                    if (a.isPinned && !b.isPinned) return -1;
+                                                                                    if (!a.isPinned && b.isPinned) return 1;
+                                                                                    return new Date(b.date) - new Date(a.date);
+                                                                                })
+                                                                                .map(receipt => (
                                                                                 <ReceiptCard
                                                                                     key={receipt.id}
                                                                                     receipt={receipt}
                                                                                     isNested={true}
                                                                                     nestedGroupColor={nestedColor}
+                                                                                    onTogglePin={handleToggleReceiptPin}
                                                                                     onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
                                                                                         try {
                                                                                             const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
@@ -999,10 +1022,17 @@ export default function ReceiptsPage() {
                                                         Receipts
                                                     </h4>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {parentOnlyReceipts.map(receipt => (
+                                                        {parentOnlyReceipts
+                                                            .sort((a, b) => {
+                                                                if (a.isPinned && !b.isPinned) return -1;
+                                                                if (!a.isPinned && b.isPinned) return 1;
+                                                                return new Date(b.date) - new Date(a.date);
+                                                            })
+                                                            .map(receipt => (
                                                             <ReceiptCard
                                                                 key={receipt.id}
                                                                 receipt={receipt}
+                                                                onTogglePin={handleToggleReceiptPin}
                                                                 onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
                                                                     try {
                                                                         const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
@@ -1083,10 +1113,19 @@ export default function ReceiptsPage() {
                 />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredReceipts.filter(receipt => !receipt.groupId).map(receipt => (
+                    {filteredReceipts
+                        .filter(receipt => !receipt.groupId)
+                        .sort((a, b) => {
+                            // Sort: pinned first, then by date
+                            if (a.isPinned && !b.isPinned) return -1;
+                            if (!a.isPinned && b.isPinned) return 1;
+                            return new Date(b.date) - new Date(a.date);
+                        })
+                        .map(receipt => (
                         <ReceiptCard
                             key={receipt.id}
                             receipt={receipt}
+                            onTogglePin={handleToggleReceiptPin}
                             onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
                                 try {
                                     const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
@@ -1496,7 +1535,7 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver =
                 <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
                         onClick={onTogglePin}
-                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                        className={`p-1.5 rounded ${group.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                         title={group.isPinned ? 'Unpin group' : 'Pin group'}
                     >
                         {group.isPinned ? <PinOff size={16} /> : <Pin size={16} />}

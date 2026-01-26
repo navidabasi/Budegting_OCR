@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
-import { Tag, Users } from 'lucide-react';
+import { Tag, Users, Pin, PinOff, RefreshCw } from 'lucide-react';
 
-export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null }) {
+export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin }) {
     const navigate = useNavigate();
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
@@ -167,6 +167,18 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
+                        {onTogglePin && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTogglePin(receipt.id, receipt.isPinned);
+                                }}
+                                className={`p-1 rounded transition-colors ${receipt.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
+                                title={receipt.isPinned ? 'Unpin receipt' : 'Pin receipt'}
+                            >
+                                {receipt.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                            </button>
+                        )}
                         <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{receipt.merchant}</h3>
                         {receipt.groupName && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
@@ -200,6 +212,12 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1">
                     <Users size={12} />
                     Split between {receipt.splitData.people} person{receipt.splitData.people !== 1 ? 's' : ''}
+                </p>
+            )}
+            {receipt.recurringData?.isActive && (
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 flex items-center gap-1">
+                    <RefreshCw size={12} />
+                    Recurring ({receipt.recurringData.frequency})
                 </p>
             )}
         </div>

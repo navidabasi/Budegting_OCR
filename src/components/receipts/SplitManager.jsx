@@ -73,7 +73,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             const initialUsers = [];
             for (let i = 0; i < people; i++) {
                 initialUsers.push({
-                    name: '',
+                    name: i === 0 ? 'You' : '', // First user is always "You"
                     amount: perPerson,
                     percentage: total > 0 ? (perPerson / total) * 100 : 0
                 });
@@ -200,11 +200,21 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             }
         }
 
+        // Calculate user's share (yourShare)
+        let yourShare;
+        if (method === 'equal') {
+            yourShare = total / people;
+        } else {
+            // For custom split, first user is always "You"
+            yourShare = users.length > 0 ? (parseFloat(users[0].amount) || 0) : (total / people);
+        }
+
         const splitData = {
             method,
             people,
-            users: method === 'equal' ? [] : users.map(u => ({
-                name: u.name || `Person ${users.indexOf(u) + 1}`,
+            yourShare, // The user's portion for calculations
+            users: method === 'equal' ? [] : users.map((u, idx) => ({
+                name: u.name || (idx === 0 ? 'You' : `Person ${idx + 1}`),
                 amount: parseFloat(u.amount) || 0,
                 percentage: u.percentage || 0
             }))

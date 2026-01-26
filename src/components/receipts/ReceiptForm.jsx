@@ -4,6 +4,7 @@ import { Plus, Trash2, Users, X, Tag } from 'lucide-react';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import SplitManager from './SplitManager';
+import RecurringManager from './RecurringManager';
 import { categoryService } from '../../services/categoryService';
 import { formatCurrency } from '../../utils/helpers';
 import { storageService } from '../../services/storage';
@@ -23,6 +24,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const [showSplitManager, setShowSplitManager] = useState(false);
     const [splitData, setSplitData] = useState(null);
+    const [recurringData, setRecurringData] = useState(null);
 
     const formatDateForInput = (dateString) => {
         if (!dateString) return new Date().toISOString().split('T')[0];
@@ -63,6 +65,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     useEffect(() => {
         if (initialData?.splitData) {
             setSplitData(initialData.splitData);
+        }
+        if (initialData?.recurringData) {
+            setRecurringData(initialData.recurringData);
         }
     }, [initialData]);
 
@@ -268,7 +273,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             groupId: finalGroupId,
             groupName: finalGroupName,
             groupTags: currentGroupTags,
-            splitData: splitData || null
+            splitData: splitData || null,
+            recurringData: recurringData || null
         };
 
         console.log('[ReceiptForm] Submitting receipt with group:', { 
@@ -705,6 +711,12 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     )}
                 </div>
             </div>
+
+            <RecurringManager
+                recurringData={recurringData}
+                onChange={setRecurringData}
+                receiptDate={watch('date')}
+            />
 
             <div className="flex gap-2 pt-4">
                 <Button type="submit" variant="primary" className="flex-1">
