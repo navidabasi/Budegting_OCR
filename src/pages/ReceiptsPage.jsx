@@ -832,7 +832,7 @@ export default function ReceiptsPage() {
                                                                                 groupName: nestedGroup.name
                                                                             });
 
-                                                                            await loadReceipts();
+                                                                            await reloadReceipts();
                                                                             await reloadGroups();
                                                                             showToast(`Receipt added to ${nestedGroup.name}`, 'success');
                                                                         } catch (err) {
@@ -959,7 +959,7 @@ export default function ReceiptsPage() {
                                                                                                 groupName: createdGroup.name
                                                                                             });
 
-                                                                                            await loadReceipts();
+                                                                                            await reloadReceipts();
                                                                                             await reloadGroups();
                                                                                             showToast(`Group "${groupName}" created with 2 receipts`, 'success');
                                                                                         } catch (err) {
@@ -1045,7 +1045,7 @@ export default function ReceiptsPage() {
                                                                             groupName: createdGroup.name
                                                                         });
 
-                                                                        await loadReceipts();
+                                                                        await reloadReceipts();
                                                                         await reloadGroups();
                                                                         showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
                                                                     } catch (err) {

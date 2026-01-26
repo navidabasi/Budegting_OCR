@@ -411,7 +411,17 @@ export const storageService = {
 
     // Demo data
     async seedDemoData(userId) {
-        const demoReceipts = generateDemoReceipts(userId);
+        // Create demo groups first
+        const demoGroups = generateDemoGroups(userId);
+        const groupIds = {};
+
+        for (const group of demoGroups) {
+            const id = await db.groups.add(group);
+            groupIds[group.name] = id;
+        }
+
+        // Create demo receipts with group assignments
+        const demoReceipts = generateDemoReceipts(userId, groupIds);
         // Remove id field to let Dexie auto-generate
         const receiptsWithoutId = demoReceipts.map(({ id, ...receipt }) => receipt);
         await db.receipts.bulkAdd(receiptsWithoutId);
@@ -419,6 +429,7 @@ export const storageService = {
     },
 
     async clearDemoData(userId) {
+        // Clear demo receipts
         const receipts = await this.getReceiptsByUserId(userId);
         const demoReceipts = receipts.filter(r => r.isDemo === true);
         if (demoReceipts.length > 0) {
@@ -436,6 +447,13 @@ export const storageService = {
                 }
             }
             await db.receipts.bulkDelete(demoReceipts.map(r => r.id));
+        }
+
+        // Clear demo groups
+        const groups = await this.getAllGroups(userId);
+        const demoGroups = groups.filter(g => g.isDemo === true);
+        if (demoGroups.length > 0) {
+            await db.groups.bulkDelete(demoGroups.map(g => g.id));
         }
     },
 
@@ -1790,7 +1808,7 @@ export const storageService = {
             syncedAt: null
         });
 
-        // Try to sync to Supabase in background
+        // Try to sync to Supabase and WAIT for it to complete
         const supabaseService = await getSupabaseService();
         if (supabaseService.isConfigured()) {
             // Resolve parentGroupId to Supabase ID if it exists
@@ -1809,33 +1827,33 @@ export const storageService = {
                 }
             }
 
-            const syncPromise = Promise.race([
-                supabaseService.createGroup({
-                    userId,
-                    name: groupData.name,
-                    color: groupData.color || '#3b82f6',
-                    isPinned: groupData.isPinned || false,
-                    parentGroupId: resolvedParentId
-                }),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
-                )
-            ]).then(async (supabaseGroup) => {
+            try {
+                const supabaseGroup = await Promise.race([
+                    supabaseService.createGroup(userId, {
+                        name: groupData.name,
+                        color: groupData.color || '#3b82f6',
+                        isPinned: groupData.isPinned || false,
+                        parentGroupId: resolvedParentId
+                    }),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Supabase sync timed out')), 5000)
+                    )
+                ]);
+
                 await db.groups.update(id, {
                     supabaseId: supabaseGroup.id,
                     syncedAt: new Date().toISOString()
                 });
                 console.log('[Storage] Group synced to Supabase:', supabaseGroup.id);
-            }).catch((error) => {
+            } catch (error) {
                 // If FK constraint error and we have a parentGroupId, it's okay - will retry in sync
                 if (error?.message?.includes('foreign key constraint') && groupData.parentGroupId) {
                     console.warn('[Storage] Parent group not synced yet, will retry in next sync cycle');
                 } else {
-                    console.warn('[Storage] Background sync failed (will retry later):', error.message);
+                    console.warn('[Storage] Supabase sync failed (will retry later):', error.message);
                 }
-            });
-
-            syncPromise.catch(() => { });
+                // Don't throw - local group was created successfully
+            }
         }
 
         return id;
@@ -2095,11 +2113,53 @@ export const storageService = {
     }
 };
 
-function generateDemoReceipts(userId) {
+function generateDemoGroups(userId) {
+    const now = new Date().toISOString();
+    return [
+        {
+            userId,
+            name: 'Food & Dining',
+            color: '#ef4444',
+            isPinned: true,
+            parentGroupId: null,
+            supabaseId: null,
+            createdAt: now,
+            updatedAt: now,
+            syncedAt: null,
+            isDemo: true
+        },
+        {
+            userId,
+            name: 'Monthly Bills',
+            color: '#3b82f6',
+            isPinned: true,
+            parentGroupId: null,
+            supabaseId: null,
+            createdAt: now,
+            updatedAt: now,
+            syncedAt: null,
+            isDemo: true
+        },
+        {
+            userId,
+            name: 'Transportation',
+            color: '#10b981',
+            isPinned: false,
+            parentGroupId: null,
+            supabaseId: null,
+            createdAt: now,
+            updatedAt: now,
+            syncedAt: null,
+            isDemo: true
+        }
+    ];
+}
+
+function generateDemoReceipts(userId, groupIds = {}) {
     const now = new Date();
     const receipts = [];
 
-    // Grocery receipts
+    // Grocery receipts - assigned to Food & Dining group
     receipts.push({
         id: `demo-${Date.now()}-1`,
         userId,
@@ -2125,10 +2185,12 @@ function generateDemoReceipts(userId) {
             { name: 'Dish Soap', quantity: 1, price: 2.99, category: 'Groceries' }
         ],
         notes: 'Weekly grocery shopping',
+        groupId: groupIds['Food & Dining'] || null,
+        groupName: groupIds['Food & Dining'] ? 'Food & Dining' : null,
         isDemo: true
     });
 
-    // Restaurant receipt
+    // Restaurant receipt - assigned to Food & Dining group
     receipts.push({
         id: `demo-${Date.now()}-2`,
         userId,
@@ -2142,10 +2204,12 @@ function generateDemoReceipts(userId) {
             { name: 'Cappuccino', quantity: 1, price: 4.75, category: 'Restaurant' }
         ],
         notes: 'Morning coffee',
+        groupId: groupIds['Food & Dining'] || null,
+        groupName: groupIds['Food & Dining'] ? 'Food & Dining' : null,
         isDemo: true
     });
 
-    // Gas receipt
+    // Gas receipt - assigned to Transportation group
     receipts.push({
         id: `demo-${Date.now()}-3`,
         userId,
@@ -2157,10 +2221,12 @@ function generateDemoReceipts(userId) {
             { name: 'Regular Gas', quantity: 12.5, price: 3.616, category: 'Gas' }
         ],
         notes: 'Fuel fill-up',
+        groupId: groupIds['Transportation'] || null,
+        groupName: groupIds['Transportation'] ? 'Transportation' : null,
         isDemo: true
     });
 
-    // Restaurant receipt
+    // Restaurant receipt - assigned to Food & Dining group
     receipts.push({
         id: `demo-${Date.now()}-4`,
         userId,
@@ -2175,6 +2241,8 @@ function generateDemoReceipts(userId) {
             { name: 'Soft Drink', quantity: 2, price: 1.89, category: 'Restaurant' }
         ],
         notes: 'Lunch',
+        groupId: groupIds['Food & Dining'] || null,
+        groupName: groupIds['Food & Dining'] ? 'Food & Dining' : null,
         isDemo: true
     });
 
@@ -2200,7 +2268,7 @@ function generateDemoReceipts(userId) {
         isDemo: true
     });
 
-    // Utilities receipt
+    // Utilities receipt - assigned to Monthly Bills group
     receipts.push({
         id: `demo-${Date.now()}-6`,
         userId,
@@ -2212,10 +2280,12 @@ function generateDemoReceipts(userId) {
             { name: 'Electricity Service', quantity: 1, price: 89.50, category: 'Utilities' }
         ],
         notes: 'Monthly electricity bill',
+        groupId: groupIds['Monthly Bills'] || null,
+        groupName: groupIds['Monthly Bills'] ? 'Monthly Bills' : null,
         isDemo: true
     });
 
-    // Entertainment receipt
+    // Entertainment receipt - assigned to Monthly Bills group
     receipts.push({
         id: `demo-${Date.now()}-7`,
         userId,
@@ -2227,6 +2297,8 @@ function generateDemoReceipts(userId) {
             { name: 'Monthly Subscription', quantity: 1, price: 15.99, category: 'Entertainment' }
         ],
         notes: 'Streaming service',
+        groupId: groupIds['Monthly Bills'] || null,
+        groupName: groupIds['Monthly Bills'] ? 'Monthly Bills' : null,
         isDemo: true
     });
 
@@ -2246,7 +2318,7 @@ function generateDemoReceipts(userId) {
         isDemo: true
     });
 
-    // Restaurant receipt
+    // Restaurant receipt - assigned to Food & Dining group
     receipts.push({
         id: `demo-${Date.now()}-9`,
         userId,
@@ -2260,10 +2332,12 @@ function generateDemoReceipts(userId) {
             { name: 'Soft Drink', quantity: 2, price: 1.76, category: 'Restaurant' }
         ],
         notes: 'Dinner',
+        groupId: groupIds['Food & Dining'] || null,
+        groupName: groupIds['Food & Dining'] ? 'Food & Dining' : null,
         isDemo: true
     });
 
-    // Transportation receipt
+    // Transportation receipt - assigned to Transportation group
     receipts.push({
         id: `demo-${Date.now()}-10`,
         userId,
@@ -2275,6 +2349,40 @@ function generateDemoReceipts(userId) {
             { name: 'Ride Share', quantity: 1, price: 24.30, category: 'Transportation' }
         ],
         notes: 'Airport ride',
+        groupId: groupIds['Transportation'] || null,
+        groupName: groupIds['Transportation'] ? 'Transportation' : null,
+        isDemo: true
+    });
+
+    // Income receipt - Salary
+    receipts.push({
+        id: `demo-${Date.now()}-11`,
+        userId,
+        merchant: 'ACME Corporation',
+        date: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        total: 3500.00,
+        category: 'Salary',
+        transactionType: 'income',
+        lineItems: [
+            { name: 'Bi-weekly Salary', quantity: 1, price: 3500.00, category: 'Salary' }
+        ],
+        notes: 'Bi-weekly paycheck',
+        isDemo: true
+    });
+
+    // Income receipt - Freelance
+    receipts.push({
+        id: `demo-${Date.now()}-12`,
+        userId,
+        merchant: 'Freelance Client',
+        date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        total: 450.00,
+        category: 'Freelance',
+        transactionType: 'income',
+        lineItems: [
+            { name: 'Website Design Project', quantity: 1, price: 450.00, category: 'Freelance' }
+        ],
+        notes: 'Completed website project payment',
         isDemo: true
     });
 

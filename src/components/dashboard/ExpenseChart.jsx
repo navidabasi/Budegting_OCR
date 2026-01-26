@@ -12,7 +12,7 @@ import {
 } from 'chart.js';
 import { format, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
 import { formatCurrency, formatDate } from '../../utils/helpers';
-import { X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
@@ -39,6 +39,8 @@ export default function ExpenseChart({ receipts }) {
     const [swipeStart, setSwipeStart] = useState(null);
     const [swipeCurrent, setSwipeCurrent] = useState(null);
     const [highlightedIndex, setHighlightedIndex] = useState(null);
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
+    const [navIndex, setNavIndex] = useState(null);
 
     // Restore state from store on mount and when receipts change
     useEffect(() => {
@@ -68,6 +70,21 @@ export default function ExpenseChart({ receipts }) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [receipts]); // Update when receipts change
+
+    // Detect touch device
+    useEffect(() => {
+        const checkTouchDevice = () => {
+            const isTouchCapable = 'ontouchstart' in window ||
+                navigator.maxTouchPoints > 0 ||
+                window.matchMedia('(pointer: coarse)').matches;
+            const isSmallScreen = window.innerWidth < 768;
+            setIsTouchDevice(isTouchCapable && isSmallScreen);
+        };
+
+        checkTouchDevice();
+        window.addEventListener('resize', checkTouchDevice);
+        return () => window.removeEventListener('resize', checkTouchDevice);
+    }, []);
 
     const last30Days = eachDayOfInterval({
         start: subDays(new Date(), 29),
@@ -103,6 +120,71 @@ export default function ExpenseChart({ receipts }) {
     const expenseData = Object.values(dailyExpenses);
     const incomeData = Object.values(dailyIncome);
 
+    // Get indices of days with data (receipts)
+    const daysWithDataIndices = last30Days
+        .map((day, index) => {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            return dailyReceipts[dateStr]?.length > 0 ? index : null;
+        })
+        .filter(index => index !== null);
+
+    // Navigation functions for mobile arrows
+    const handleNavPrevious = () => {
+        if (daysWithDataIndices.length === 0) return;
+
+        let newIndex;
+        if (navIndex === null) {
+            // Start from the last day with data
+            newIndex = daysWithDataIndices[daysWithDataIndices.length - 1];
+        } else {
+            // Find the previous day with data
+            const currentPos = daysWithDataIndices.indexOf(navIndex);
+            if (currentPos > 0) {
+                newIndex = daysWithDataIndices[currentPos - 1];
+            } else {
+                // Wrap to the end
+                newIndex = daysWithDataIndices[daysWithDataIndices.length - 1];
+            }
+        }
+
+        setNavIndex(newIndex);
+        selectDayByIndex(newIndex);
+    };
+
+    const handleNavNext = () => {
+        if (daysWithDataIndices.length === 0) return;
+
+        let newIndex;
+        if (navIndex === null) {
+            // Start from the first day with data
+            newIndex = daysWithDataIndices[0];
+        } else {
+            // Find the next day with data
+            const currentPos = daysWithDataIndices.indexOf(navIndex);
+            if (currentPos < daysWithDataIndices.length - 1) {
+                newIndex = daysWithDataIndices[currentPos + 1];
+            } else {
+                // Wrap to the beginning
+                newIndex = daysWithDataIndices[0];
+            }
+        }
+
+        setNavIndex(newIndex);
+        selectDayByIndex(newIndex);
+    };
+
+    const selectDayByIndex = (index) => {
+        const day = last30Days[index];
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const dayReceipts = dailyReceipts[dateStr] || [];
+
+        if (dayReceipts.length > 0) {
+            setSelectedDate(day);
+            setSelectedDayReceipts(dayReceipts);
+            setSelectedChartDate(day, dayReceipts);
+        }
+    };
+
     const handleChartClick = (event, elements) => {
         if (elements.length > 0) {
             const index = elements[0].index;
@@ -122,6 +204,7 @@ export default function ExpenseChart({ receipts }) {
     const handleClose = () => {
         setSelectedDate(null);
         setSelectedDayReceipts([]);
+        setNavIndex(null);
         clearSelectedChartDate();
     };
 
@@ -312,9 +395,41 @@ export default function ExpenseChart({ receipts }) {
 
     return (
         <div className="contents">
-            <div className="card h-64 w-full overflow-hidden">
+            <div className="card h-auto w-full overflow-hidden">
                 <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">Last 30 Days (Income & Expenses)</h3>
-                <div 
+
+                {/* Mobile Navigation Bar */}
+                {isTouchDevice && daysWithDataIndices.length > 0 && (
+                    <div className="flex items-center justify-between bg-gray-700 dark:bg-gray-800 rounded-lg px-3 py-2 mb-2">
+                        <button
+                            onClick={handleNavPrevious}
+                            className="flex items-center gap-1 text-white hover:text-gray-300 active:text-gray-400 p-1"
+                            aria-label="Previous day with data"
+                        >
+                            <ChevronLeft size={24} />
+                            <span className="text-sm">Prev</span>
+                        </button>
+
+                        <div className="text-white text-sm font-medium">
+                            {navIndex !== null ? (
+                                <span>{format(last30Days[navIndex], 'MMM dd, yyyy')}</span>
+                            ) : (
+                                <span className="text-gray-300">Tap arrows to browse</span>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={handleNavNext}
+                            className="flex items-center gap-1 text-white hover:text-gray-300 active:text-gray-400 p-1"
+                            aria-label="Next day with data"
+                        >
+                            <span className="text-sm">Next</span>
+                            <ChevronRight size={24} />
+                        </button>
+                    </div>
+                )}
+
+                <div
                     className="h-52 -mx-2"
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
