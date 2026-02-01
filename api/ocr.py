@@ -172,6 +172,33 @@ def extract_prices_from_text(text):
     return prices
 
 
+def find_price_column(lines):
+    """
+    Analyze lines to find the X position of the price column.
+    In tabular receipts, prices are usually right-aligned in a specific column.
+    """
+    price_positions = []
+
+    for line in lines:
+        words = line.get('Words', [])
+        for word in words:
+            text = word.get('WordText', '')
+            # Match prices (with optional space in decimal: "2, 79" or "2,79")
+            if re.match(r'^\d{1,3}[.,]\s?\d{2}$', text.replace(' ', '')):
+                price_positions.append(word.get('Left', 0))
+
+    if price_positions:
+        # Return the most common price column position (with some tolerance)
+        from collections import Counter
+        # Round positions to nearest 10 pixels for grouping
+        rounded = [round(p / 10) * 10 for p in price_positions]
+        most_common = Counter(rounded).most_common(1)
+        if most_common:
+            return most_common[0][0]
+
+    return None
+
+
 def extract_line_items_from_overlay(text_overlay):
     """Extract line items using OCR overlay bounding box data"""
     items = []
@@ -186,15 +213,45 @@ def extract_line_items_from_overlay(text_overlay):
     # Calculate document dimensions for sectioning
     max_height = max((l.get('MinTop', 0) + l.get('MaxHeight', 0)) for l in lines) if lines else 0
 
-    # Skip header (top 25%) and footer (bottom 25%)
-    header_threshold = max_height * 0.25
-    footer_threshold = max_height * 0.75
+    # Dynamic section boundaries (more flexible for tabular receipts)
+    header_threshold = max_height * 0.20  # Top 20%
+    footer_threshold = max_height * 0.80  # Bottom 20%
+
+    # Find where item section starts (after DESCRIZIONE header)
+    items_start_y = None
+    items_end_y = None
+
+    for line in lines:
+        words = line.get('Words', [])
+        line_text = ' '.join(w.get('WordText', '') for w in words).lower()
+
+        # Detect header row
+        if 'descrizione' in line_text or 'description' in line_text or 'item' in line_text:
+            items_start_y = line.get('MinTop', 0) + line.get('MaxHeight', 20)
+
+        # Detect end of items (subtotal/total)
+        if items_start_y and ('subtotale' in line_text or 'totale' in line_text):
+            items_end_y = line.get('MinTop', 0)
+            break
+
+    # If we found explicit boundaries, use them
+    if items_start_y:
+        header_threshold = items_start_y
+    if items_end_y:
+        footer_threshold = items_end_y
+
+    print(f"[OCR] Item section Y range: {header_threshold} to {footer_threshold}")
+
+    # Find the price column position
+    price_column_x = find_price_column(lines)
+    print(f"[OCR] Detected price column at X: {price_column_x}")
 
     skip_patterns = [
-        r'^total|^subtotal|^tax|^iva|^vat',
+        r'^total|^subtotal|^tax|^iva\s*$|^vat\s*$',
         r'^thank|^grazie|^merci',
         r'^\d{5,}$',
-        r'^change|^cash|^card',
+        r'^change|^cash|^card|^pagamento',
+        r'^descrizione|^prezzo|^importo',
     ]
 
     for line in lines:
@@ -208,47 +265,200 @@ def extract_line_items_from_overlay(text_overlay):
         if not words:
             continue
 
-        # Find prices in this line
-        price_words = [w for w in words if re.match(r'^\$?€?£?\d+[.,]\d{2}$', w.get('WordText', ''))]
+        # Get full line text for skip check
+        full_line = ' '.join(w.get('WordText', '') for w in words)
+        should_skip = any(re.search(p, full_line, re.IGNORECASE) for p in skip_patterns)
+        if should_skip:
+            continue
+
+        # Find price in this line (rightmost number matching price format)
+        price_words = []
+        for w in words:
+            text = w.get('WordText', '').replace(' ', '')
+            # Match price formats: 2,79 or 2.79 or €2,79
+            if re.match(r'^[€$£]?\d{1,3}[.,]\d{2}$', text):
+                price_words.append(w)
 
         if price_words:
-            price_word = price_words[0]
+            # Use the rightmost price (typically the item price, not VAT)
+            price_word = max(price_words, key=lambda w: w.get('Left', 0))
             price_x = price_word.get('Left', 0)
 
-            # Item name is everything to the left of the price
-            name_words = [w for w in words
-                         if w.get('Left', 0) < price_x
-                         and not re.match(r'^\d+[.,]\d{2}%?$', w.get('WordText', ''))]
+            # Item name is everything to the left of the price, excluding:
+            # - Other prices
+            # - Percentages (VAT)
+            name_words = []
+            for w in words:
+                w_text = w.get('WordText', '')
+                w_x = w.get('Left', 0)
+
+                # Skip if it's to the right of or at the price
+                if w_x >= price_x:
+                    continue
+
+                # Skip percentages (VAT)
+                if re.match(r'^\d{1,2}%$', w_text):
+                    continue
+
+                # Skip other prices
+                if re.match(r'^[€$£]?\d{1,3}[.,]\d{2}$', w_text.replace(' ', '')):
+                    continue
+
+                name_words.append(w)
 
             if name_words:
+                # Sort by X position and join
+                name_words.sort(key=lambda w: w.get('Left', 0))
                 name = ' '.join(w.get('WordText', '') for w in name_words).strip()
-                price_text = price_word.get('WordText', '').replace('$', '').replace('€', '').replace('£', '')
+
+                price_text = price_word.get('WordText', '').replace('€', '').replace('$', '').replace('£', '').replace(' ', '')
                 price = parse_price(price_text)
 
-                # Validate
-                should_skip = any(re.search(p, name, re.IGNORECASE) for p in skip_patterns)
+                # Clean up name
+                name = re.sub(r'^\d+\s*', '', name)  # Remove leading quantity numbers
+                name = name.strip()
 
-                if name and len(name) >= 2 and 0 < price < 10000 and not should_skip:
+                if name and len(name) >= 2 and 0 < price < 10000:
                     items.append({
                         'name': name,
                         'quantity': 1,
                         'price': price,
                         'category': 'Other'
                     })
+                    print(f"[OCR] Overlay item: '{name}' = {price}")
+
+    return items
+
+
+def detect_tabular_format(text):
+    """
+    Detect if receipt has tabular format with columns like:
+    DESCRIZIONE | IVA | PREZZO
+    """
+    # Common column headers in different languages
+    header_patterns = [
+        r'descrizione.*(?:iva|vat).*(?:prezzo|price|importo)',
+        r'item.*(?:tax|vat).*(?:price|amount)',
+        r'product.*(?:tax).*(?:price)',
+        r'articolo.*(?:iva).*(?:prezzo)',
+    ]
+
+    text_lower = text.lower()
+    for pattern in header_patterns:
+        if re.search(pattern, text_lower):
+            return True
+    return False
+
+
+def extract_tabular_items(text):
+    """
+    Extract items from tabular receipt format.
+    Handles format: DESCRIPTION | VAT% | PRICE
+    """
+    items = []
+    lines = text.split('\n')
+
+    # Find where item section starts (after header) and ends (before totals)
+    in_items_section = False
+
+    # Patterns to identify section boundaries
+    header_pattern = re.compile(r'descrizione|item|product|articolo', re.IGNORECASE)
+    end_patterns = [
+        r'^\s*(?:sub\s*)?totale',
+        r'^\s*total',
+        r'^\s*importo',
+        r'^\s*pagamento',
+        r'^\s*contant[ei]',
+        r'^\s*carta',
+        r'^\s*di cui iva',
+    ]
+
+    # Skip patterns for non-item lines
+    skip_patterns = [
+        r'^descrizione|^item|^product|^articolo',  # Header row
+        r'^iva\s|^vat\s|^prezzo|^price',  # Column headers
+        r'^\s*$',  # Empty lines
+        r'^\d{2}[\/\-\.]\d{2}',  # Dates
+        r'^documento|^scontrino',  # Document info
+    ]
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Check if we've hit header row - start looking for items after this
+        if header_pattern.search(line) and not in_items_section:
+            in_items_section = True
+            continue
+
+        # Check if we've hit end of items section
+        if any(re.match(p, line, re.IGNORECASE) for p in end_patterns):
+            in_items_section = False
+            continue
+
+        # Skip header/meta lines
+        if any(re.search(p, line, re.IGNORECASE) for p in skip_patterns):
+            continue
+
+        # Try to extract item from this line
+        # Pattern: NAME + optional VAT% + PRICE
+        # Examples:
+        #   "10UOVA M SENZA ANTIB    10%    2,79"
+        #   "NEO BISC.V. CACAO VAN    10%    0,95"
+
+        # Match: text + optional percentage + price at end
+        # Price pattern: digits with comma or dot as decimal (EU format)
+        match = re.match(
+            r'^(.+?)\s+(\d{1,2}%?)?\s*(\d{1,3}[.,]\s?\d{2})\s*$',
+            line
+        )
+
+        if match:
+            name = match.group(1).strip()
+            price_str = match.group(3).replace(' ', '')  # Handle "1, 99" -> "1,99"
+            price = parse_price(price_str)
+
+            # Clean up name - remove leading markers/quantities
+            name = re.sub(r'^[\dX\+\*\-]+\s*', '', name)
+            # Remove trailing VAT percentage if stuck to name
+            name = re.sub(r'\s+\d{1,2}%\s*$', '', name)
+            name = name.strip()
+
+            if name and len(name) >= 2 and 0 < price < 10000:
+                items.append({
+                    'name': name,
+                    'quantity': 1,
+                    'price': price,
+                    'category': 'Other'
+                })
+                print(f"[OCR] Tabular item: '{name}' = {price}")
 
     return items
 
 
 def extract_line_items_from_text(text):
     """Extract line items from plain text"""
+
+    # First, check if this is a tabular receipt
+    if detect_tabular_format(text):
+        print("[OCR] Detected tabular receipt format")
+        items = extract_tabular_items(text)
+        if items:
+            return items
+        # Fall through to standard parsing if tabular extraction fails
+
     items = []
     lines = text.split('\n')
 
     skip_patterns = [
-        r'^total|^subtotal|^tax|^iva|^vat',
+        r'^total|^subtotal|^tax|^iva\s|^vat\s',
         r'^thank|^grazie|^merci',
         r'^\d{5,}$',
         r'^change|^cash|^card|^visa|^mastercard',
+        r'^pagamento|^contant|^importo pagato',
+        r'^documento|^scontrino',
+        r'^di cui iva',
     ]
 
     for line in lines:
@@ -260,14 +470,17 @@ def extract_line_items_from_text(text):
         if should_skip:
             continue
 
-        price_match = re.search(r'(\d{1,3}[.,]\d{2})\s*$', line)
+        # Match price at end of line (handles both 2,79 and 2.79 formats)
+        price_match = re.search(r'(\d{1,3}[.,]\s?\d{2})\s*$', line)
         if price_match:
-            price_str = price_match.group(1)
+            price_str = price_match.group(1).replace(' ', '')
             price = parse_price(price_str)
 
             name = line[:price_match.start()].strip()
+            # Remove leading markers/quantities
             name = re.sub(r'^[X\+\*\-\d]+\s*', '', name)
-            name = re.sub(r'\s+\d+[.,]\d{2}%?\s*', ' ', name)
+            # Remove embedded VAT percentages
+            name = re.sub(r'\s+\d{1,2}%\s*', ' ', name)
             name = name.strip()
 
             if name and len(name) >= 2 and 0 < price < 10000:
