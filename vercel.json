@@ -1,19 +1,9 @@
 {
   "functions": {
-    "api/ocr.py": {
-      "runtime": "python3.11",
+    "api/*.py": {
+      "runtime": "@vercel/python@4.3.1",
       "memory": 1024,
       "maxDuration": 60
-    },
-    "api/ocr-proxy.js": {
-      "memory": 512,
-      "maxDuration": 30
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/ocr",
-      "destination": "/api/ocr.py"
-    }
-  ]
+  }
 }
