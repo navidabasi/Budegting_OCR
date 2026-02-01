@@ -1,6 +1,6 @@
 """
 Vercel Python Serverless Function for OCR
-Uses OCR.Space API for text extraction + invoice2data-style parsing
+Uses OCR.Space API for text extraction + template-based parsing
 """
 
 import json
@@ -13,6 +13,13 @@ from http.server import BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 
+# YAML for template loading
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
 # PDF processing (works without system dependencies)
 try:
     import pdfplumber
@@ -20,23 +27,192 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-# invoice2data for template matching (optional)
-try:
-    from invoice2data import extract_data
-    from invoice2data.extract.loader import read_templates
-    INVOICE2DATA_AVAILABLE = True
-except ImportError:
-    INVOICE2DATA_AVAILABLE = False
-
 
 OCR_SPACE_API_URL = 'https://api.ocr.space/parse/image'
 OCR_SPACE_FREE_KEY = 'helloworld'  # Free tier test key
+
+# Cache for loaded templates
+_templates_cache = None
 
 
 def get_templates_path():
     """Get path to templates directory"""
     api_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(api_dir, 'templates')
+
+
+def load_templates():
+    """Load all YAML templates from templates directory"""
+    global _templates_cache
+
+    if _templates_cache is not None:
+        return _templates_cache
+
+    if not YAML_AVAILABLE:
+        print("[OCR] PyYAML not available, skipping template loading")
+        return []
+
+    templates = []
+    templates_path = get_templates_path()
+
+    if not os.path.exists(templates_path):
+        print(f"[OCR] Templates directory not found: {templates_path}")
+        return []
+
+    for filename in os.listdir(templates_path):
+        if filename.endswith('.yml') or filename.endswith('.yaml'):
+            filepath = os.path.join(templates_path, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    template = yaml.safe_load(f)
+                    if template:
+                        template['_filename'] = filename
+                        templates.append(template)
+                        print(f"[OCR] Loaded template: {template.get('issuer', filename)}")
+            except Exception as e:
+                print(f"[OCR] Error loading template {filename}: {e}")
+
+    _templates_cache = templates
+    print(f"[OCR] Loaded {len(templates)} templates")
+    return templates
+
+
+def match_template(text):
+    """Find the best matching template for the given text"""
+    templates = load_templates()
+    text_lower = text.lower()
+
+    best_match = None
+    best_score = 0
+
+    for template in templates:
+        keywords = template.get('keywords', [])
+        score = 0
+
+        for keyword in keywords:
+            if keyword.lower() in text_lower:
+                score += 1
+
+        if score > best_score:
+            best_score = score
+            best_match = template
+
+    if best_match and best_score > 0:
+        print(f"[OCR] Matched template: {best_match.get('issuer')} (score: {best_score})")
+        return best_match
+
+    return None
+
+
+def extract_with_template(text, template):
+    """Extract data using a matched template"""
+    result = {
+        'merchant': template.get('issuer', 'Unknown'),
+        'date': None,
+        'total': 0,
+        'currency': 'EUR',
+        'category': 'Other',
+        'lineItems': [],
+        'notes': text[:500] if text else '',
+        'rawData': {'parsedText': text, 'template': template.get('issuer')}
+    }
+
+    fields = template.get('fields', {})
+
+    # Extract amount/total
+    if 'amount' in fields:
+        amount_config = fields['amount']
+        regex = amount_config.get('regex')
+        if regex:
+            match = re.search(regex, text, re.IGNORECASE)
+            if match:
+                result['total'] = parse_price(match.group(1))
+                print(f"[OCR] Template extracted total: {result['total']}")
+
+    # Extract date
+    if 'date' in fields:
+        date_config = fields['date']
+        regex = date_config.get('regex')
+        if regex:
+            match = re.search(regex, text)
+            if match:
+                date_str = match.group(1)
+                result['date'] = extract_date_from_text(date_str)
+                print(f"[OCR] Template extracted date: {result['date']}")
+
+    if not result['date']:
+        result['date'] = extract_date_from_text(text) or datetime.now().isoformat()
+
+    # Extract line items
+    lines_config = template.get('lines', {})
+    if lines_config:
+        result['lineItems'] = extract_template_lines(text, lines_config)
+
+    return result
+
+
+def extract_template_lines(text, lines_config):
+    """Extract line items using template line configuration"""
+    items = []
+
+    start_pattern = lines_config.get('start')
+    end_pattern = lines_config.get('end')
+    line_pattern = lines_config.get('line')
+    skip_pattern = lines_config.get('skip_line')
+
+    if not line_pattern:
+        return items
+
+    lines = text.split('\n')
+    in_items_section = False if start_pattern else True
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Check for section start
+        if start_pattern and not in_items_section:
+            if re.search(start_pattern, line, re.IGNORECASE):
+                in_items_section = True
+                continue
+
+        # Check for section end
+        if end_pattern and in_items_section:
+            if re.search(end_pattern, line, re.IGNORECASE):
+                break
+
+        if not in_items_section:
+            continue
+
+        # Skip lines matching skip pattern
+        if skip_pattern and re.search(skip_pattern, line, re.IGNORECASE):
+            continue
+
+        # Try to match line pattern
+        match = re.match(line_pattern, line, re.IGNORECASE)
+        if match:
+            groups = match.groupdict()
+            description = groups.get('description', '').strip()
+            price_str = groups.get('price', '0')
+
+            # Clean description - remove VAT percentages
+            description = re.sub(r'\s+\d{1,2}%\s*$', '', description)
+            description = re.sub(r'\s+\d{1,2}%\s+', ' ', description)
+            description = description.strip()
+
+            price = parse_price(price_str)
+
+            if description and len(description) >= 2 and 0 < price < 10000:
+                items.append({
+                    'name': description,
+                    'quantity': int(groups.get('qty', 1)) if groups.get('qty') else 1,
+                    'price': price,
+                    'category': 'Other'
+                })
+                print(f"[OCR] Template line item: '{description}' = {price}")
+
+    return items
 
 
 def call_ocr_space(file_data, file_name, api_key=None):
@@ -557,6 +733,18 @@ def extract_total_from_overlay(text_overlay):
 
 def parse_receipt(raw_text, text_overlay=None):
     """Parse receipt data from OCR text and optional overlay"""
+
+    # FIRST: Try template-based extraction (most accurate when template matches)
+    template = match_template(raw_text)
+    if template:
+        result = extract_with_template(raw_text, template)
+        # If template extraction got items, return it
+        if result['lineItems'] or result['total'] > 0:
+            print(f"[OCR] Using template result: {len(result['lineItems'])} items, total={result['total']}")
+            return result
+        print("[OCR] Template matched but extraction failed, falling back to generic")
+
+    # SECOND: Generic extraction
     result = {
         'merchant': None,
         'date': None,
@@ -568,13 +756,13 @@ def parse_receipt(raw_text, text_overlay=None):
         'rawData': {'parsedText': raw_text}
     }
 
-    # Try overlay-based extraction first (more accurate)
+    # Try overlay-based extraction (more accurate for spatial data)
     if text_overlay:
         result['merchant'] = extract_merchant_from_overlay(text_overlay)
         result['total'] = extract_total_from_overlay(text_overlay)
         result['lineItems'] = extract_line_items_from_overlay(text_overlay)
 
-    # Fallback to text-based extraction
+    # Fallback to text-based extraction for merchant
     if not result['merchant']:
         lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
         for line in lines[:5]:
@@ -597,12 +785,12 @@ def parse_receipt(raw_text, text_overlay=None):
     # Fallback for total
     if result['total'] == 0:
         total_patterns = [
-            r'(?:total|totale|grand total|amount due|balance)[:\s]*[$€£]?\s*(\d+[.,]\d{2})',
+            r'(?:totale\s+complessivo|totale\s+eur|total|totale|grand total|amount due|balance)[:\s]*[$€£]?\s*(\d+[.,]\s?\d{2})',
         ]
         for pattern in total_patterns:
             match = re.search(pattern, raw_text, re.IGNORECASE)
             if match:
-                result['total'] = parse_price(match.group(1))
+                result['total'] = parse_price(match.group(1).replace(' ', ''))
                 break
 
     # Last resort: use max price as total

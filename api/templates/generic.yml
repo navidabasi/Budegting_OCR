@@ -1,0 +1,16 @@
+issuer: Generic Receipt
+keywords:
+  - P.IVA
+  - TOTALE
+fields:
+  amount:
+    # Captures any number with 2 decimals after the word TOTAL
+    regex: (?i)(?:total|totale|euro|eur)\s*:?\s*([0-9]+[,.][0-9]{2})
+    type: float
+  date:
+    # Matches common date formats
+    regex: (\d{2}[/-]\d{2}[/-]\d{2,4})
+    type: date
+  invoice_number:
+    regex: (?:DOC\.|DOCUMENTO)\s*N\.\s*(\d+)
+    type: int
