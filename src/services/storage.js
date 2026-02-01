@@ -470,6 +470,7 @@ export const storageService = {
                         name: group.name,
                         color: group.color,
                         isPinned: group.isPinned,
+                        isDemo: true,
                         parentGroupId: null
                     });
                     groupSupabaseIds[group.name] = supabaseGroup.id;
@@ -1180,6 +1181,7 @@ export const storageService = {
                                     name: cloudGroup.name,
                                     color: cloudGroup.color,
                                     isPinned: cloudGroup.isPinned,
+                                    isDemo: cloudGroup.isDemo || false,
                                     parentGroupId: cloudGroup.parentGroupId || null,
                                     updatedAt: cloudGroup.updatedAt,
                                     syncedAt: new Date().toISOString()
@@ -1452,6 +1454,7 @@ export const storageService = {
                                 name: cloudGroup.name,
                                 color: cloudGroup.color || '#3b82f6',
                                 isPinned: cloudGroup.isPinned || false,
+                                isDemo: cloudGroup.isDemo || false,
                                 parentGroupId: cloudGroup.parentGroupId || null,
                                 createdAt: cloudGroup.createdAt || new Date().toISOString(),
                                 updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
@@ -1776,6 +1779,7 @@ export const storageService = {
                                 name: cloudGroup.name,
                                 color: cloudGroup.color,
                                 isPinned: cloudGroup.isPinned,
+                                isDemo: cloudGroup.isDemo || false,
                                 parentGroupId: cloudGroup.parentGroupId || null,
                                 updatedAt: cloudGroup.updatedAt,
                                 syncedAt: new Date().toISOString()
@@ -1790,6 +1794,7 @@ export const storageService = {
                             name: cloudGroup.name,
                             color: cloudGroup.color || '#3b82f6',
                             isPinned: cloudGroup.isPinned || false,
+                            isDemo: cloudGroup.isDemo || false,
                             parentGroupId: cloudGroup.parentGroupId || null,
                             createdAt: cloudGroup.createdAt || new Date().toISOString(),
                             updatedAt: cloudGroup.updatedAt || new Date().toISOString(),
@@ -2269,17 +2274,37 @@ export const storageService = {
             }
         });
 
+        const supabaseService = await getSupabaseService();
+        const shouldSyncToCloud = supabaseService.isConfigured();
+
         let cleaned = 0;
         for (const receipt of receipts) {
             if (receipt.groupId && !validGroupIds.has(String(receipt.groupId))) {
                 // This receipt references a group that no longer exists
                 console.log('[Storage] Cleaning orphaned group reference on receipt:', receipt.id);
+
+                // Update locally
                 await db.receipts.update(receipt.id, {
                     groupId: null,
                     groupName: null,
                     groupTags: [],
                     updatedAt: new Date().toISOString()
                 });
+
+                // Also sync to Supabase if receipt has supabaseId
+                if (shouldSyncToCloud && receipt.supabaseId) {
+                    try {
+                        await supabaseService.updateReceipt(receipt.supabaseId, {
+                            groupId: null,
+                            groupName: null,
+                            groupTags: []
+                        });
+                        console.log('[Storage] Synced orphaned cleanup to Supabase for receipt:', receipt.supabaseId);
+                    } catch (err) {
+                        console.warn('[Storage] Failed to sync orphaned cleanup to Supabase:', err.message);
+                    }
+                }
+
                 cleaned++;
             }
         }

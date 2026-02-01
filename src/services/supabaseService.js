@@ -597,6 +597,7 @@ export const supabaseService = {
                 name: groupData.name,
                 color: groupData.color || '#3b82f6',
                 is_pinned: groupData.isPinned || false,
+                is_demo: groupData.isDemo || false,
                 parent_group_id: groupData.parentGroupId || null
             }])
             .select()
@@ -748,6 +749,7 @@ export const supabaseService = {
             name: supabaseGroup.name,
             color: supabaseGroup.color || '#3b82f6',
             isPinned: supabaseGroup.is_pinned || false,
+            isDemo: supabaseGroup.is_demo || false,
             parentGroupId: supabaseGroup.parent_group_id || null,
             createdAt: supabaseGroup.created_at,
             updatedAt: supabaseGroup.updated_at

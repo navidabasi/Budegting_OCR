@@ -1,0 +1,45 @@
+# Generic Receipt Template for invoice2data
+# Matches common receipt formats
+
+issuer: Generic Receipt
+fields:
+  # Total amount - various formats
+  amount:
+    parser: regex
+    regex: (?:total|totale|grand\s*total|amount\s*due|balance)[\s:]*[$€£]?\s*(\d+[.,]\d{2})
+    type: float
+    group: 1
+
+  # Date patterns
+  date:
+    parser: regex
+    regex: (\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})
+    type: date
+
+  # Currency detection
+  currency:
+    parser: regex
+    regex: ([$€£¥])
+    type: str
+
+# Keywords to help match this template
+keywords:
+  - total
+  - receipt
+  - amount
+  - subtotal
+
+# Lines extraction for tabular data
+lines:
+  start: (?:description|item|product|qty|price)
+  end: (?:total|subtotal|tax)
+  line: (?P<description>.+?)\s+(?P<price>\d+[.,]\d{2})\s*$
+
+options:
+  currency: EUR
+  date_formats:
+    - '%d/%m/%Y'
+    - '%d-%m-%Y'
+    - '%d.%m.%Y'
+    - '%Y-%m-%d'
+    - '%m/%d/%Y'

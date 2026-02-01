@@ -96,20 +96,17 @@ export default function ReceiptsPage() {
         // Filter out nested groups (they'll be shown within their parent groups)
         const topLevelGroups = allGroups.filter(group => !group.parentGroupId);
 
-        // Count receipts per group - match by groupId (UUID) only
+        // Count receipts per group - match by groupId against both supabaseId and local id
         const groupsWithCounts = topLevelGroups.map(group => {
-            // Use supabaseId if available, otherwise use local id
-            const groupIdToMatch = group.supabaseId || group.id;
-
             const groupReceipts = receipts.filter(r => {
-                // Match by exact groupId (UUID) - be strict about matching
+                // Match by groupId against both supabaseId and local id
                 if (!r.groupId) return false;
 
-                // Convert both to strings for comparison
                 const receiptGroupId = String(r.groupId);
-                const targetGroupId = String(groupIdToMatch);
+                const groupSupabaseId = group.supabaseId ? String(group.supabaseId) : null;
+                const groupLocalId = String(group.id);
 
-                return receiptGroupId === targetGroupId;
+                return receiptGroupId === groupSupabaseId || receiptGroupId === groupLocalId;
             });
 
             // Get nested groups for this group
@@ -768,12 +765,15 @@ export default function ReceiptsPage() {
                                                 </h4>
                                                 <div className="space-y-3 mb-4">
                                                     {nestedGroups.map(nestedGroup => {
-                                                        const nestedGroupId = String(nestedGroup.supabaseId || nestedGroup.id);
+                                                        const nestedGroupSupabaseId = nestedGroup.supabaseId ? String(nestedGroup.supabaseId) : null;
+                                                        const nestedGroupLocalId = String(nestedGroup.id);
+                                                        const nestedGroupId = nestedGroupSupabaseId || nestedGroupLocalId;
                                                         const nestedGroupKey = `nested-${groupIdToUse}-${nestedGroupId}`;
                                                         const isNestedExpanded = expandedGroups.has(nestedGroupKey);
                                                         const nestedReceipts = receipts.filter(r => {
                                                             if (!r.groupId) return false;
-                                                            return String(r.groupId) === nestedGroupId;
+                                                            const receiptGroupId = String(r.groupId);
+                                                            return receiptGroupId === nestedGroupSupabaseId || receiptGroupId === nestedGroupLocalId;
                                                         });
                                                         const nestedColor = nestedGroup.color || '#3b82f6';
                                                         const nestedRgb = hexToRgb(nestedColor);
@@ -1004,8 +1004,14 @@ export default function ReceiptsPage() {
 
                                         {/* Show only parent group receipts (not nested group receipts) */}
                                         {(() => {
-                                            // Get all nested group IDs to filter them out
-                                            const nestedGroupIds = new Set(nestedGroups.map(ng => String(ng.supabaseId || ng.id)));
+                                            // Get all nested group IDs (both supabaseId and local id) to filter them out
+                                            const nestedGroupIds = new Set();
+                                            nestedGroups.forEach(ng => {
+                                                nestedGroupIds.add(String(ng.id));
+                                                if (ng.supabaseId) {
+                                                    nestedGroupIds.add(String(ng.supabaseId));
+                                                }
+                                            });
 
                                             // Filter out receipts that belong to nested groups
                                             const parentOnlyReceipts = groupReceipts.filter(r => {
