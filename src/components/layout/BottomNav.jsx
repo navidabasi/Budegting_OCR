@@ -60,11 +60,12 @@ export default function BottomNav() {
                 </button>
             </div>
 
-            {/* Center - Plus Button (aligned with navbar top edge) */}
+            {/* Center - Plus Button (aligned with navbar top edge, centered using flexbox) */}
             <div className="floating-button-container">
                 <button
                     onClick={() => setAddReceiptModalOpen(true)}
-                    className="flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-lg hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation"
+                    aria-label="Add receipt"
                 >
                     <Plus size={28} className="text-primary-600" />
                 </button>

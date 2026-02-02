@@ -192,32 +192,34 @@ export default function SettingsPage() {
             let message = '';
             let statusType = 'success';
 
-            const totalSynced = (result.downloaded || 0) + (result.uploaded || 0);
+            const totalChanged = (result.updated || 0) + (result.uploaded || 0);
 
             if (result.conflicts && result.conflicts.length > 0) {
-                message = `Downloaded ${result.downloaded || 0}, uploaded ${result.uploaded || 0}. ${result.conflicts.length} conflict(s) merged.`;
+                message = `Synced: ${result.updated || 0} updated, ${result.uploaded || 0} uploaded. ${result.conflicts.length} conflict(s) merged.`;
                 statusType = 'warning';
             } else if (result.errors && result.errors.length > 0) {
                 const firstError = result.errors[0];
                 const errorMsg = firstError.error || firstError.message || 'Unknown error';
-                message = `Downloaded ${result.downloaded || 0}, uploaded ${result.uploaded || 0}. ${result.errors.length} error(s): ${errorMsg}`;
+                message = `${result.errors.length} error(s): ${errorMsg}`;
                 statusType = 'error';
                 console.error('[Settings] Sync errors:', result.errors);
+            } else if (totalChanged > 0) {
+                message = `Synced: ${result.updated || 0} updated from cloud, ${result.uploaded || 0} uploaded`;
+                statusType = 'success';
             } else {
-                message = `Downloaded ${result.downloaded || 0} items, uploaded ${result.uploaded || 0} items`;
+                message = `Already up to date (checked ${result.downloaded || 0} items)`;
                 statusType = 'success';
             }
 
             showToast(message, statusType);
             setSyncStatus({ type: statusType, message });
 
-            // Reload if items were synced to show updated data
-            if (totalSynced > 0) {
-                setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                    window.dispatchEvent(new CustomEvent('refreshReceipts'));
-                }, 500);
-            }
+            // Always trigger refresh events to ensure UI is up to date
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                window.dispatchEvent(new CustomEvent('refreshGroups'));
+            }, 200);
         } catch (err) {
             clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync error:', err);

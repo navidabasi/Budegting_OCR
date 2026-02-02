@@ -47,26 +47,30 @@ function App() {
                 try {
                     console.log('[App] Initializing PGlite storage...');
 
-                    // Initialize PGlite local database
+                    // Initialize PGlite local database (fast - just creates tables if needed)
                     await electricStorage.init(currentUser.userId);
 
                     electricInitialized.current = true;
                     console.log('[App] PGlite storage initialized');
 
-                    // Sync with Supabase: push local changes first, then pull
-                    console.log('[App] Syncing with Supabase...');
-                    try {
-                        const syncResult = await electricStorage.syncBidirectional(currentUser.userId);
-                        console.log('[App] Sync complete:', syncResult);
-                    } catch (syncError) {
-                        console.error('[App] Sync with Supabase failed:', syncError);
-                        // Don't show error toast - app still works with local data
-                    }
-
-                    // Trigger initial data load
+                    // Trigger initial data load from local storage first (instant)
                     window.dispatchEvent(new CustomEvent('refreshDashboard'));
                     window.dispatchEvent(new CustomEvent('refreshReceipts'));
                     window.dispatchEvent(new CustomEvent('refreshGroups'));
+
+                    // Sync with Supabase in background (non-blocking)
+                    // Use setTimeout to let the UI render first
+                    setTimeout(async () => {
+                        console.log('[App] Starting background sync with Supabase...');
+                        try {
+                            const syncResult = await electricStorage.syncBidirectional(currentUser.userId);
+                            console.log('[App] Background sync complete:', syncResult);
+                            // Events are dispatched inside syncBidirectional
+                        } catch (syncError) {
+                            console.error('[App] Background sync failed:', syncError);
+                            // Don't show error toast - app works with local data
+                        }
+                    }, 500);
                 } catch (error) {
                     console.error('[App] Failed to initialize storage:', error);
                 }

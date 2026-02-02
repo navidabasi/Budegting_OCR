@@ -400,13 +400,111 @@ export const electricStorage = {
 
     async deleteReceipt(id) {
         await initDatabase();
+        
+        // Check if this is a demo receipt (don't push demo deletions to Supabase)
+        let isDemo = false;
+        if (db) {
+            const result = await db.query(`SELECT is_demo FROM receipts WHERE id = $1`, [id]);
+            isDemo = result.rows[0]?.is_demo || false;
+        }
+        
         await db.query(`DELETE FROM receipts WHERE id = $1`, [id]);
 
-        // Push to remote
-        pushToRemote('receipts', 'delete', { id });
+        // Only push to remote if not a demo receipt
+        if (!isDemo) {
+            pushToRemote('receipts', 'delete', { id });
+        }
 
         window.dispatchEvent(new Event('refreshReceipts'));
         window.dispatchEvent(new Event('refreshDashboard'));
+    },
+
+    /**
+     * Create a demo receipt (local-only, not synced to Supabase)
+     */
+    async createDemoReceipt(receipt) {
+        const now = new Date().toISOString();
+        const id = crypto.randomUUID();
+
+        try {
+            await initDatabase();
+            if (!db) {
+                console.warn('[Storage] PGlite not available, demo data cannot be created');
+                return null;
+            }
+
+            await db.query(`
+                INSERT INTO receipts (
+                    id, user_id, merchant, date, total, currency, category, notes,
+                    line_items, is_demo, is_pinned, transaction_type, group_id,
+                    group_name, group_tags, split_data, recurring_data, created_at, updated_at, _synced
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, TRUE)
+            `, [
+                id,
+                receipt.userId,
+                receipt.merchant,
+                receipt.date,
+                receipt.total,
+                receipt.currency || 'EUR',
+                receipt.category,
+                receipt.notes,
+                JSON.stringify(receipt.lineItems || []),
+                true, // Always true for demo receipts
+                receipt.isPinned || false,
+                receipt.transactionType || 'expense',
+                receipt.groupId,
+                receipt.groupName,
+                receipt.groupTags || [],
+                receipt.splitData ? JSON.stringify(receipt.splitData) : null,
+                receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
+                now,
+                now
+            ]);
+
+            // Don't push to Supabase - demo data is local only
+            console.log('[Storage] Created demo receipt locally (not synced):', id);
+        } catch (err) {
+            console.error('[Storage] createDemoReceipt failed:', err);
+            return null;
+        }
+
+        window.dispatchEvent(new Event('refreshReceipts'));
+        window.dispatchEvent(new Event('refreshDashboard'));
+
+        return id;
+    },
+
+    /**
+     * Clear all demo data (local-only operation)
+     */
+    async clearDemoData(userId) {
+        await initDatabase();
+        if (!db) {
+            console.warn('[Storage] PGlite not available, cannot clear demo data');
+            return 0;
+        }
+
+        try {
+            // Get count of demo receipts
+            const countResult = await db.query(
+                `SELECT COUNT(*) as count FROM receipts WHERE user_id = $1 AND is_demo = TRUE`,
+                [userId]
+            );
+            const count = parseInt(countResult.rows[0]?.count || 0);
+
+            // Delete all demo receipts locally (no Supabase push needed)
+            await db.query(`DELETE FROM receipts WHERE user_id = $1 AND is_demo = TRUE`, [userId]);
+
+            console.log(`[Storage] Cleared ${count} demo receipts locally`);
+
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+
+            return count;
+        } catch (err) {
+            console.error('[Storage] clearDemoData failed:', err);
+            return 0;
+        }
     },
 
     _mapReceipt(row) {
@@ -472,29 +570,51 @@ export const electricStorage = {
     },
 
     async createGroup(group) {
-        await initDatabase();
         const now = new Date().toISOString();
         const id = crypto.randomUUID();
 
-        await db.query(`
-            INSERT INTO groups (id, user_id, name, color, is_pinned, is_demo, parent_group_id, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-            id,
-            group.userId,
-            group.name,
-            group.color || '#6366f1',
-            group.isPinned || false,
-            group.isDemo || false,
-            group.parentGroupId,
-            now,
-            now
-        ]);
+        // Validate userId
+        if (!group.userId) {
+            console.error('[Storage] createGroup called without userId');
+            throw new Error('userId is required to create a group');
+        }
 
-        pushToRemote('groups', 'insert', { id, ...group });
-        window.dispatchEvent(new Event('refreshGroups'));
+        try {
+            await initDatabase();
+            if (!db) {
+                // Fallback to Supabase directly
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                const result = await supabaseService.createGroup(group.userId, group);
+                window.dispatchEvent(new Event('refreshGroups'));
+                return result?.id || id;
+            }
 
-        return id;
+            await db.query(`
+                INSERT INTO groups (id, user_id, name, color, is_pinned, is_demo, parent_group_id, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `, [
+                id,
+                group.userId,
+                group.name,
+                group.color || '#6366f1',
+                group.isPinned || false,
+                group.isDemo || false,
+                group.parentGroupId,
+                now,
+                now
+            ]);
+
+            pushToRemote('groups', 'insert', { id, ...group });
+            window.dispatchEvent(new Event('refreshGroups'));
+
+            return id;
+        } catch (err) {
+            console.error('[Storage] createGroup failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            const result = await supabaseService.createGroup(group.userId, group);
+            window.dispatchEvent(new Event('refreshGroups'));
+            return result?.id || id;
+        }
     },
 
     async updateGroup(id, updates) {
@@ -778,6 +898,10 @@ export const electricStorage = {
 
     async clearAllData() {
         await initDatabase();
+        if (!db) {
+            console.log('[Storage] PGlite not available, nothing to clear locally');
+            return;
+        }
         await db.exec(`
             DELETE FROM receipts;
             DELETE FROM groups;
@@ -790,6 +914,12 @@ export const electricStorage = {
 
     async getSyncStatus(userId) {
         await initDatabase();
+        if (!db) {
+            return {
+                receipts: { total: 0, synced: 0 },
+                groups: { total: 0, synced: 0 },
+            };
+        }
         const receipts = await db.query(
             `SELECT COUNT(*) as total, SUM(CASE WHEN _synced THEN 1 ELSE 0 END) as synced FROM receipts WHERE user_id = $1`,
             [userId]
@@ -816,6 +946,12 @@ export const electricStorage = {
      */
     async forcePush(userId) {
         await initDatabase();
+
+        // If PGlite failed, nothing to push from local
+        if (!db) {
+            console.log('[Storage] PGlite not available, skipping push');
+            return { pushed: 0, errors: [] };
+        }
 
         const errors = [];
         let pushed = 0;
@@ -881,11 +1017,18 @@ export const electricStorage = {
 
         if (!supabaseService.isConfigured()) {
             console.warn('[Storage] Supabase not configured, skipping pull');
-            return { pulled: 0, errors: [] };
+            return { pulled: 0, updated: 0, errors: [] };
+        }
+
+        // If PGlite not available, skip pull (data will be read directly from Supabase)
+        if (!db) {
+            console.log('[Storage] PGlite not available, skipping local cache. Data will be read directly from Supabase.');
+            return { pulled: 0, updated: 0, errors: [] };
         }
 
         const errors = [];
         let pulled = 0;
+        let actuallyUpdated = 0;
 
         console.log('[Storage] Starting pull from Supabase for user:', userId);
 
@@ -899,7 +1042,20 @@ export const electricStorage = {
             ]);
         };
 
-        // Pull receipts
+        // Helper to check if receipt needs update (by comparing updated_at)
+        const needsUpdate = async (table, id, newUpdatedAt) => {
+            try {
+                const result = await db.query(`SELECT updated_at FROM ${table} WHERE id = $1`, [id]);
+                if (!result.rows[0]) return true; // New item, needs insert
+                const localUpdatedAt = result.rows[0].updated_at;
+                if (!localUpdatedAt || !newUpdatedAt) return true;
+                return new Date(newUpdatedAt) > new Date(localUpdatedAt);
+            } catch {
+                return true;
+            }
+        };
+
+        // Pull receipts (skip demo receipts - they are local only)
         try {
             console.log('[Storage] Fetching receipts from Supabase...');
             const receipts = await withTimeout(
@@ -907,10 +1063,15 @@ export const electricStorage = {
                 15000,
                 'getReceiptsByUserId'
             );
-            console.log(`[Storage] Pulled ${receipts.length} receipts from Supabase`);
+            // Filter out any demo receipts that may have been accidentally synced
+            const nonDemoReceipts = receipts.filter(r => !r.isDemo);
+            console.log(`[Storage] Pulled ${nonDemoReceipts.length} receipts from Supabase (${receipts.length - nonDemoReceipts.length} demo receipts skipped)`);
 
-            for (const receipt of receipts) {
+            for (const receipt of nonDemoReceipts) {
                 try {
+                    // Check if this receipt needs updating
+                    const shouldUpdate = await needsUpdate('receipts', receipt.id, receipt.updatedAt);
+                    
                     await db.query(`
                         INSERT INTO receipts (
                             id, user_id, merchant, date, total, currency, category, notes,
@@ -957,6 +1118,7 @@ export const electricStorage = {
                         receipt.updatedAt || new Date().toISOString()
                     ]);
                     pulled++;
+                    if (shouldUpdate) actuallyUpdated++;
                 } catch (err) {
                     console.error(`[Storage] Failed to upsert receipt ${receipt.id}:`, err);
                     errors.push({ type: 'receipt', id: receipt.id, error: err.message });
@@ -1121,7 +1283,7 @@ export const electricStorage = {
             errors.push({ type: 'user_layout', error: err.message });
         }
 
-        console.log(`[Storage] Pull complete: ${pulled} items synced, ${errors.length} errors`);
+        console.log(`[Storage] Pull complete: ${pulled} items checked, ${actuallyUpdated} updated/new, ${errors.length} errors`);
 
         // Notify all listeners to refresh their data
         notifyListeners('receipts');
@@ -1130,13 +1292,15 @@ export const electricStorage = {
         notifyListeners('settings');
         notifyListeners('user_layouts');
 
-        // Also dispatch refresh events
-        window.dispatchEvent(new Event('refreshReceipts'));
-        window.dispatchEvent(new Event('refreshGroups'));
-        window.dispatchEvent(new Event('refreshDashboard'));
-        window.dispatchEvent(new Event('refreshLayout'));
+        // Also dispatch refresh events - use setTimeout to ensure async UI updates
+        setTimeout(() => {
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshGroups'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+            window.dispatchEvent(new Event('refreshLayout'));
+        }, 100);
 
-        return { pulled, errors };
+        return { pulled, updated: actuallyUpdated, errors };
     },
 
     /**
@@ -1153,11 +1317,15 @@ export const electricStorage = {
         console.log('[Storage] Step 2: Pulling changes from Supabase...');
         const pullResult = await this.pullFromSupabase(userId);
 
-        return {
+        const result = {
             downloaded: pullResult.pulled,
+            updated: pullResult.updated || 0,
             uploaded: pushResult.pushed,
             errors: [...(pushResult.errors || []), ...pullResult.errors],
         };
+
+        console.log('[Storage] Bidirectional sync complete:', result);
+        return result;
     },
 };
 

@@ -25,7 +25,10 @@ export const storageService = {
     getAllGroups: electricStorage.getGroups,
     getGroups: electricStorage.getGroups,
     getGroupById: electricStorage.getGroup,
-    createGroup: electricStorage.createGroup,
+    async createGroup(userId, groupData) {
+        // Transform from (userId, groupData) to ({ userId, ...groupData })
+        return electricStorage.createGroup({ userId, ...groupData });
+    },
     updateGroup: electricStorage.updateGroup,
     deleteGroup: electricStorage.deleteGroup,
 
@@ -98,6 +101,7 @@ export const storageService = {
             return {
                 uploaded: result.uploaded,
                 downloaded: result.downloaded,
+                updated: result.updated || 0,
                 merged: 0,
                 errors: result.errors,
             };
@@ -106,6 +110,7 @@ export const storageService = {
             return {
                 uploaded: 0,
                 downloaded: 0,
+                updated: 0,
                 merged: 0,
                 errors: [{ error: error.message }],
             };
@@ -140,7 +145,8 @@ export const storageService = {
 
         let count = 0;
         for (const receipt of demoReceipts) {
-            await electricStorage.createReceipt({
+            // Use createDemoReceipt which handles local-only storage
+            await electricStorage.createDemoReceipt({
                 userId,
                 ...receipt,
                 currency: 'EUR',
@@ -153,12 +159,8 @@ export const storageService = {
     },
 
     async clearDemoData(userId) {
-        const receipts = await electricStorage.getReceipts(userId);
-        const demoReceipts = receipts.filter(r => r.isDemo);
-        for (const receipt of demoReceipts) {
-            await electricStorage.deleteReceipt(receipt.id);
-        }
-        return demoReceipts.length;
+        // Use dedicated method that properly cleans up demo data
+        return await electricStorage.clearDemoData(userId);
     },
 };
 
