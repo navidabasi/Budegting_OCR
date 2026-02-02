@@ -81,13 +81,20 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
 
         try {
             // API key is optional for OCR.Space (free tier works without it)
-            const apiKey = await storageService.getOcrApiKey(currentUser.userId);
+            let apiKey = null;
+            try {
+                apiKey = await storageService.getOcrApiKey(currentUser.userId);
+            } catch (apiKeyError) {
+                console.warn('[ReceiptUpload] Could not get API key, using free tier:', apiKeyError);
+                // Continue without API key - free tier will be used
+            }
 
             const result = await ocrApi.processReceipt(file, apiKey);
             setOcrResult(result);
         } catch (err) {
-            setError(err.message);
-            showToast(err.message, 'error');
+            console.error('[ReceiptUpload] OCR processing error:', err);
+            setError(err.message || 'Failed to process receipt');
+            showToast(err.message || 'Failed to process receipt', 'error');
         } finally {
             setLoading(false);
         }
