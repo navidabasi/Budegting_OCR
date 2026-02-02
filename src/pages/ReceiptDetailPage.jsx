@@ -18,8 +18,8 @@ export default function ReceiptDetailPage() {
     const loadReceipt = async () => {
         setLoading(true);
         try {
-            const receiptId = parseInt(id);
-            const receiptData = await storageService.getReceiptById(receiptId);
+            // Use ID as-is (it's a UUID string, not an integer)
+            const receiptData = await storageService.getReceiptById(id);
             setReceipt(receiptData);
         } catch (err) {
             console.error('Failed to load receipt:', err);

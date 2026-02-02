@@ -212,13 +212,18 @@ export const supabaseService = {
 
         // Use auth.uid() instead of receipt.userId to ensure RLS works
         const authenticatedUserId = user.id;
-        console.log('[Supabase createReceipt] Using authenticated user ID:', authenticatedUserId);
+        console.log('[Supabase createReceipt] Creating receipt:', receipt.id);
 
-        // Transform receipt to Supabase format
-        const supabaseReceipt = this.transformReceiptToSupabase({
-            ...receipt,
-            userId: authenticatedUserId // Override with authenticated user ID
-        });
+        // Transform receipt to Supabase format and include the id if provided
+        const supabaseReceipt = {
+            ...(receipt.id && { id: receipt.id }), // Include id if provided to preserve local ID
+            ...this.transformReceiptToSupabase({
+                ...receipt,
+                userId: authenticatedUserId // Override with authenticated user ID
+            }),
+            created_at: receipt.createdAt || new Date().toISOString(),
+            updated_at: receipt.updatedAt || new Date().toISOString()
+        };
 
         const { data, error } = await supabase
             .from('receipts')
@@ -324,13 +329,18 @@ export const supabaseService = {
         }
 
         const authenticatedUserId = user.id;
-        console.log('[Supabase upsertReceipt] Using authenticated user ID:', authenticatedUserId);
+        console.log('[Supabase upsertReceipt] Upserting receipt:', receipt.id);
 
-        // Transform receipt to Supabase format
-        const supabaseReceipt = this.transformReceiptToSupabase({
-            ...receipt,
-            userId: authenticatedUserId // Override with authenticated user ID
-        });
+        // Transform receipt to Supabase format and include the id
+        const supabaseReceipt = {
+            id: receipt.id, // Must include id for upsert to work
+            ...this.transformReceiptToSupabase({
+                ...receipt,
+                userId: authenticatedUserId // Override with authenticated user ID
+            }),
+            created_at: receipt.createdAt || new Date().toISOString(),
+            updated_at: receipt.updatedAt || new Date().toISOString()
+        };
 
         const { data, error } = await supabase
             .from('receipts')
@@ -623,17 +633,23 @@ export const supabaseService = {
         }
 
         const authenticatedUserId = user.id;
+        console.log('[Supabase createGroup] Creating group:', groupData.id || 'new');
+
+        const groupRecord = {
+            ...(groupData.id && { id: groupData.id }), // Include id if provided to preserve local ID
+            user_id: authenticatedUserId,
+            name: groupData.name,
+            color: groupData.color || '#3b82f6',
+            is_pinned: groupData.isPinned || false,
+            is_demo: groupData.isDemo || false,
+            parent_group_id: groupData.parentGroupId || null,
+            created_at: groupData.createdAt || new Date().toISOString(),
+            updated_at: groupData.updatedAt || new Date().toISOString()
+        };
 
         const { data, error } = await supabase
             .from('groups')
-            .insert([{
-                user_id: authenticatedUserId,
-                name: groupData.name,
-                color: groupData.color || '#3b82f6',
-                is_pinned: groupData.isPinned || false,
-                is_demo: groupData.isDemo || false,
-                parent_group_id: groupData.parentGroupId || null
-            }])
+            .insert([groupRecord])
             .select()
             .single();
 
