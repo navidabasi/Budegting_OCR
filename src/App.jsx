@@ -40,30 +40,26 @@ function App() {
         showToastRef.current = showToast;
     }, [showToast]);
 
-    // Initialize Electric storage when user authenticates
+    // Initialize PGlite storage when user authenticates
     useEffect(() => {
-        const initElectric = async () => {
+        const initStorage = async () => {
             if (currentUser?.userId && !electricInitialized.current) {
                 try {
-                    console.log('[App] Initializing Electric storage...');
+                    console.log('[App] Initializing PGlite storage...');
 
-                    // Get auth token for Electric sync
-                    const session = await authService.getCurrentSession();
-                    const authToken = session?.access_token;
-
-                    // Initialize Electric with user ID and auth token
-                    await electricStorage.init(currentUser.userId, authToken);
+                    // Initialize PGlite local database
+                    await electricStorage.init(currentUser.userId);
 
                     electricInitialized.current = true;
-                    console.log('[App] Electric storage initialized');
+                    console.log('[App] PGlite storage initialized');
 
-                    // Pull data from Supabase to get latest from other devices
-                    console.log('[App] Pulling data from Supabase...');
+                    // Sync with Supabase: push local changes first, then pull
+                    console.log('[App] Syncing with Supabase...');
                     try {
-                        const pullResult = await electricStorage.pullFromSupabase(currentUser.userId);
-                        console.log('[App] Pull complete:', pullResult);
-                    } catch (pullError) {
-                        console.error('[App] Pull from Supabase failed:', pullError);
+                        const syncResult = await electricStorage.syncBidirectional(currentUser.userId);
+                        console.log('[App] Sync complete:', syncResult);
+                    } catch (syncError) {
+                        console.error('[App] Sync with Supabase failed:', syncError);
                         // Don't show error toast - app still works with local data
                     }
 
@@ -72,12 +68,12 @@ function App() {
                     window.dispatchEvent(new CustomEvent('refreshReceipts'));
                     window.dispatchEvent(new CustomEvent('refreshGroups'));
                 } catch (error) {
-                    console.error('[App] Failed to initialize Electric:', error);
+                    console.error('[App] Failed to initialize storage:', error);
                 }
             }
         };
 
-        initElectric();
+        initStorage();
     }, [currentUser?.userId]);
 
     // Reset Electric on logout

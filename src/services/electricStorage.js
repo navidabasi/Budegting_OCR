@@ -1,18 +1,16 @@
 /**
- * Electric + PGlite Storage Service
- * Real-time sync with Supabase using Electric SQL
+ * PGlite Storage Service with Supabase Sync
+ * Local-first storage using PGlite (Postgres in browser)
+ * Syncs with Supabase via REST API
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { ShapeStream, Shape } from '@electric-sql/client';
 
 // Configuration
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ELECTRIC_URL = import.meta.env.VITE_ELECTRIC_URL || `${SUPABASE_URL}/electric`;
 
 // Database instance
 let db = null;
-let shapes = {};
 let syncListeners = new Map();
 
 /**
@@ -21,7 +19,7 @@ let syncListeners = new Map();
 async function initDatabase() {
     if (db) return db;
 
-    console.log('[Electric] Initializing PGlite database...');
+    console.log('[Storage] Initializing PGlite database...');
 
     db = new PGlite('idb://receipts-electric', {
         // Enable relaxed durability for better performance
@@ -116,115 +114,10 @@ async function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_categories_user_id ON user_categories(user_id);
     `);
 
-    console.log('[Electric] Database initialized');
+    console.log('[Storage] Database initialized');
     return db;
 }
 
-/**
- * Start Electric sync for a user
- */
-async function startSync(userId, authToken) {
-    if (!SUPABASE_URL) {
-        console.warn('[Electric] Supabase URL not configured, running offline only');
-        return;
-    }
-
-    console.log('[Electric] Starting sync for user:', userId);
-
-    try {
-        // Create shapes for each table
-        const tables = ['receipts', 'groups', 'user_categories', 'settings', 'user_layouts'];
-
-        for (const table of tables) {
-            await syncTable(table, userId, authToken);
-        }
-
-        console.log('[Electric] Sync started for all tables');
-    } catch (error) {
-        console.error('[Electric] Sync initialization failed:', error);
-    }
-}
-
-/**
- * Sync a single table using Electric Shapes
- */
-async function syncTable(table, userId, authToken) {
-    const shapeUrl = `${ELECTRIC_URL}/v1/shape`;
-
-    try {
-        const stream = new ShapeStream({
-            url: shapeUrl,
-            params: {
-                table: table,
-                where: `user_id = '${userId}'`,
-            },
-            headers: authToken ? {
-                'Authorization': `Bearer ${authToken}`,
-            } : {},
-        });
-
-        const shape = new Shape(stream);
-
-        // Subscribe to changes
-        shape.subscribe((messages) => {
-            handleShapeMessages(table, messages);
-        });
-
-        shapes[table] = shape;
-        console.log(`[Electric] Subscribed to ${table} shape`);
-    } catch (error) {
-        console.error(`[Electric] Failed to sync ${table}:`, error);
-    }
-}
-
-/**
- * Handle incoming shape messages (sync updates)
- */
-async function handleShapeMessages(table, messages) {
-    if (!db) return;
-
-    for (const message of messages) {
-        try {
-            if (message.headers?.operation === 'insert') {
-                await upsertFromRemote(table, message.value);
-            } else if (message.headers?.operation === 'update') {
-                await upsertFromRemote(table, message.value);
-            } else if (message.headers?.operation === 'delete') {
-                await deleteFromRemote(table, message.key);
-            }
-        } catch (error) {
-            console.error(`[Electric] Error processing ${table} message:`, error);
-        }
-    }
-
-    // Notify listeners
-    notifyListeners(table);
-}
-
-/**
- * Upsert a record from remote sync
- */
-async function upsertFromRemote(table, data) {
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    const updates = columns.map((col, i) => `${col} = $${i + 1}`).join(', ');
-
-    await db.query(`
-        INSERT INTO ${table} (${columns.join(', ')})
-        VALUES (${placeholders})
-        ON CONFLICT (id) DO UPDATE SET ${updates}, _synced = TRUE
-    `, values);
-}
-
-/**
- * Delete a record from remote sync
- */
-async function deleteFromRemote(table, key) {
-    if (key?.id) {
-        await db.query(`DELETE FROM ${table} WHERE id = $1`, [key.id]);
-    }
-}
 
 /**
  * Push local changes to Supabase
@@ -246,7 +139,7 @@ async function pushToRemote(table, operation, data) {
         // Mark as synced
         await db.query(`UPDATE ${table} SET _synced = TRUE WHERE id = $1`, [data.id]);
     } catch (error) {
-        console.error(`[Electric] Failed to push ${operation} to ${table}:`, error);
+        console.error(`[Storage] Failed to push ${operation} to ${table}:`, error);
     }
 }
 
@@ -275,15 +168,11 @@ function notifyListeners(table) {
 
 export const electricStorage = {
     /**
-     * Initialize the storage and optionally start sync
+     * Initialize the local PGlite database
      */
-    async init(userId = null, authToken = null) {
+    async init(userId = null) {
         await initDatabase();
-
-        if (userId) {
-            await startSync(userId, authToken);
-        }
-
+        console.log('[Storage] PGlite database initialized');
         return this;
     },
 
@@ -697,7 +586,7 @@ export const electricStorage = {
             DELETE FROM settings;
             DELETE FROM user_layouts;
         `);
-        console.log('[Electric] All local data cleared');
+        console.log('[Storage] All local data cleared');
     },
 
     async getSyncStatus(userId) {
@@ -724,22 +613,62 @@ export const electricStorage = {
     },
 
     /**
-     * Force sync all unsynced items
+     * Force push all unsynced items to Supabase
      */
     async forcePush(userId) {
         await initDatabase();
 
-        // Get unsynced receipts
-        const unsynced = await db.query(
-            `SELECT * FROM receipts WHERE user_id = $1 AND _synced = FALSE`,
-            [userId]
-        );
+        const errors = [];
+        let pushed = 0;
 
-        for (const row of unsynced.rows) {
-            await pushToRemote('receipts', 'update', this._mapReceipt(row));
+        console.log('[Storage] Pushing unsynced local changes to Supabase...');
+
+        // Push unsynced receipts
+        try {
+            const unsyncedReceipts = await db.query(
+                `SELECT * FROM receipts WHERE user_id = $1 AND _synced = FALSE`,
+                [userId]
+            );
+            console.log(`[Storage] Found ${unsyncedReceipts.rows.length} unsynced receipts`);
+
+            for (const row of unsyncedReceipts.rows) {
+                try {
+                    await pushToRemote('receipts', 'update', this._mapReceipt(row));
+                    pushed++;
+                } catch (err) {
+                    console.error(`[Storage] Failed to push receipt ${row.id}:`, err);
+                    errors.push({ type: 'receipt', id: row.id, error: err.message });
+                }
+            }
+        } catch (err) {
+            console.error('[Storage] Failed to query unsynced receipts:', err);
+            errors.push({ type: 'receipts', error: err.message });
         }
 
-        return { pushed: unsynced.rows.length };
+        // Push unsynced groups
+        try {
+            const unsyncedGroups = await db.query(
+                `SELECT * FROM groups WHERE user_id = $1 AND _synced = FALSE`,
+                [userId]
+            );
+            console.log(`[Storage] Found ${unsyncedGroups.rows.length} unsynced groups`);
+
+            for (const row of unsyncedGroups.rows) {
+                try {
+                    await pushToRemote('groups', 'update', this._mapGroup(row));
+                    pushed++;
+                } catch (err) {
+                    console.error(`[Storage] Failed to push group ${row.id}:`, err);
+                    errors.push({ type: 'group', id: row.id, error: err.message });
+                }
+            }
+        } catch (err) {
+            console.error('[Storage] Failed to query unsynced groups:', err);
+            errors.push({ type: 'groups', error: err.message });
+        }
+
+        console.log(`[Storage] Push complete: ${pushed} items pushed, ${errors.length} errors`);
+        return { pushed, errors };
     },
 
     /**
@@ -752,19 +681,34 @@ export const electricStorage = {
         const supabaseService = (await import('./supabaseService.js')).supabaseService;
 
         if (!supabaseService.isConfigured()) {
-            console.warn('[Electric] Supabase not configured, skipping pull');
+            console.warn('[Storage] Supabase not configured, skipping pull');
             return { pulled: 0, errors: [] };
         }
 
         const errors = [];
         let pulled = 0;
 
-        console.log('[Electric] Starting pull from Supabase for user:', userId);
+        console.log('[Storage] Starting pull from Supabase for user:', userId);
+
+        // Helper function to wrap API calls with timeout
+        const withTimeout = (promise, timeoutMs = 10000, name = 'operation') => {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`${name} timed out after ${timeoutMs}ms`)), timeoutMs)
+                )
+            ]);
+        };
 
         // Pull receipts
         try {
-            const receipts = await supabaseService.getReceiptsByUserId(userId);
-            console.log(`[Electric] Pulled ${receipts.length} receipts from Supabase`);
+            console.log('[Storage] Fetching receipts from Supabase...');
+            const receipts = await withTimeout(
+                supabaseService.getReceiptsByUserId(userId),
+                15000,
+                'getReceiptsByUserId'
+            );
+            console.log(`[Storage] Pulled ${receipts.length} receipts from Supabase`);
 
             for (const receipt of receipts) {
                 try {
@@ -815,19 +759,24 @@ export const electricStorage = {
                     ]);
                     pulled++;
                 } catch (err) {
-                    console.error(`[Electric] Failed to upsert receipt ${receipt.id}:`, err);
+                    console.error(`[Storage] Failed to upsert receipt ${receipt.id}:`, err);
                     errors.push({ type: 'receipt', id: receipt.id, error: err.message });
                 }
             }
         } catch (err) {
-            console.error('[Electric] Failed to pull receipts:', err);
+            console.error('[Storage] Failed to pull receipts:', err);
             errors.push({ type: 'receipts', error: err.message });
         }
 
         // Pull groups
         try {
-            const groups = await supabaseService.getGroups(userId);
-            console.log(`[Electric] Pulled ${groups.length} groups from Supabase`);
+            console.log('[Storage] Fetching groups from Supabase...');
+            const groups = await withTimeout(
+                supabaseService.getGroups(userId),
+                10000,
+                'getGroups'
+            );
+            console.log(`[Storage] Pulled ${groups.length} groups from Supabase`);
 
             for (const group of groups) {
                 try {
@@ -855,19 +804,24 @@ export const electricStorage = {
                     ]);
                     pulled++;
                 } catch (err) {
-                    console.error(`[Electric] Failed to upsert group ${group.id}:`, err);
+                    console.error(`[Storage] Failed to upsert group ${group.id}:`, err);
                     errors.push({ type: 'group', id: group.id, error: err.message });
                 }
             }
         } catch (err) {
-            console.error('[Electric] Failed to pull groups:', err);
+            console.error('[Storage] Failed to pull groups:', err);
             errors.push({ type: 'groups', error: err.message });
         }
 
         // Pull user categories
         try {
-            const categories = await supabaseService.getUserCategories(userId);
-            console.log(`[Electric] Pulled ${categories.length} categories from Supabase`);
+            console.log('[Storage] Fetching categories from Supabase...');
+            const categories = await withTimeout(
+                supabaseService.getUserCategories(userId),
+                10000,
+                'getUserCategories'
+            );
+            console.log(`[Storage] Pulled ${categories.length} categories from Supabase`);
 
             for (const category of categories) {
                 try {
@@ -889,20 +843,25 @@ export const electricStorage = {
                     ]);
                     pulled++;
                 } catch (err) {
-                    console.error(`[Electric] Failed to upsert category ${category.id}:`, err);
+                    console.error(`[Storage] Failed to upsert category ${category.id}:`, err);
                     errors.push({ type: 'category', id: category.id, error: err.message });
                 }
             }
         } catch (err) {
-            console.error('[Electric] Failed to pull categories:', err);
+            console.error('[Storage] Failed to pull categories:', err);
             errors.push({ type: 'categories', error: err.message });
         }
 
         // Pull settings
         try {
-            const settings = await supabaseService.getSettings(userId);
+            console.log('[Storage] Fetching settings from Supabase...');
+            const settings = await withTimeout(
+                supabaseService.getSettings(userId),
+                10000,
+                'getSettings'
+            );
             if (settings) {
-                console.log('[Electric] Pulled settings from Supabase');
+                console.log('[Storage] Pulled settings from Supabase');
                 const now = new Date().toISOString();
                 const id = crypto.randomUUID();
 
@@ -925,15 +884,20 @@ export const electricStorage = {
                 pulled++;
             }
         } catch (err) {
-            console.error('[Electric] Failed to pull settings:', err);
+            console.error('[Storage] Failed to pull settings:', err);
             errors.push({ type: 'settings', error: err.message });
         }
 
         // Pull user layout
         try {
-            const layout = await supabaseService.getUserLayout(userId);
+            console.log('[Storage] Fetching user layout from Supabase...');
+            const layout = await withTimeout(
+                supabaseService.getUserLayout(userId),
+                10000,
+                'getUserLayout'
+            );
             if (layout) {
-                console.log('[Electric] Pulled user layout from Supabase');
+                console.log('[Storage] Pulled user layout from Supabase');
                 const now = new Date().toISOString();
                 const id = crypto.randomUUID();
 
@@ -954,11 +918,11 @@ export const electricStorage = {
                 pulled++;
             }
         } catch (err) {
-            console.error('[Electric] Failed to pull user layout:', err);
+            console.error('[Storage] Failed to pull user layout:', err);
             errors.push({ type: 'user_layout', error: err.message });
         }
 
-        console.log(`[Electric] Pull complete: ${pulled} items synced, ${errors.length} errors`);
+        console.log(`[Storage] Pull complete: ${pulled} items synced, ${errors.length} errors`);
 
         // Notify all listeners to refresh their data
         notifyListeners('receipts');
@@ -977,21 +941,23 @@ export const electricStorage = {
     },
 
     /**
-     * Full bidirectional sync - pull from Supabase then push local changes
+     * Full bidirectional sync - push local changes first, then pull from Supabase
      */
     async syncBidirectional(userId) {
-        console.log('[Electric] Starting bidirectional sync for user:', userId);
+        console.log('[Storage] Starting bidirectional sync for user:', userId);
 
-        // First pull from Supabase to get remote changes
-        const pullResult = await this.pullFromSupabase(userId);
-
-        // Then push any local unsynced changes
+        // IMPORTANT: Push first to avoid losing local changes
+        // Then pull to get changes from other devices
+        console.log('[Storage] Step 1: Pushing local changes to Supabase...');
         const pushResult = await this.forcePush(userId);
+
+        console.log('[Storage] Step 2: Pulling changes from Supabase...');
+        const pullResult = await this.pullFromSupabase(userId);
 
         return {
             downloaded: pullResult.pulled,
             uploaded: pushResult.pushed,
-            errors: pullResult.errors,
+            errors: [...(pushResult.errors || []), ...pullResult.errors],
         };
     },
 };
