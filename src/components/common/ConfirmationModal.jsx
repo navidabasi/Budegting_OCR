@@ -79,8 +79,7 @@ export default function ConfirmationModal({
                     <h4 className="font-semibold dark:text-white">{title}</h4>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 touch-manipulation"
-                        className="touch-target"
+                        className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 touch-manipulation touch-target"
                     >
                         <X size={20} />
                     </button>

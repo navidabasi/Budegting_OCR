@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
+import { electricStorage } from '../services/electricStorage';
 
 /**
  * Custom hook for fetching and managing groups
+ * Uses Electric + PGlite for local-first storage with real-time sync
  * @returns {Object} { groups, loading, reload }
  */
 export function useGroups() {
@@ -19,7 +20,7 @@ export function useGroups() {
 
         setLoading(true);
         try {
-            const allGroups = await storageService.getAllGroups(currentUser.userId);
+            const allGroups = await electricStorage.getGroups(currentUser.userId);
             setGroups(allGroups || []);
         } catch (err) {
             console.error('Failed to load groups:', err);
@@ -44,6 +45,17 @@ export function useGroups() {
             window.removeEventListener('refreshGroups', handleRefresh);
         };
     }, [loadGroups]);
+
+    // Subscribe to Electric sync updates
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribe = electricStorage.subscribe('groups', () => {
+            loadGroups();
+        });
+
+        return unsubscribe;
+    }, [currentUser, loadGroups]);
 
     return { groups, loading, reload: loadGroups };
 }

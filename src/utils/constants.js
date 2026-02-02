@@ -11,6 +11,19 @@ export const CATEGORIES = [
     'Other'
 ];
 
+export const DEFAULT_CATEGORIES = [
+    { name: 'Groceries', color: '#22c55e', icon: '🛒' },
+    { name: 'Restaurant', color: '#f97316', icon: '🍽️' },
+    { name: 'Gas', color: '#ef4444', icon: '⛽' },
+    { name: 'Utilities', color: '#3b82f6', icon: '💡' },
+    { name: 'Shopping', color: '#a855f7', icon: '🛍️' },
+    { name: 'Entertainment', color: '#ec4899', icon: '🎬' },
+    { name: 'Healthcare', color: '#14b8a6', icon: '🏥' },
+    { name: 'Transportation', color: '#6366f1', icon: '🚗' },
+    { name: 'Education', color: '#f59e0b', icon: '📚' },
+    { name: 'Other', color: '#6b7280', icon: '📁' },
+];
+
 export const DEFAULT_CATEGORY = 'Other';
 
 export const DEFAULT_CURRENCY = 'EUR';

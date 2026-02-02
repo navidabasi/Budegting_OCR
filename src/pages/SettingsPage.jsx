@@ -192,17 +192,19 @@ export default function SettingsPage() {
             let message = '';
             let statusType = 'success';
 
+            const totalSynced = (result.downloaded || 0) + (result.uploaded || 0);
+
             if (result.conflicts && result.conflicts.length > 0) {
-                message = `Synced ${result.synced} items. ${result.conflicts.length} conflict(s) merged automatically.`;
+                message = `Downloaded ${result.downloaded || 0}, uploaded ${result.uploaded || 0}. ${result.conflicts.length} conflict(s) merged.`;
                 statusType = 'warning';
-            } else if (result.errors.length > 0) {
+            } else if (result.errors && result.errors.length > 0) {
                 const firstError = result.errors[0];
                 const errorMsg = firstError.error || firstError.message || 'Unknown error';
-                message = `Synced ${result.synced} items. ${result.errors.length} error(s): ${errorMsg}`;
+                message = `Downloaded ${result.downloaded || 0}, uploaded ${result.uploaded || 0}. ${result.errors.length} error(s): ${errorMsg}`;
                 statusType = 'error';
                 console.error('[Settings] Sync errors:', result.errors);
             } else {
-                message = `Successfully synced ${result.synced} items`;
+                message = `Downloaded ${result.downloaded || 0} items, uploaded ${result.uploaded || 0} items`;
                 statusType = 'success';
             }
 
@@ -210,7 +212,7 @@ export default function SettingsPage() {
             setSyncStatus({ type: statusType, message });
 
             // Reload if items were synced to show updated data
-            if (result.synced > 0) {
+            if (totalSynced > 0) {
                 setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('refreshDashboard'));
                     window.dispatchEvent(new CustomEvent('refreshReceipts'));

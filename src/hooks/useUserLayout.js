@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
+import { electricStorage } from '../services/electricStorage';
 import { getDefaultLayout } from '../components/dashboard/WidgetRegistry';
 
 /**
  * Custom hook for fetching and managing user dashboard layout
+ * Uses Electric + PGlite for local-first storage with real-time sync
  * @returns {Object} { layout, loading, reload }
  */
 export function useUserLayout() {
@@ -21,8 +22,9 @@ export function useUserLayout() {
 
         setLoading(true);
         try {
-            const userLayout = await storageService.getUserLayout(currentUser.userId);
-            if (userLayout) {
+            const userLayoutData = await electricStorage.getUserLayout(currentUser.userId);
+            if (userLayoutData?.layout) {
+                const userLayout = userLayoutData.layout;
                 // Validate layout structure
                 if (userLayout.widgets && Array.isArray(userLayout.widgets) && userLayout.enabled && Array.isArray(userLayout.enabled)) {
                     setLayout(userLayout);
@@ -56,6 +58,17 @@ export function useUserLayout() {
             window.removeEventListener('refreshLayout', handleRefresh);
         };
     }, [loadLayout]);
+
+    // Subscribe to Electric sync updates
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribe = electricStorage.subscribe('user_layouts', () => {
+            loadLayout();
+        });
+
+        return unsubscribe;
+    }, [currentUser, loadLayout]);
 
     return { layout, loading, reload: loadLayout };
 }
