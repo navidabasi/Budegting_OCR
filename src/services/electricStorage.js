@@ -212,14 +212,20 @@ async function pushToRemote(table, operation, data) {
             await supabaseService.default[`create${capitalizeFirst(singularize(table))}`](data);
         } else if (operation === 'update') {
             await supabaseService.default[`update${capitalizeFirst(singularize(table))}`](data.id, data);
+        } else if (operation === 'upsert') {
+            // Upsert - insert if not exists, update if exists
+            await supabaseService.default[`upsert${capitalizeFirst(singularize(table))}`](data);
         } else if (operation === 'delete') {
             await supabaseService.default[`delete${capitalizeFirst(singularize(table))}`](data.id);
         }
 
         // Mark as synced
-        await db.query(`UPDATE ${table} SET _synced = TRUE WHERE id = $1`, [data.id]);
+        if (db) {
+            await db.query(`UPDATE ${table} SET _synced = TRUE WHERE id = $1`, [data.id]);
+        }
     } catch (error) {
         console.error(`[Storage] Failed to push ${operation} to ${table}:`, error);
+        throw error; // Re-throw to let caller handle
     }
 }
 
@@ -1016,7 +1022,8 @@ export const electricStorage = {
 
             for (const row of unsyncedReceipts.rows) {
                 try {
-                    await pushToRemote('receipts', 'update', this._mapReceipt(row));
+                    // Use upsert to handle both new items and updates
+                    await pushToRemote('receipts', 'upsert', this._mapReceipt(row));
                     pushed++;
                 } catch (err) {
                     console.error(`[Storage] Failed to push receipt ${row.id}:`, err);
@@ -1038,7 +1045,8 @@ export const electricStorage = {
 
             for (const row of unsyncedGroups.rows) {
                 try {
-                    await pushToRemote('groups', 'update', this._mapGroup(row));
+                    // Use upsert to handle both new items and updates
+                    await pushToRemote('groups', 'upsert', this._mapGroup(row));
                     pushed++;
                 } catch (err) {
                     console.error(`[Storage] Failed to push group ${row.id}:`, err);

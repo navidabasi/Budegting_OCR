@@ -49,15 +49,12 @@ export default function ReceiptsPage() {
     const loading = receiptsLoading || groupsLoading;
 
     // Helper function to get next available group number
-    const getNextAvailableGroupNumber = async (parentGroupId = null) => {
-        const allGroups = await storageService.getAllGroups(currentUser.userId);
-        const relevantGroups = parentGroupId
-            ? allGroups.filter(g => String(g.parentGroupId || '') === String(parentGroupId))
-            : allGroups.filter(g => !g.parentGroupId);
+    const getNextAvailableGroupNumber = async () => {
+        const allGroupsList = await storageService.getAllGroups(currentUser.userId);
 
         // Extract numbers from group names that match "Group N" pattern
         const usedNumbers = new Set();
-        relevantGroups.forEach(group => {
+        allGroupsList.forEach(group => {
             const match = group.name.match(/^Group (\d+)$/);
             if (match) {
                 usedNumbers.add(parseInt(match[1], 10));
@@ -86,20 +83,16 @@ export default function ReceiptsPage() {
         }
     };
 
-    // Process groups with receipt counts and nested groups
+    // Process groups with receipt counts
     useEffect(() => {
         if (!allGroups || receipts.length === 0) {
             setGroups([]);
             return;
         }
 
-        // Filter out nested groups (they'll be shown within their parent groups)
-        const topLevelGroups = allGroups.filter(group => !group.parentGroupId);
-
         // Count receipts per group - match by groupId against both supabaseId and local id
-        const groupsWithCounts = topLevelGroups.map(group => {
+        const groupsWithCounts = allGroups.map(group => {
             const groupReceipts = receipts.filter(r => {
-                // Match by groupId against both supabaseId and local id
                 if (!r.groupId) return false;
 
                 const receiptGroupId = String(r.groupId);
@@ -109,26 +102,10 @@ export default function ReceiptsPage() {
                 return receiptGroupId === groupSupabaseId || receiptGroupId === groupLocalId;
             });
 
-            // Get nested groups for this group
-            // Match by both supabaseId and local id since parentGroupId could be either
-            const nestedGroups = allGroups.filter(g => {
-                if (!g.parentGroupId) return false;
-                const gParentId = String(g.parentGroupId);
-                const groupSupabaseId = group.supabaseId ? String(group.supabaseId) : null;
-                const groupLocalId = String(group.id);
-                return gParentId === groupSupabaseId || gParentId === groupLocalId;
-            }).sort((a, b) => {
-                // Sort nested groups: pinned first, then by name
-                if (a.isPinned && !b.isPinned) return -1;
-                if (!a.isPinned && b.isPinned) return 1;
-                return a.name.localeCompare(b.name);
-            });
-
             return {
                 ...group,
                 receiptCount: groupReceipts.length,
-                receipts: groupReceipts,
-                nestedGroups: nestedGroups
+                receipts: groupReceipts
             };
         });
 
@@ -147,22 +124,8 @@ export default function ReceiptsPage() {
         const handleReceiptDrop = async (e) => {
             const { receiptId, groupId } = e.detail;
 
-            // First, search in top-level groups
-            let group = groups.find(g => String(g.id) === String(groupId) || String(g.supabaseId) === String(groupId));
-
-            // If not found, search in nested groups
-            if (!group) {
-                for (const parentGroup of groups) {
-                    const nestedGroups = parentGroup.nestedGroups || [];
-                    const nestedGroup = nestedGroups.find(ng =>
-                        String(ng.id) === String(groupId) || String(ng.supabaseId) === String(groupId)
-                    );
-                    if (nestedGroup) {
-                        group = nestedGroup;
-                        break;
-                    }
-                }
-            }
+            // Find the group
+            const group = groups.find(g => String(g.id) === String(groupId) || String(g.supabaseId) === String(groupId));
 
             if (!group) return;
 
@@ -658,10 +621,7 @@ export default function ReceiptsPage() {
                                 const rgb = hexToRgb(groupColor);
                                 const fadedBg = rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)` : `${groupColor}15`;
 
-                                // Get nested groups for this parent group
-                                const nestedGroups = group.nestedGroups || [];
-
-                                const isParentDragOver = draggedOverGroup === `parent-${group.id}`;
+                                const isDragOver = draggedOverGroup === group.id;
 
                                 return (
                                     <div
@@ -669,34 +629,21 @@ export default function ReceiptsPage() {
                                         data-group-id={groupIdToUse}
                                         className="mb-6 p-4 rounded-lg border-2 border-dashed w-full transition-all"
                                         style={{
-                                            backgroundColor: isParentDragOver ? groupColor + '20' : fadedBg,
-                                            borderColor: isParentDragOver ? groupColor + '60' : (groupColor + '40'),
-                                            borderStyle: isParentDragOver ? 'solid' : 'dashed'
+                                            backgroundColor: isDragOver ? groupColor + '20' : fadedBg,
+                                            borderColor: isDragOver ? groupColor + '60' : (groupColor + '40'),
+                                            borderStyle: isDragOver ? 'solid' : 'dashed'
                                         }}
                                         onDragOver={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-
-                                            // Check if dragging over a child element - if so, don't show parent feedback
-                                            const target = e.target;
-                                            const nestedGroupCard = target.closest('[data-group-id]');
-                                            const receiptCard = target.closest('[data-receipt-id]');
-
-                                            // If dragging over a nested group card or receipt card, don't show parent feedback
-                                            if (nestedGroupCard && nestedGroupCard !== e.currentTarget) {
-                                                return;
-                                            }
-                                            if (receiptCard) {
-                                                return;
-                                            }
-
+                                            const receiptCard = e.target.closest('[data-receipt-id]');
+                                            if (receiptCard) return;
                                             e.dataTransfer.dropEffect = 'move';
-                                            if (draggedOverGroup !== `parent-${group.id}`) {
-                                                setDraggedOverGroup(`parent-${group.id}`);
+                                            if (draggedOverGroup !== group.id) {
+                                                setDraggedOverGroup(group.id);
                                             }
                                         }}
                                         onDragLeave={(e) => {
-                                            // Only clear if we're leaving the container itself, not a child element
                                             if (!e.currentTarget.contains(e.relatedTarget)) {
                                                 setDraggedOverGroup(null);
                                             }
@@ -706,34 +653,14 @@ export default function ReceiptsPage() {
                                             e.stopPropagation();
                                             setDraggedOverGroup(null);
 
-                                            // Check if dropping on a child element - if so, let it handle it
-                                            const target = e.target;
-                                            const nestedGroupCard = target.closest('[data-group-id]');
-                                            const receiptCard = target.closest('[data-receipt-id]');
-
-                                            // If dropping on a nested group card (not the current container), let it handle it
-                                            if (nestedGroupCard && nestedGroupCard !== e.currentTarget) {
-                                                return;
-                                            }
-                                            // If dropping on a receipt card, let it handle it
-                                            if (receiptCard) {
-                                                return;
-                                            }
-                                            // If dropping on nested group container or receipt grid, let them handle it
-                                            if (target.closest('[data-nested-group-container]')) {
-                                                return;
-                                            }
+                                            const receiptCard = e.target.closest('[data-receipt-id]');
+                                            if (receiptCard) return;
 
                                             try {
                                                 const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                                                if (!data || !data.receiptId) {
-                                                    console.error('Invalid drop data:', data);
-                                                    return;
-                                                }
+                                                if (!data || !data.receiptId) return;
 
                                                 const receiptId = data.receiptId;
-
-                                                // Check if receipt is already in this parent group
                                                 const receipt = receipts.find(r => r.id === receiptId);
                                                 if (receipt && receipt.groupId) {
                                                     const currentGroupId = String(receipt.groupId);
@@ -744,7 +671,6 @@ export default function ReceiptsPage() {
                                                     }
                                                 }
 
-                                                // Assign receipt to parent group
                                                 await storageService.updateReceipt(receiptId, {
                                                     groupId: groupIdToUse,
                                                     groupName: group.name
@@ -759,344 +685,63 @@ export default function ReceiptsPage() {
                                             }
                                         }}
                                     >
-                                        {/* Show nested groups if any */}
-                                        {nestedGroups.length > 0 && (
-                                            <div className="mb-4">
-                                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                                    Nested Groups
-                                                </h4>
-                                                <div className="space-y-3 mb-4">
-                                                    {nestedGroups.map(nestedGroup => {
-                                                        const nestedGroupSupabaseId = nestedGroup.supabaseId ? String(nestedGroup.supabaseId) : null;
-                                                        const nestedGroupLocalId = String(nestedGroup.id);
-                                                        const nestedGroupId = nestedGroupSupabaseId || nestedGroupLocalId;
-                                                        const nestedGroupKey = `nested-${groupIdToUse}-${nestedGroupId}`;
-                                                        const isNestedExpanded = expandedGroups.has(nestedGroupKey);
-                                                        const nestedReceipts = receipts.filter(r => {
-                                                            if (!r.groupId) return false;
-                                                            const receiptGroupId = String(r.groupId);
-                                                            return receiptGroupId === nestedGroupSupabaseId || receiptGroupId === nestedGroupLocalId;
-                                                        });
-                                                        const nestedColor = nestedGroup.color || '#3b82f6';
-                                                        const nestedRgb = hexToRgb(nestedColor);
-                                                        const nestedFadedBg = nestedRgb ? `rgba(${nestedRgb.r}, ${nestedRgb.g}, ${nestedRgb.b}, 0.15)` : `${nestedColor}20`;
+                                        {/* Show group receipts */}
+                                        {groupReceipts.length > 0 && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {groupReceipts
+                                                    .sort((a, b) => {
+                                                        if (a.isPinned && !b.isPinned) return -1;
+                                                        if (!a.isPinned && b.isPinned) return 1;
+                                                        return new Date(b.date) - new Date(a.date);
+                                                    })
+                                                    .map(receipt => (
+                                                    <ReceiptCard
+                                                        key={receipt.id}
+                                                        receipt={receipt}
+                                                        onTogglePin={handleToggleReceiptPin}
+                                                        onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
+                                                            try {
+                                                                const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
+                                                                const targetReceipt = receipts.find(r => r.id === targetReceiptId);
 
-                                                        const nestedGroupIdToUse = nestedGroup.supabaseId || nestedGroup.id;
-                                                        const isNestedDragOver = draggedOverGroup === `nested-${nestedGroup.id}`;
+                                                                if (!draggedReceipt || !targetReceipt) return;
 
-                                                        return (
-                                                            <div key={nestedGroup.id}>
-                                                                <div
-                                                                    data-group-id={nestedGroupIdToUse}
-                                                                    className="p-3 rounded-lg border border-dashed cursor-pointer hover:shadow-md transition-all"
-                                                                    style={{
-                                                                        backgroundColor: isNestedDragOver ? nestedColor + '40' : nestedFadedBg,
-                                                                        borderColor: nestedColor + '50',
-                                                                        borderLeft: `4px solid ${nestedColor}`,
-                                                                        transform: isNestedDragOver ? 'scale(1.02)' : 'scale(1)',
-                                                                        boxShadow: isNestedDragOver ? `0 4px 12px ${nestedColor}40` : undefined
-                                                                    }}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setExpandedGroups(prev => {
-                                                                            const newSet = new Set(prev);
-                                                                            if (newSet.has(nestedGroupKey)) {
-                                                                                newSet.delete(nestedGroupKey);
-                                                                            } else {
-                                                                                newSet.add(nestedGroupKey);
-                                                                            }
-                                                                            return newSet;
-                                                                        });
-                                                                    }}
-                                                                    onDragOver={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        e.dataTransfer.dropEffect = 'move';
-                                                                        if (draggedOverGroup !== `nested-${nestedGroup.id}`) {
-                                                                            setDraggedOverGroup(`nested-${nestedGroup.id}`);
-                                                                        }
-                                                                    }}
-                                                                    onDragLeave={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        // Only clear if we're leaving the card itself, not a child element
-                                                                        if (!e.currentTarget.contains(e.relatedTarget)) {
-                                                                            setDraggedOverGroup(null);
-                                                                        }
-                                                                    }}
-                                                                    onDrop={async (e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        setDraggedOverGroup(null);
+                                                                // Get next available group number
+                                                                const nextNumber = await getNextAvailableGroupNumber();
+                                                                const groupName = `Group ${nextNumber}`;
 
-                                                                        try {
-                                                                            const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                                                                            const receiptId = data.receiptId;
+                                                                const newGroupId = await storageService.createGroup(currentUser.userId, {
+                                                                    name: groupName,
+                                                                    color: '#3b82f6',
+                                                                    isPinned: false
+                                                                });
 
-                                                                            // Check if receipt is already in this nested group
-                                                                            const receipt = receipts.find(r => r.id === receiptId);
-                                                                            if (receipt && receipt.groupId) {
-                                                                                const currentGroupId = String(receipt.groupId);
-                                                                                const targetGroupId = String(nestedGroupIdToUse);
-                                                                                if (currentGroupId === targetGroupId) {
-                                                                                    showToast('Receipt is already in this group', 'info');
-                                                                                    return;
-                                                                                }
-                                                                            }
+                                                                const createdGroup = await storageService.getGroupById(newGroupId);
+                                                                const newGroupIdToUse = createdGroup.supabaseId || createdGroup.id;
 
-                                                                            // Assign receipt to nested group
-                                                                            await storageService.updateReceipt(receiptId, {
-                                                                                groupId: nestedGroupIdToUse,
-                                                                                groupName: nestedGroup.name
-                                                                            });
+                                                                // Assign both receipts to the new group
+                                                                await storageService.updateReceipt(draggedReceiptId, {
+                                                                    groupId: newGroupIdToUse,
+                                                                    groupName: createdGroup.name
+                                                                });
 
-                                                                            await reloadReceipts();
-                                                                            await reloadGroups();
-                                                                            showToast(`Receipt added to ${nestedGroup.name}`, 'success');
-                                                                        } catch (err) {
-                                                                            console.error('Failed to assign receipt to nested group:', err);
-                                                                            showToast(`Failed to assign receipt: ${err.message}`, 'error');
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex items-center gap-2 flex-1">
-                                                                            {isNestedExpanded ? <ChevronDown size={16} className="text-gray-500 dark:text-gray-400" /> : <ChevronUp size={16} className="text-gray-500 dark:text-gray-400" />}
-                                                                            <Tag size={14} style={{ color: nestedColor }} />
-                                                                            <span className="font-medium text-sm text-gray-900 dark:text-white">
-                                                                                {nestedGroup.name}
-                                                                            </span>
-                                                                            {nestedGroup.isPinned && (
-                                                                                <Pin size={12} className="text-gray-400" title="Pinned" />
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                                                            <button
-                                                                                onClick={async (e) => {
-                                                                                    e.stopPropagation();
-                                                                                    try {
-                                                                                        await storageService.updateGroup(nestedGroup.id, {
-                                                                                            isPinned: !nestedGroup.isPinned
-                                                                                        });
-                                                                                        await reloadGroups();
-                                                                                        showToast(nestedGroup.isPinned ? 'Group unpinned' : 'Group pinned', 'success');
-                                                                                    } catch (err) {
-                                                                                        showToast(`Failed to ${nestedGroup.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
-                                                                                    }
-                                                                                }}
-                                                                                className={`p-1 rounded ${nestedGroup.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-                                                                                title={nestedGroup.isPinned ? 'Unpin group' : 'Pin group'}
-                                                                            >
-                                                                                {nestedGroup.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setEditingGroup(nestedGroup);
-                                                                                    setNewGroupName(nestedGroup.name);
-                                                                                    setNewGroupColor(nestedGroup.color || '#3b82f6');
-                                                                                    setNewGroupPinned(nestedGroup.isPinned);
-                                                                                }}
-                                                                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
-                                                                                title="Edit group"
-                                                                            >
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setGroupToDelete(nestedGroup);
-                                                                                    setShowDeleteConfirm(true);
-                                                                                }}
-                                                                                className="p-1 text-red-500 hover:text-red-700 rounded"
-                                                                                title="Delete group"
-                                                                            >
-                                                                                <Trash2 size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-6">
-                                                                        {nestedReceipts.length} receipt{nestedReceipts.length !== 1 ? 's' : ''}
-                                                                    </p>
-                                                                </div>
-                                                                {isNestedExpanded && nestedReceipts.length > 0 && (
-                                                                    <div
-                                                                        data-nested-group-container={nestedGroupId}
-                                                                        className="mt-2 ml-4 p-3 rounded-lg border border-dashed"
-                                                                        style={{
-                                                                            backgroundColor: nestedFadedBg,
-                                                                            borderColor: nestedColor + '40'
-                                                                        }}
-                                                                    >
-                                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                            {nestedReceipts
-                                                                                .sort((a, b) => {
-                                                                                    if (a.isPinned && !b.isPinned) return -1;
-                                                                                    if (!a.isPinned && b.isPinned) return 1;
-                                                                                    return new Date(b.date) - new Date(a.date);
-                                                                                })
-                                                                                .map(receipt => (
-                                                                                <ReceiptCard
-                                                                                    key={receipt.id}
-                                                                                    receipt={receipt}
-                                                                                    isNested={true}
-                                                                                    nestedGroupColor={nestedColor}
-                                                                                    onTogglePin={handleToggleReceiptPin}
-                                                                                    onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
-                                                                                        try {
-                                                                                            const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
-                                                                                            const targetReceipt = receipts.find(r => r.id === targetReceiptId);
+                                                                await storageService.updateReceipt(targetReceiptId, {
+                                                                    groupId: newGroupIdToUse,
+                                                                    groupName: createdGroup.name
+                                                                });
 
-                                                                                            if (!draggedReceipt || !targetReceipt) return;
-
-                                                                                            // Check if target receipt is in a nested group - create nested group within nested group
-                                                                                            const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
-                                                                                            const parentGroupForNested = targetGroupId ? groups.find(g =>
-                                                                                                String(g.supabaseId || g.id) === targetGroupId
-                                                                                            ) : null;
-
-                                                                                            // If target is in a nested group, create nested group within that nested group
-                                                                                            const parentGroupId = parentGroupForNested ? (parentGroupForNested.supabaseId || parentGroupForNested.id) : null;
-                                                                                            const parentGroupIdStr = parentGroupId ? String(parentGroupId) : null;
-
-                                                                                            // Get next available group number
-                                                                                            const nextNumber = await getNextAvailableGroupNumber(parentGroupIdStr);
-                                                                                            const groupName = `Group ${nextNumber}`;
-
-                                                                                            const groupId = await storageService.createGroup(currentUser.userId, {
-                                                                                                name: groupName,
-                                                                                                color: '#3b82f6',
-                                                                                                isPinned: false,
-                                                                                                parentGroupId: parentGroupIdStr
-                                                                                            });
-
-                                                                                            const createdGroup = await storageService.getGroupById(groupId);
-                                                                                            const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
-
-                                                                                            // Assign both receipts to the new group
-                                                                                            await storageService.updateReceipt(draggedReceiptId, {
-                                                                                                groupId: groupIdToUse,
-                                                                                                groupName: createdGroup.name
-                                                                                            });
-
-                                                                                            await storageService.updateReceipt(targetReceiptId, {
-                                                                                                groupId: groupIdToUse,
-                                                                                                groupName: createdGroup.name
-                                                                                            });
-
-                                                                                            await reloadReceipts();
-                                                                                            await reloadGroups();
-                                                                                            showToast(`Group "${groupName}" created with 2 receipts`, 'success');
-                                                                                        } catch (err) {
-                                                                                            console.error('Failed to create group from receipts:', err);
-                                                                                            showToast(`Failed to create group: ${err.message}`, 'error');
-                                                                                        }
-                                                                                    }}
-                                                                                />
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                                await reloadReceipts();
+                                                                await reloadGroups();
+                                                                showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                                            } catch (err) {
+                                                                console.error('Failed to create group from receipts:', err);
+                                                                showToast(`Failed to create group: ${err.message}`, 'error');
+                                                            }
+                                                        }}
+                                                    />
+                                                ))}
                                             </div>
                                         )}
-
-                                        {/* Show only parent group receipts (not nested group receipts) */}
-                                        {(() => {
-                                            // Get all nested group IDs (both supabaseId and local id) to filter them out
-                                            const nestedGroupIds = new Set();
-                                            nestedGroups.forEach(ng => {
-                                                nestedGroupIds.add(String(ng.id));
-                                                if (ng.supabaseId) {
-                                                    nestedGroupIds.add(String(ng.supabaseId));
-                                                }
-                                            });
-
-                                            // Filter out receipts that belong to nested groups
-                                            const parentOnlyReceipts = groupReceipts.filter(r => {
-                                                if (!r.groupId) return false;
-                                                const receiptGroupId = String(r.groupId);
-                                                return !nestedGroupIds.has(receiptGroupId);
-                                            });
-
-                                            if (parentOnlyReceipts.length === 0) return null;
-
-                                            return (
-                                                <div>
-                                                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                                        Receipts
-                                                    </h4>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {parentOnlyReceipts
-                                                            .sort((a, b) => {
-                                                                if (a.isPinned && !b.isPinned) return -1;
-                                                                if (!a.isPinned && b.isPinned) return 1;
-                                                                return new Date(b.date) - new Date(a.date);
-                                                            })
-                                                            .map(receipt => (
-                                                            <ReceiptCard
-                                                                key={receipt.id}
-                                                                receipt={receipt}
-                                                                onTogglePin={handleToggleReceiptPin}
-                                                                onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
-                                                                    try {
-                                                                        const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
-                                                                        const targetReceipt = receipts.find(r => r.id === targetReceiptId);
-
-                                                                        if (!draggedReceipt || !targetReceipt) return;
-
-                                                                        // Check if target receipt is in a group - if so, create nested group
-                                                                        const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
-                                                                        const parentGroup = targetGroupId ? groups.find(g =>
-                                                                            String(g.supabaseId || g.id) === targetGroupId
-                                                                        ) : null;
-
-                                                                        // Get parent group ID for nested group
-                                                                        const parentGroupId = parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null;
-                                                                        const parentGroupIdStr = parentGroupId ? String(parentGroupId) : null;
-
-                                                                        // Get next available group number
-                                                                        const nextNumber = await getNextAvailableGroupNumber(parentGroupIdStr);
-                                                                        const groupName = `Group ${nextNumber}`;
-
-                                                                        const groupId = await storageService.createGroup(currentUser.userId, {
-                                                                            name: groupName,
-                                                                            color: '#3b82f6',
-                                                                            isPinned: false,
-                                                                            parentGroupId: parentGroupIdStr
-                                                                        });
-
-                                                                        const createdGroup = await storageService.getGroupById(groupId);
-                                                                        const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
-
-                                                                        // Assign both receipts to the new group
-                                                                        await storageService.updateReceipt(draggedReceiptId, {
-                                                                            groupId: groupIdToUse,
-                                                                            groupName: createdGroup.name
-                                                                        });
-
-                                                                        await storageService.updateReceipt(targetReceiptId, {
-                                                                            groupId: groupIdToUse,
-                                                                            groupName: createdGroup.name
-                                                                        });
-
-                                                                        await reloadReceipts();
-                                                                        await reloadGroups();
-                                                                        showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
-                                                                    } catch (err) {
-                                                                        console.error('Failed to create group from receipts:', err);
-                                                                        showToast(`Failed to create group: ${err.message}`, 'error');
-                                                                    }
-                                                                }}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
                                     </div>
                                 );
                             })}
@@ -1141,28 +786,17 @@ export default function ReceiptsPage() {
 
                                     if (!draggedReceipt || !targetReceipt) return;
 
-                                    // Check if target receipt is in a group - if so, create nested group
-                                    const targetGroupId = targetReceipt.groupId ? String(targetReceipt.groupId) : null;
-                                    const parentGroup = targetGroupId ? groups.find(g =>
-                                        String(g.supabaseId || g.id) === targetGroupId
-                                    ) : null;
-
-                                    // Get parent group ID for nested group
-                                    const parentGroupId = parentGroup ? (parentGroup.supabaseId || parentGroup.id) : null;
-                                    const parentGroupIdStr = parentGroupId ? String(parentGroupId) : null;
-
                                     // Get next available group number
-                                    const nextNumber = await getNextAvailableGroupNumber(parentGroupIdStr);
+                                    const nextNumber = await getNextAvailableGroupNumber();
                                     const groupName = `Group ${nextNumber}`;
 
-                                    const groupId = await storageService.createGroup(currentUser.userId, {
+                                    const newGroupId = await storageService.createGroup(currentUser.userId, {
                                         name: groupName,
                                         color: '#3b82f6',
-                                        isPinned: false,
-                                        parentGroupId: parentGroupIdStr
+                                        isPinned: false
                                     });
 
-                                    const createdGroup = await storageService.getGroupById(groupId);
+                                    const createdGroup = await storageService.getGroupById(newGroupId);
                                     const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
 
                                     // Assign both receipts to the new group
@@ -1178,7 +812,7 @@ export default function ReceiptsPage() {
 
                                     await reloadReceipts();
                                     await reloadGroups();
-                                    showToast(`Group "${groupName}" created with 2 receipts${parentGroup ? ` in ${parentGroup.name}` : ''}`, 'success');
+                                    showToast(`Group "${groupName}" created with 2 receipts`, 'success');
                                 } catch (err) {
                                     console.error('Failed to create group from receipts:', err);
                                     showToast(`Failed to create group: ${err.message}`, 'error');

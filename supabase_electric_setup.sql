@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- For development, you can use Electric's HTTP sync which works with any Supabase plan
 
 -- Step 3: Create publication for Electric (if using full Electric sync)
--- This allows Electric to track changes to these tables
+-- This allows Electric to track changes to these ytables
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'electric_publication') THEN

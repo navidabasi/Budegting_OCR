@@ -313,6 +313,40 @@ export const supabaseService = {
         if (error) throw error;
     },
 
+    // Upsert receipt - insert if not exists, update if exists
+    async upsertReceipt(receipt) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Always use the authenticated user's ID from the session (RLS requirement)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+        console.log('[Supabase upsertReceipt] Using authenticated user ID:', authenticatedUserId);
+
+        // Transform receipt to Supabase format
+        const supabaseReceipt = this.transformReceiptToSupabase({
+            ...receipt,
+            userId: authenticatedUserId // Override with authenticated user ID
+        });
+
+        const { data, error } = await supabase
+            .from('receipts')
+            .upsert([supabaseReceipt], {
+                onConflict: 'id'
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[Supabase upsertReceipt] Error:', error);
+            throw error;
+        }
+        return this.transformReceiptFromSupabase(data);
+    },
+
     // Settings operations
     async saveSettings(userId, settings) {
         if (!supabase) throw new Error('Supabase not configured');
@@ -654,6 +688,45 @@ export const supabaseService = {
         return this.transformGroupFromSupabase(data);
     },
 
+    // Upsert group - insert if not exists, update if exists
+    async upsertGroup(group) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Always use the authenticated user's ID from the session (RLS requirement)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+        console.log('[Supabase upsertGroup] Using authenticated user ID:', authenticatedUserId);
+
+        const supabaseGroup = {
+            id: group.id,
+            user_id: authenticatedUserId,
+            name: group.name,
+            color: group.color || '#3b82f6',
+            is_pinned: group.isPinned || false,
+            parent_group_id: group.parentGroupId || null,
+            created_at: group.createdAt || new Date().toISOString(),
+            updated_at: group.updatedAt || new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+            .from('groups')
+            .upsert([supabaseGroup], {
+                onConflict: 'id'
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[Supabase upsertGroup] Error:', error);
+            throw error;
+        }
+        return this.transformGroupFromSupabase(data);
+    },
+
     async deleteGroup(groupId) {
         if (!supabase) throw new Error('Supabase not configured');
 
@@ -850,4 +923,6 @@ export const supabaseService = {
         return data?.layout || null;
     }
 };
+
+export default supabaseService;
 
