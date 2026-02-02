@@ -360,6 +360,12 @@ export const electricStorage = {
         return result.rows.map(this._mapGroup);
     },
 
+    async getGroup(id) {
+        await initDatabase();
+        const result = await db.query(`SELECT * FROM groups WHERE id = $1`, [id]);
+        return result.rows[0] ? this._mapGroup(result.rows[0]) : null;
+    },
+
     async createGroup(group) {
         await initDatabase();
         const now = new Date().toISOString();
@@ -483,6 +489,40 @@ export const electricStorage = {
 
         pushToRemote('user_categories', 'insert', { id, ...category });
 
+        return id;
+    },
+
+    async updateCategory(id, updates) {
+        await initDatabase();
+        const now = new Date().toISOString();
+
+        const setClause = [];
+        const values = [];
+        let paramIndex = 1;
+
+        if (updates.name !== undefined) {
+            setClause.push(`name = $${paramIndex}`);
+            values.push(updates.name);
+            paramIndex++;
+        }
+        if (updates.color !== undefined) {
+            setClause.push(`color = $${paramIndex}`);
+            values.push(updates.color);
+            paramIndex++;
+        }
+
+        setClause.push(`updated_at = $${paramIndex}`);
+        values.push(now);
+        paramIndex++;
+
+        values.push(id);
+
+        await db.query(
+            `UPDATE user_categories SET ${setClause.join(', ')} WHERE id = $${paramIndex}`,
+            values
+        );
+
+        pushToRemote('user_categories', 'update', { id, ...updates });
         return id;
     },
 

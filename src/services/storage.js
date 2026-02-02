@@ -16,6 +16,7 @@ export const storageService = {
     // Receipts
     getReceiptsByUserId: electricStorage.getReceipts,
     getReceipt: electricStorage.getReceipt,
+    getReceiptById: electricStorage.getReceipt,
     createReceipt: electricStorage.createReceipt,
     updateReceipt: electricStorage.updateReceipt,
     deleteReceipt: electricStorage.deleteReceipt,
@@ -23,18 +24,50 @@ export const storageService = {
     // Groups
     getAllGroups: electricStorage.getGroups,
     getGroups: electricStorage.getGroups,
+    getGroupById: electricStorage.getGroup,
     createGroup: electricStorage.createGroup,
     updateGroup: electricStorage.updateGroup,
     deleteGroup: electricStorage.deleteGroup,
 
     // Categories
     getCategories: electricStorage.getCategories,
+    getUserCategories: electricStorage.getCategories,
     createCategory: electricStorage.createCategory,
+    createUserCategory: electricStorage.createCategory,
     deleteCategory: electricStorage.deleteCategory,
+    deleteUserCategory: electricStorage.deleteCategory,
+    updateUserCategory: electricStorage.updateCategory,
 
     // Settings
     getSettings: electricStorage.getSettings,
     saveSettings: electricStorage.saveSettings,
+
+    // Settings helper methods
+    async getOcrApiKey(userId) {
+        const settings = await electricStorage.getSettings(userId);
+        return settings?.ocrApiKey || null;
+    },
+
+    async setOcrApiKey(userId, apiKey) {
+        const settings = await electricStorage.getSettings(userId);
+        return await electricStorage.saveSettings(userId, {
+            ...settings,
+            ocrApiKey: apiKey,
+        });
+    },
+
+    async getDefaultCurrency(userId) {
+        const settings = await electricStorage.getSettings(userId);
+        return settings?.defaultCurrency || 'EUR';
+    },
+
+    async setDefaultCurrency(userId, currency) {
+        const settings = await electricStorage.getSettings(userId);
+        return await electricStorage.saveSettings(userId, {
+            ...settings,
+            defaultCurrency: currency,
+        });
+    },
 
     // User Layout
     getUserLayout: electricStorage.getUserLayout,
@@ -93,7 +126,40 @@ export const storageService = {
     async getUserById(id) {
         // Not needed with Supabase auth
         return null;
-    }
+    },
+
+    // Demo data methods
+    async seedDemoData(userId) {
+        const demoReceipts = [
+            { merchant: 'Grocery Store', total: 85.50, category: 'Groceries', date: new Date().toISOString() },
+            { merchant: 'Gas Station', total: 45.00, category: 'Gas', date: new Date(Date.now() - 86400000).toISOString() },
+            { merchant: 'Restaurant', total: 32.75, category: 'Restaurant', date: new Date(Date.now() - 172800000).toISOString() },
+            { merchant: 'Amazon', total: 129.99, category: 'Shopping', date: new Date(Date.now() - 259200000).toISOString() },
+            { merchant: 'Electric Company', total: 95.00, category: 'Utilities', date: new Date(Date.now() - 345600000).toISOString() },
+        ];
+
+        let count = 0;
+        for (const receipt of demoReceipts) {
+            await electricStorage.createReceipt({
+                userId,
+                ...receipt,
+                currency: 'EUR',
+                isDemo: true,
+                lineItems: [],
+            });
+            count++;
+        }
+        return count;
+    },
+
+    async clearDemoData(userId) {
+        const receipts = await electricStorage.getReceipts(userId);
+        const demoReceipts = receipts.filter(r => r.isDemo);
+        for (const receipt of demoReceipts) {
+            await electricStorage.deleteReceipt(receipt.id);
+        }
+        return demoReceipts.length;
+    },
 };
 
 export default storageService;
