@@ -5,14 +5,13 @@
  * Falls back to Supabase-only if PGlite fails (CSP issues)
  */
 
-import { PGlite } from '@electric-sql/pglite';
-
 // Configuration
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 // Database instance
 let db = null;
 let dbInitFailed = false;
+let PGliteClass = null;
 let syncListeners = new Map();
 
 /**
@@ -25,7 +24,13 @@ async function initDatabase() {
     console.log('[Storage] Initializing PGlite database...');
 
     try {
-        db = new PGlite('idb://receipts-electric-v2', {
+        // Dynamic import to avoid CSP issues on initial load
+        if (!PGliteClass) {
+            const module = await import('@electric-sql/pglite');
+            PGliteClass = module.PGlite;
+        }
+
+        db = new PGliteClass('idb://receipts-electric-v2', {
             // Enable relaxed durability for better performance
             relaxedDurability: true,
         });

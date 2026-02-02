@@ -5,6 +5,7 @@ import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
 import ReceiptForm from '../receipts/ReceiptForm';
 import ReceiptUpload from '../receipts/ReceiptUpload';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 export default function AddReceiptModal() {
     const addReceiptModalOpen = useAppStore((state) => state.addReceiptModalOpen);
@@ -66,26 +67,30 @@ export default function AddReceiptModal() {
 
     if (mode === 'camera' || mode === 'upload') {
         return (
-            <ReceiptUpload
-                isOpen={addReceiptModalOpen}
-                onClose={handleClose}
-                mode={mode}
-                initialFile={selectedFile}
-                onSwitchToManual={handleManualClick}
-            />
+            <ErrorBoundary>
+                <ReceiptUpload
+                    isOpen={addReceiptModalOpen}
+                    onClose={handleClose}
+                    mode={mode}
+                    initialFile={selectedFile}
+                    onSwitchToManual={handleManualClick}
+                />
+            </ErrorBoundary>
         );
     }
 
     if (mode === 'manual') {
         return (
-            <Modal
-                isOpen={addReceiptModalOpen}
-                onClose={handleClose}
-                title="Add Receipt Manually"
-                size="lg"
-            >
-                <ReceiptForm onSave={handleSave} onClose={handleClose} />
-            </Modal>
+            <ErrorBoundary>
+                <Modal
+                    isOpen={addReceiptModalOpen}
+                    onClose={handleClose}
+                    title="Add Receipt Manually"
+                    size="lg"
+                >
+                    <ReceiptForm onSave={handleSave} onClose={handleClose} />
+                </Modal>
+            </ErrorBoundary>
         );
     }
 

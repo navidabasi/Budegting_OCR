@@ -3,6 +3,7 @@ console.log('main.jsx module started loading');
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
+import ErrorBoundary from './components/common/ErrorBoundary.jsx'
 import './index.css'
 
 console.log('All imports loaded successfully');
@@ -14,13 +15,15 @@ try {
         throw new Error('Root element not found');
     }
     console.log('Root element found, creating React root...');
-    
+
     const root = ReactDOM.createRoot(rootElement);
     console.log('React root created, rendering App...');
-    
+
     root.render(
         <React.StrictMode>
-            <App />
+            <ErrorBoundary>
+                <App />
+            </ErrorBoundary>
         </React.StrictMode>
     );
     console.log('App rendered successfully!');
