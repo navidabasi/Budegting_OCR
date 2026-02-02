@@ -447,7 +447,9 @@ export default function ReceiptsPage() {
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
+                                    <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
+                                        {typeof cat === 'string' ? cat : cat.name}
+                                    </option>
                                 ))}
                             </select>
                         </div>

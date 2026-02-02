@@ -378,7 +378,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     >
                                         <option value="">Category</option>
                                         {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
+                                            <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
+                                                {typeof cat === 'string' ? cat : cat.name}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -459,7 +461,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 >
                     <option value="">Select category</option>
                     {categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                        <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
+                            {typeof cat === 'string' ? cat : cat.name}
+                        </option>
                     ))}
                 </select>
             </div>
