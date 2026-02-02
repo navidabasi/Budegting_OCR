@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
 import { DEFAULT_CATEGORIES } from '../utils/constants';
@@ -11,6 +11,7 @@ import { DEFAULT_CATEGORIES } from '../utils/constants';
 export function useCategories() {
     const currentUser = useAppStore((state) => state.currentUser);
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+    const loadingRef = useRef(false);
 
     const loadCategories = useCallback(async () => {
         if (!currentUser) {
@@ -18,8 +19,21 @@ export function useCategories() {
             return;
         }
 
+        // Prevent concurrent loads
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+
         try {
-            const userCategories = await electricStorage.getCategories(currentUser.userId);
+            // Add timeout to prevent hanging indefinitely
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Load categories timed out')), 15000)
+            );
+
+            const userCategories = await Promise.race([
+                electricStorage.getCategories(currentUser.userId),
+                timeoutPromise
+            ]);
+
             if (userCategories && userCategories.length > 0) {
                 // Merge user categories with defaults
                 const customNames = userCategories.map(c => c.name);
@@ -35,6 +49,8 @@ export function useCategories() {
         } catch (error) {
             console.error('Failed to load categories:', error);
             setCategories(DEFAULT_CATEGORIES);
+        } finally {
+            loadingRef.current = false;
         }
     }, [currentUser]);
 

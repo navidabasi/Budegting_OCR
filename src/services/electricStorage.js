@@ -11,41 +11,92 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // Database instance
 let db = null;
 let dbInitFailed = false;
+let dbInitializing = null; // Promise to track ongoing initialization
 let PGliteClass = null;
 let syncListeners = new Map();
+
+// Timeout helper
+const withTimeout = (promise, timeoutMs, errorMessage) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+        )
+    ]);
+};
 
 /**
  * Initialize PGlite database with schema
  */
 async function initDatabase() {
+    // Return existing db if available
     if (db) return db;
-    if (dbInitFailed) return null; // Don't retry if already failed
+    
+    // Don't retry if already failed
+    if (dbInitFailed) return null;
+    
+    // If already initializing, wait for that to complete
+    if (dbInitializing) {
+        console.log('[Storage] Waiting for existing initialization...');
+        return dbInitializing;
+    }
 
     console.log('[Storage] Initializing PGlite database...');
 
-    try {
-        // Dynamic import to avoid CSP issues on initial load
-        if (!PGliteClass) {
-            const module = await import('@electric-sql/pglite');
-            PGliteClass = module.PGlite;
+    // Create a promise for the initialization
+    dbInitializing = (async () => {
+        try {
+            // Dynamic import with timeout
+            if (!PGliteClass) {
+                console.log('[Storage] Loading PGlite module...');
+                const module = await withTimeout(
+                    import('@electric-sql/pglite'),
+                    10000,
+                    'PGlite module load timed out'
+                );
+                PGliteClass = module.PGlite;
+            }
+
+            console.log('[Storage] Creating PGlite instance...');
+            const newDb = new PGliteClass('idb://receipts-electric-v2', {
+                relaxedDurability: true,
+            });
+
+            // Wait for database to be ready with timeout
+            console.log('[Storage] Waiting for database to be ready...');
+            await withTimeout(
+                newDb.waitReady,
+                15000,
+                'PGlite waitReady timed out'
+            );
+
+            // Set db before creating tables (so we can use it)
+            db = newDb;
+            console.log('[Storage] PGlite instance ready, creating schema...');
+
+            // Create schema with timeout protection
+            await withTimeout(createSchema(), 30000, 'Schema creation timed out');
+
+            console.log('[Storage] Database initialized successfully');
+            return db;
+        } catch (err) {
+            console.error('[Storage] PGlite initialization failed:', err);
+            dbInitFailed = true;
+            db = null;
+            return null;
+        } finally {
+            dbInitializing = null;
         }
+    })();
 
-        db = new PGliteClass('idb://receipts-electric-v2', {
-            // Enable relaxed durability for better performance
-            relaxedDurability: true,
-        });
+    return dbInitializing;
+}
 
-        // Wait for database to be ready
-        await db.waitReady;
-    } catch (err) {
-        console.error('[Storage] PGlite initialization failed (CSP or other issue):', err);
-        dbInitFailed = true;
-        db = null;
-        return null;
-    }
-
-    // Create schema matching Supabase - run each table separately
-    // to ensure all tables are created even if some already exist
+/**
+ * Create database schema
+ */
+async function createSchema() {
+    if (!db) return;
 
     try {
         await db.exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
@@ -145,9 +196,6 @@ async function initDatabase() {
     } catch (e) {
         console.log('[Storage] Some indexes may already exist');
     }
-
-    console.log('[Storage] Database initialized');
-    return db;
 }
 
 
@@ -1031,16 +1079,6 @@ export const electricStorage = {
         let actuallyUpdated = 0;
 
         console.log('[Storage] Starting pull from Supabase for user:', userId);
-
-        // Helper function to wrap API calls with timeout
-        const withTimeout = (promise, timeoutMs = 10000, name = 'operation') => {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error(`${name} timed out after ${timeoutMs}ms`)), timeoutMs)
-                )
-            ]);
-        };
 
         // Helper to check if receipt needs update (by comparing updated_at)
         const needsUpdate = async (table, id, newUpdatedAt) => {

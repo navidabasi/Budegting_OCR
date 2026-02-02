@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
 
@@ -11,18 +11,37 @@ export function useReceipts() {
     const currentUser = useAppStore((state) => state.currentUser);
     const [receipts, setReceipts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const loadingRef = useRef(false);
 
     const loadReceipts = useCallback(async () => {
-        if (!currentUser) return;
+        if (!currentUser) {
+            setReceipts([]);
+            setLoading(false);
+            return;
+        }
+
+        // Prevent concurrent loads
+        if (loadingRef.current) return;
+        loadingRef.current = true;
 
         setLoading(true);
         try {
-            const userReceipts = await electricStorage.getReceipts(currentUser.userId);
+            // Add timeout to prevent hanging indefinitely
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Load receipts timed out')), 20000)
+            );
+            
+            const userReceipts = await Promise.race([
+                electricStorage.getReceipts(currentUser.userId),
+                timeoutPromise
+            ]);
             setReceipts(userReceipts || []);
         } catch (err) {
             console.error('Failed to load receipts:', err);
+            setReceipts([]); // Set empty array on error so app doesn't hang
         } finally {
             setLoading(false);
+            loadingRef.current = false;
         }
     }, [currentUser]);
 

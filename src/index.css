@@ -169,20 +169,13 @@
         flex-shrink: 0;
     }
 
-    /* Bottom nav floating button position - centered using inset for reliability */
+    /* Bottom nav floating button position - fixed to viewport center */
     .floating-button-container {
-        position: absolute;
-        left: 0;
-        right: 0;
-        display: flex;
-        justify-content: center;
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
         z-index: 50;
-        bottom: calc(1rem + 1rem + 3.5rem - 1.75rem);
-        pointer-events: none;
-    }
-
-    .floating-button-container > * {
-        pointer-events: auto;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + 3.5rem - 0.5rem);
     }
 
     /* Nested group receipt styling */

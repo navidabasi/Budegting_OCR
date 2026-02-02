@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
 import { getDefaultLayout } from '../components/dashboard/WidgetRegistry';
@@ -12,6 +12,7 @@ export function useUserLayout() {
     const currentUser = useAppStore((state) => state.currentUser);
     const [layout, setLayout] = useState(null);
     const [loading, setLoading] = useState(true);
+    const loadingRef = useRef(false);
 
     const loadLayout = useCallback(async () => {
         if (!currentUser) {
@@ -20,9 +21,22 @@ export function useUserLayout() {
             return;
         }
 
+        // Prevent concurrent loads
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+
         setLoading(true);
         try {
-            const userLayoutData = await electricStorage.getUserLayout(currentUser.userId);
+            // Add timeout to prevent hanging indefinitely
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Load layout timed out')), 15000)
+            );
+
+            const userLayoutData = await Promise.race([
+                electricStorage.getUserLayout(currentUser.userId),
+                timeoutPromise
+            ]);
+
             if (userLayoutData?.layout) {
                 const userLayout = userLayoutData.layout;
                 // Validate layout structure
@@ -37,9 +51,10 @@ export function useUserLayout() {
             }
         } catch (err) {
             console.error('Failed to load layout:', err);
-            setLayout(getDefaultLayout());
+            setLayout(getDefaultLayout()); // Use default on error so app doesn't hang
         } finally {
             setLoading(false);
+            loadingRef.current = false;
         }
     }, [currentUser]);
 

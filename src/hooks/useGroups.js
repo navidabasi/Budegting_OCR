@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
 
@@ -11,22 +11,37 @@ export function useGroups() {
     const currentUser = useAppStore((state) => state.currentUser);
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
+    const loadingRef = useRef(false);
 
     const loadGroups = useCallback(async () => {
         if (!currentUser?.userId) {
+            setGroups([]);
             setLoading(false);
             return;
         }
 
+        // Prevent concurrent loads
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+
         setLoading(true);
         try {
-            const allGroups = await electricStorage.getGroups(currentUser.userId);
+            // Add timeout to prevent hanging indefinitely
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Load groups timed out')), 15000)
+            );
+
+            const allGroups = await Promise.race([
+                electricStorage.getGroups(currentUser.userId),
+                timeoutPromise
+            ]);
             setGroups(allGroups || []);
         } catch (err) {
             console.error('Failed to load groups:', err);
-            setGroups([]);
+            setGroups([]); // Set empty array on error so app doesn't hang
         } finally {
             setLoading(false);
+            loadingRef.current = false;
         }
     }, [currentUser]);
 
