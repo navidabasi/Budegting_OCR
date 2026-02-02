@@ -21,7 +21,7 @@ async function initDatabase() {
 
     console.log('[Storage] Initializing PGlite database...');
 
-    db = new PGlite('idb://receipts-electric', {
+    db = new PGlite('idb://receipts-electric-v2', {
         // Enable relaxed durability for better performance
         relaxedDurability: true,
     });
@@ -29,14 +29,19 @@ async function initDatabase() {
     // Wait for database to be ready
     await db.waitReady;
 
-    // Create schema matching Supabase
-    await db.exec(`
-        -- Enable UUID extension
-        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    // Create schema matching Supabase - run each table separately
+    // to ensure all tables are created even if some already exist
 
-        -- Receipts table
+    try {
+        await db.exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+    } catch (e) {
+        console.log('[Storage] UUID extension already exists or not needed');
+    }
+
+    // Receipts table
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS receipts (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID NOT NULL,
             merchant TEXT,
             date TIMESTAMPTZ NOT NULL,
@@ -58,10 +63,12 @@ async function initDatabase() {
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
         );
+    `);
 
-        -- Groups table
+    // Groups table
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS groups (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID NOT NULL,
             name TEXT NOT NULL,
             color TEXT DEFAULT '#6366f1',
@@ -72,10 +79,12 @@ async function initDatabase() {
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
         );
+    `);
 
-        -- User categories table
+    // User categories table
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS user_categories (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID NOT NULL,
             name TEXT NOT NULL,
             color TEXT DEFAULT '#6366f1',
@@ -84,10 +93,12 @@ async function initDatabase() {
             _synced BOOLEAN DEFAULT FALSE,
             UNIQUE(user_id, name)
         );
+    `);
 
-        -- Settings table
+    // Settings table
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS settings (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID UNIQUE NOT NULL,
             ocr_api_key TEXT,
             default_currency TEXT DEFAULT 'EUR',
@@ -95,24 +106,30 @@ async function initDatabase() {
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
         );
+    `);
 
-        -- User layouts table
+    // User layouts table
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS user_layouts (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id UUID UNIQUE NOT NULL,
             layout JSONB,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
         );
-
-        -- Create indexes
-        CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);
-        CREATE INDEX IF NOT EXISTS idx_receipts_date ON receipts(date);
-        CREATE INDEX IF NOT EXISTS idx_receipts_synced ON receipts(_synced);
-        CREATE INDEX IF NOT EXISTS idx_groups_user_id ON groups(user_id);
-        CREATE INDEX IF NOT EXISTS idx_categories_user_id ON user_categories(user_id);
     `);
+
+    // Create indexes
+    try {
+        await db.exec(`CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);`);
+        await db.exec(`CREATE INDEX IF NOT EXISTS idx_receipts_date ON receipts(date);`);
+        await db.exec(`CREATE INDEX IF NOT EXISTS idx_receipts_synced ON receipts(_synced);`);
+        await db.exec(`CREATE INDEX IF NOT EXISTS idx_groups_user_id ON groups(user_id);`);
+        await db.exec(`CREATE INDEX IF NOT EXISTS idx_categories_user_id ON user_categories(user_id);`);
+    } catch (e) {
+        console.log('[Storage] Some indexes may already exist');
+    }
 
     console.log('[Storage] Database initialized');
     return db;
