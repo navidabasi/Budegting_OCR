@@ -2,6 +2,7 @@
  * PGlite Storage Service with Supabase Sync
  * Local-first storage using PGlite (Postgres in browser)
  * Syncs with Supabase via REST API
+ * Falls back to Supabase-only if PGlite fails (CSP issues)
  */
 
 import { PGlite } from '@electric-sql/pglite';
@@ -11,6 +12,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 // Database instance
 let db = null;
+let dbInitFailed = false;
 let syncListeners = new Map();
 
 /**
@@ -18,16 +20,24 @@ let syncListeners = new Map();
  */
 async function initDatabase() {
     if (db) return db;
+    if (dbInitFailed) return null; // Don't retry if already failed
 
     console.log('[Storage] Initializing PGlite database...');
 
-    db = new PGlite('idb://receipts-electric-v2', {
-        // Enable relaxed durability for better performance
-        relaxedDurability: true,
-    });
+    try {
+        db = new PGlite('idb://receipts-electric-v2', {
+            // Enable relaxed durability for better performance
+            relaxedDurability: true,
+        });
 
-    // Wait for database to be ready
-    await db.waitReady;
+        // Wait for database to be ready
+        await db.waitReady;
+    } catch (err) {
+        console.error('[Storage] PGlite initialization failed (CSP or other issue):', err);
+        dbInitFailed = true;
+        db = null;
+        return null;
+    }
 
     // Create schema matching Supabase - run each table separately
     // to ensure all tables are created even if some already exist
@@ -185,11 +195,27 @@ function notifyListeners(table) {
 
 export const electricStorage = {
     /**
+     * Check if PGlite is available
+     */
+    isPGliteAvailable() {
+        return db !== null && !dbInitFailed;
+    },
+
+    /**
      * Initialize the local PGlite database
      */
     async init(userId = null) {
-        await initDatabase();
-        console.log('[Storage] PGlite database initialized');
+        try {
+            await initDatabase();
+            if (db) {
+                console.log('[Storage] PGlite database initialized');
+            } else {
+                console.warn('[Storage] PGlite not available, using Supabase directly');
+            }
+        } catch (err) {
+            console.error('[Storage] Init failed:', err);
+            dbInitFailed = true;
+        }
         return this;
     },
 
@@ -212,55 +238,94 @@ export const electricStorage = {
     // ============================================
 
     async getReceipts(userId) {
-        await initDatabase();
-        const result = await db.query(
-            `SELECT * FROM receipts WHERE user_id = $1 ORDER BY date DESC, created_at DESC`,
-            [userId]
-        );
-        return result.rows.map(this._mapReceipt);
+        try {
+            await initDatabase();
+            if (!db) {
+                // Fallback to Supabase
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getReceiptsByUserId(userId);
+            }
+            const result = await db.query(
+                `SELECT * FROM receipts WHERE user_id = $1 ORDER BY date DESC, created_at DESC`,
+                [userId]
+            );
+            return result.rows.map(this._mapReceipt);
+        } catch (err) {
+            console.error('[Storage] getReceipts failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            return await supabaseService.getReceiptsByUserId(userId);
+        }
     },
 
     async getReceipt(id) {
-        await initDatabase();
-        const result = await db.query(`SELECT * FROM receipts WHERE id = $1`, [id]);
-        return result.rows[0] ? this._mapReceipt(result.rows[0]) : null;
+        try {
+            await initDatabase();
+            if (!db) {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getReceiptById(id);
+            }
+            const result = await db.query(`SELECT * FROM receipts WHERE id = $1`, [id]);
+            return result.rows[0] ? this._mapReceipt(result.rows[0]) : null;
+        } catch (err) {
+            console.error('[Storage] getReceipt failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            return await supabaseService.getReceiptById(id);
+        }
     },
 
     async createReceipt(receipt) {
-        await initDatabase();
         const now = new Date().toISOString();
         const id = crypto.randomUUID();
 
-        await db.query(`
-            INSERT INTO receipts (
-                id, user_id, merchant, date, total, currency, category, notes,
-                line_items, is_demo, is_pinned, transaction_type, group_id,
-                group_name, group_tags, split_data, recurring_data, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        `, [
-            id,
-            receipt.userId,
-            receipt.merchant,
-            receipt.date,
-            receipt.total,
-            receipt.currency || 'EUR',
-            receipt.category,
-            receipt.notes,
-            JSON.stringify(receipt.lineItems || []),
-            receipt.isDemo || false,
-            receipt.isPinned || false,
-            receipt.transactionType || 'expense',
-            receipt.groupId,
-            receipt.groupName,
-            receipt.groupTags || [],
-            receipt.splitData ? JSON.stringify(receipt.splitData) : null,
-            receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
-            now,
-            now
-        ]);
+        try {
+            await initDatabase();
+            if (!db) {
+                // Fallback to Supabase directly
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                const result = await supabaseService.createReceipt({ id, ...receipt });
+                window.dispatchEvent(new Event('refreshReceipts'));
+                window.dispatchEvent(new Event('refreshDashboard'));
+                return result.id || id;
+            }
 
-        // Push to remote in background
-        pushToRemote('receipts', 'insert', { id, ...receipt });
+            await db.query(`
+                INSERT INTO receipts (
+                    id, user_id, merchant, date, total, currency, category, notes,
+                    line_items, is_demo, is_pinned, transaction_type, group_id,
+                    group_name, group_tags, split_data, recurring_data, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            `, [
+                id,
+                receipt.userId,
+                receipt.merchant,
+                receipt.date,
+                receipt.total,
+                receipt.currency || 'EUR',
+                receipt.category,
+                receipt.notes,
+                JSON.stringify(receipt.lineItems || []),
+                receipt.isDemo || false,
+                receipt.isPinned || false,
+                receipt.transactionType || 'expense',
+                receipt.groupId,
+                receipt.groupName,
+                receipt.groupTags || [],
+                receipt.splitData ? JSON.stringify(receipt.splitData) : null,
+                receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
+                now,
+                now
+            ]);
+
+            // Push to remote in background
+            pushToRemote('receipts', 'insert', { id, ...receipt });
+        } catch (err) {
+            console.error('[Storage] createReceipt PGlite failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            const result = await supabaseService.createReceipt({ id, ...receipt });
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+            return result.id || id;
+        }
 
         window.dispatchEvent(new Event('refreshReceipts'));
         window.dispatchEvent(new Event('refreshDashboard'));
@@ -369,18 +434,36 @@ export const electricStorage = {
     // ============================================
 
     async getGroups(userId) {
-        await initDatabase();
-        const result = await db.query(
-            `SELECT * FROM groups WHERE user_id = $1 ORDER BY is_pinned DESC, name ASC`,
-            [userId]
-        );
-        return result.rows.map(this._mapGroup);
+        try {
+            await initDatabase();
+            if (!db) {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getGroups(userId);
+            }
+            const result = await db.query(
+                `SELECT * FROM groups WHERE user_id = $1 ORDER BY is_pinned DESC, name ASC`,
+                [userId]
+            );
+            return result.rows.map(this._mapGroup);
+        } catch (err) {
+            console.error('[Storage] getGroups failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            return await supabaseService.getGroups(userId);
+        }
     },
 
     async getGroup(id) {
-        await initDatabase();
-        const result = await db.query(`SELECT * FROM groups WHERE id = $1`, [id]);
-        return result.rows[0] ? this._mapGroup(result.rows[0]) : null;
+        try {
+            await initDatabase();
+            if (!db) {
+                return null; // No Supabase fallback for single group
+            }
+            const result = await db.query(`SELECT * FROM groups WHERE id = $1`, [id]);
+            return result.rows[0] ? this._mapGroup(result.rows[0]) : null;
+        } catch (err) {
+            console.error('[Storage] getGroup failed:', err);
+            return null;
+        }
     },
 
     async createGroup(group) {
@@ -554,40 +637,68 @@ export const electricStorage = {
     // ============================================
 
     async getSettings(userId) {
-        await initDatabase();
-        const result = await db.query(
-            `SELECT * FROM settings WHERE user_id = $1`,
-            [userId]
-        );
-        if (result.rows[0]) {
-            const row = result.rows[0];
-            return {
-                id: row.id,
-                userId: row.user_id,
-                ocrApiKey: row.ocr_api_key,
-                defaultCurrency: row.default_currency,
-            };
+        try {
+            await initDatabase();
+            if (!db) {
+                // Fallback to Supabase
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getSettings(userId);
+            }
+            const result = await db.query(
+                `SELECT * FROM settings WHERE user_id = $1`,
+                [userId]
+            );
+            if (result.rows[0]) {
+                const row = result.rows[0];
+                return {
+                    id: row.id,
+                    userId: row.user_id,
+                    ocrApiKey: row.ocr_api_key,
+                    defaultCurrency: row.default_currency,
+                };
+            }
+            return null;
+        } catch (err) {
+            console.error('[Storage] getSettings failed, trying Supabase:', err);
+            try {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getSettings(userId);
+            } catch (e) {
+                console.error('[Storage] Supabase getSettings also failed:', e);
+                return null;
+            }
         }
-        return null;
     },
 
     async saveSettings(userId, settings) {
-        await initDatabase();
-        const now = new Date().toISOString();
-        const id = crypto.randomUUID();
+        try {
+            await initDatabase();
+            if (!db) {
+                // Fallback to Supabase
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.saveSettings(userId, settings);
+            }
 
-        await db.query(`
-            INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (user_id) DO UPDATE SET
-                ocr_api_key = $3,
-                default_currency = $4,
-                updated_at = $6
-        `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
+            const now = new Date().toISOString();
+            const id = crypto.randomUUID();
 
-        pushToRemote('settings', 'update', { userId, ...settings });
+            await db.query(`
+                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    ocr_api_key = $3,
+                    default_currency = $4,
+                    updated_at = $6
+            `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
 
-        return id;
+            pushToRemote('settings', 'update', { userId, ...settings });
+
+            return id;
+        } catch (err) {
+            console.error('[Storage] saveSettings failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            return await supabaseService.saveSettings(userId, settings);
+        }
     },
 
     // ============================================
@@ -595,39 +706,65 @@ export const electricStorage = {
     // ============================================
 
     async getUserLayout(userId) {
-        await initDatabase();
-        const result = await db.query(
-            `SELECT * FROM user_layouts WHERE user_id = $1`,
-            [userId]
-        );
-        if (result.rows[0]) {
-            const row = result.rows[0];
-            return {
-                id: row.id,
-                userId: row.user_id,
-                layout: typeof row.layout === 'string' ? JSON.parse(row.layout) : row.layout,
-            };
+        try {
+            await initDatabase();
+            if (!db) {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getUserLayout(userId);
+            }
+            const result = await db.query(
+                `SELECT * FROM user_layouts WHERE user_id = $1`,
+                [userId]
+            );
+            if (result.rows[0]) {
+                const row = result.rows[0];
+                return {
+                    id: row.id,
+                    userId: row.user_id,
+                    layout: typeof row.layout === 'string' ? JSON.parse(row.layout) : row.layout,
+                };
+            }
+            return null;
+        } catch (err) {
+            console.error('[Storage] getUserLayout failed, trying Supabase:', err);
+            try {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getUserLayout(userId);
+            } catch (e) {
+                console.error('[Storage] Supabase getUserLayout also failed:', e);
+                return null;
+            }
         }
-        return null;
     },
 
     async saveUserLayout(userId, layout) {
-        await initDatabase();
-        const now = new Date().toISOString();
-        const id = crypto.randomUUID();
+        try {
+            await initDatabase();
+            if (!db) {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.saveUserLayout(userId, layout);
+            }
 
-        await db.query(`
-            INSERT INTO user_layouts (id, user_id, layout, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (user_id) DO UPDATE SET
-                layout = $3,
-                updated_at = $5
-        `, [id, userId, JSON.stringify(layout), now, now]);
+            const now = new Date().toISOString();
+            const id = crypto.randomUUID();
 
-        pushToRemote('user_layouts', 'update', { userId, layout });
-        window.dispatchEvent(new Event('refreshLayout'));
+            await db.query(`
+                INSERT INTO user_layouts (id, user_id, layout, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    layout = $3,
+                    updated_at = $5
+            `, [id, userId, JSON.stringify(layout), now, now]);
 
-        return id;
+            pushToRemote('user_layouts', 'update', { userId, layout });
+            window.dispatchEvent(new Event('refreshLayout'));
+
+            return id;
+        } catch (err) {
+            console.error('[Storage] saveUserLayout failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            return await supabaseService.saveUserLayout(userId, layout);
+        }
     },
 
     // ============================================
