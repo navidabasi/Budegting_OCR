@@ -221,11 +221,6 @@ async function createSchema() {
 async function pushToRemote(table, operation, data) {
     if (!SUPABASE_URL) return;
 
-    // Skip settings - they're handled directly in saveSettings
-    if (table === 'settings') {
-        return;
-    }
-
     const supabaseService = await import('./supabaseService.js');
 
     try {
@@ -865,22 +860,7 @@ export const electricStorage = {
                     defaultCurrency: row.default_currency,
                 };
             }
-            // Local storage doesn't have settings - try Supabase as fallback
-            console.log('[Storage] No local settings found, trying Supabase...');
-            try {
-                const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                const supabaseSettings = await supabaseService.getSettings(userId);
-                if (supabaseSettings) {
-                    // Cache the settings locally in background (don't block)
-                    electricStorage.saveSettingsLocally(userId, supabaseSettings).catch(e => {
-                        console.warn('[Storage] Failed to cache settings locally:', e);
-                    });
-                }
-                return supabaseSettings;
-            } catch (e) {
-                console.error('[Storage] Supabase getSettings failed:', e);
-                return null;
-            }
+            return null;
         } catch (err) {
             console.error('[Storage] getSettings failed, trying Supabase:', err);
             try {
@@ -891,22 +871,6 @@ export const electricStorage = {
                 return null;
             }
         }
-    },
-
-    // Helper to save settings to local storage only (no Supabase push)
-    async saveSettingsLocally(userId, settings) {
-        if (!db) return;
-        const now = new Date().toISOString();
-        const id = crypto.randomUUID();
-        await db.query(`
-            INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at, _synced)
-            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-            ON CONFLICT (user_id) DO UPDATE SET
-                ocr_api_key = EXCLUDED.ocr_api_key,
-                default_currency = EXCLUDED.default_currency,
-                updated_at = EXCLUDED.updated_at,
-                _synced = TRUE
-        `, [id, userId, settings.ocrApiKey || null, settings.defaultCurrency || 'EUR', now, now]);
     },
 
     async saveSettings(userId, settings) {
@@ -930,7 +894,7 @@ export const electricStorage = {
                     updated_at = $6
             `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
 
-            // Push to Supabase in background (don't block local save)
+            // Push to Supabase directly (not via pushToRemote which expects different method names)
             (async () => {
                 try {
                     const supabaseService = (await import('./supabaseService.js')).supabaseService;
@@ -938,7 +902,6 @@ export const electricStorage = {
                     console.log('[Storage] Settings synced to Supabase');
                 } catch (e) {
                     console.error('[Storage] Failed to sync settings to Supabase:', e);
-                    // Don't throw - local save succeeded
                 }
             })();
 
