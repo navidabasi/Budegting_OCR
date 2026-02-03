@@ -64,8 +64,13 @@ export default async function handler(req, res) {
         // Build form data parts
         let formParts = [];
         
-        // API Key (use free tier test key if not provided)
-        const actualApiKey = apiKey || 'helloworld'; // 'helloworld' is OCR.Space's free tier test key
+        // API Key is required - users must provide their own
+        if (!apiKey) {
+            return res.status(400).json({
+                error: 'OCR API key is required. Please add your OCR.Space API key in Settings. You can get a free key at https://ocr.space/ocrapi'
+            });
+        }
+        const actualApiKey = apiKey;
         formParts.push(
             `--${boundary}${CRLF}` +
             `Content-Disposition: form-data; name="apikey"${CRLF}${CRLF}` +

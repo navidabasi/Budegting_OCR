@@ -43,7 +43,7 @@ export default function SummaryCards({ receipts }) {
                 iconBg="bg-green-100"
                 iconColor="text-green-600"
                 textColor="text-green-600 dark:text-green-400"
-                onClick={nav.toReceipts}
+                onClick={nav.toAllIncome}
             />
             <SummaryCard
                 label="Total Expenses"
@@ -53,7 +53,7 @@ export default function SummaryCards({ receipts }) {
                 iconBg="bg-red-100"
                 iconColor="text-red-600"
                 textColor="text-red-600 dark:text-red-400"
-                onClick={nav.toReceipts}
+                onClick={nav.toAllExpenses}
             />
             <SummaryCard
                 label="Net"

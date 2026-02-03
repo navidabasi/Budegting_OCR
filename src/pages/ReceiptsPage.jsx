@@ -249,28 +249,32 @@ export default function ReceiptsPage() {
         const filterYear = searchParams.get('year');
         const transactionType = searchParams.get('type'); // income or expense
 
-        // Apply transaction type filter (from CashFlow widget)
+        // Apply transaction type filter (from KPI cards or CashFlow widget)
         if (transactionType) {
             filtered = filtered.filter(r => {
                 const rType = r.transactionType || 'expense';
                 return rType === transactionType;
             });
-        }
 
-        // Apply month/year filter when type is specified (from CashFlow widget)
-        if (transactionType && filterMonth && filterYear) {
-            const month = parseInt(filterMonth) - 1;
-            const year = parseInt(filterYear);
-            filtered = filtered.filter(r => {
-                const date = new Date(r.date);
-                return date.getMonth() === month && date.getFullYear() === year;
-            });
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'];
             const typeLabel = transactionType.charAt(0).toUpperCase() + transactionType.slice(1);
-            setActiveFilter({ type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` });
-            setSelectedMonth(filterMonth);
-            setSelectedYear(filterYear);
+
+            // Check if month/year is also specified (from CashFlow widget - current month)
+            if (filterMonth && filterYear) {
+                const month = parseInt(filterMonth) - 1;
+                const year = parseInt(filterYear);
+                filtered = filtered.filter(r => {
+                    const date = new Date(r.date);
+                    return date.getMonth() === month && date.getFullYear() === year;
+                });
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+                setActiveFilter({ type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` });
+                setSelectedMonth(filterMonth);
+                setSelectedYear(filterYear);
+            } else {
+                // Type only - all time (from Total Income/Total Expenses KPI)
+                setActiveFilter({ type: 'transaction', value: `All ${typeLabel}` });
+            }
         }
         // Apply URL-based filters (from widget clicks)
         else if (filterType === 'category' && filterCategory) {

@@ -21,6 +21,22 @@ export function useReceiptNavigation() {
         }, [navigate]),
         toReceiptDetail: useCallback((receiptId) => {
             navigate(`/receipts/${receiptId}`);
+        }, [navigate]),
+        // Navigate to all income receipts (all time)
+        toAllIncome: useCallback(() => {
+            navigate('/receipts?type=income');
+        }, [navigate]),
+        // Navigate to all expense receipts (all time)
+        toAllExpenses: useCallback(() => {
+            navigate('/receipts?type=expense');
+        }, [navigate]),
+        // Navigate to income for a specific month
+        toMonthlyIncome: useCallback((month, year) => {
+            navigate(`/receipts?type=income&month=${month}&year=${year}`);
+        }, [navigate]),
+        // Navigate to expenses for a specific month
+        toMonthlyExpenses: useCallback((month, year) => {
+            navigate(`/receipts?type=expense&month=${month}&year=${year}`);
         }, [navigate])
     };
 }

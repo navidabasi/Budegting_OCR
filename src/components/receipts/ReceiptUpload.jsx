@@ -80,13 +80,16 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         setError(null);
 
         try {
-            // API key is optional for OCR.Space (free tier works without it)
+            // API key is required - users must provide their own
             let apiKey = null;
             try {
                 apiKey = await storageService.getOcrApiKey(currentUser.userId);
             } catch (apiKeyError) {
-                console.warn('[ReceiptUpload] Could not get API key, using free tier:', apiKeyError);
-                // Continue without API key - free tier will be used
+                console.warn('[ReceiptUpload] Could not get API key:', apiKeyError);
+            }
+
+            if (!apiKey) {
+                throw new Error('OCR API key is required. Please add your OCR.Space API key in Settings. Get a free key at ocr.space/ocrapi');
             }
 
             const result = await ocrApi.processReceipt(file, apiKey);

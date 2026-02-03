@@ -181,14 +181,14 @@ export default function CategoryChart({ receipts }) {
 
     if (categories.length === 0) {
         return (
-            <div className="card h-64 flex items-center justify-center">
+            <div className="card h-80 flex items-center justify-center">
                 <p className="text-gray-500 dark:text-gray-300">No data to display</p>
             </div>
         );
     }
 
     return (
-        <div className="card h-64 w-full overflow-hidden flex flex-col relative">
+        <div className="card h-80 w-full overflow-hidden flex flex-col relative">
             <div className="flex items-start justify-between mb-2">
                 <h3 className="text-base sm:text-lg font-semibold dark:text-white">Expenses by Category</h3>
                 <div className="text-right">
