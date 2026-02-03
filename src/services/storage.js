@@ -81,6 +81,7 @@ export const storageService = {
     getSyncStatus: electricStorage.getSyncStatus,
     forcePush: electricStorage.forcePush,
     pullFromSupabase: electricStorage.pullFromSupabase,
+    clearAndResync: electricStorage.clearAndResync,
 
     // Sync methods - now implemented with real pull/push functionality
     async syncAllFromCloud(userId) {

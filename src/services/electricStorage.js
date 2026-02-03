@@ -127,9 +127,17 @@ async function createSchema() {
             field_timestamps JSONB,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
-            _synced BOOLEAN DEFAULT FALSE
+            _synced BOOLEAN DEFAULT FALSE,
+            _sync_failed BOOLEAN DEFAULT FALSE
         );
     `);
+
+    // Add _sync_failed column if it doesn't exist (for existing databases)
+    try {
+        await db.exec(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS _sync_failed BOOLEAN DEFAULT FALSE;`);
+    } catch (e) {
+        // Column might already exist
+    }
 
     // Groups table
     await db.exec(`
@@ -143,9 +151,17 @@ async function createSchema() {
             parent_group_id UUID,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
-            _synced BOOLEAN DEFAULT FALSE
+            _synced BOOLEAN DEFAULT FALSE,
+            _sync_failed BOOLEAN DEFAULT FALSE
         );
     `);
+
+    // Add _sync_failed column if it doesn't exist (for existing databases)
+    try {
+        await db.exec(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS _sync_failed BOOLEAN DEFAULT FALSE;`);
+    } catch (e) {
+        // Column might already exist
+    }
 
     // User categories table
     await db.exec(`
@@ -219,12 +235,20 @@ async function pushToRemote(table, operation, data) {
             await supabaseService.default[`delete${capitalizeFirst(singularize(table))}`](data.id);
         }
 
-        // Mark as synced
-        if (db) {
-            await db.query(`UPDATE ${table} SET _synced = TRUE WHERE id = $1`, [data.id]);
+        // Mark as synced successfully
+        if (db && operation !== 'delete') {
+            await db.query(`UPDATE ${table} SET _synced = TRUE, _sync_failed = FALSE WHERE id = $1`, [data.id]);
         }
     } catch (error) {
         console.error(`[Storage] Failed to push ${operation} to ${table}:`, error);
+        // Mark as sync failed so we don't accidentally delete it during pull
+        if (db && operation !== 'delete') {
+            try {
+                await db.query(`UPDATE ${table} SET _sync_failed = TRUE WHERE id = $1`, [data.id]);
+            } catch (e) {
+                console.error(`[Storage] Failed to mark sync failure:`, e);
+            }
+        }
         throw error; // Re-throw to let caller handle
     }
 }
@@ -1329,7 +1353,58 @@ export const electricStorage = {
             errors.push({ type: 'user_layout', error: err.message });
         }
 
-        console.log(`[Storage] Pull complete: ${pulled} items checked, ${actuallyUpdated} updated/new, ${errors.length} errors`);
+        // DELETION DETECTION: Remove local items that were synced but no longer exist in Supabase
+        // Only delete items that: _synced = TRUE (was previously synced) AND _sync_failed = FALSE (not a failed sync)
+        let deleted = 0;
+
+        try {
+            // Get all receipt IDs from Supabase
+            const supabaseReceiptIds = new Set(
+                (await supabaseService.getReceiptsByUserId(userId)).map(r => r.id)
+            );
+
+            // Find local receipts that were synced but no longer exist in Supabase
+            const localSyncedReceipts = await db.query(
+                `SELECT id FROM receipts WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL) AND is_demo = FALSE`,
+                [userId]
+            );
+
+            for (const row of localSyncedReceipts.rows) {
+                if (!supabaseReceiptIds.has(row.id)) {
+                    console.log(`[Storage] Deleting locally synced receipt ${row.id} - no longer exists in Supabase`);
+                    await db.query(`DELETE FROM receipts WHERE id = $1`, [row.id]);
+                    deleted++;
+                }
+            }
+
+            // Get all group IDs from Supabase
+            const supabaseGroupIds = new Set(
+                (await supabaseService.getGroups(userId)).map(g => g.id)
+            );
+
+            // Find local groups that were synced but no longer exist in Supabase
+            const localSyncedGroups = await db.query(
+                `SELECT id FROM groups WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL) AND is_demo = FALSE`,
+                [userId]
+            );
+
+            for (const row of localSyncedGroups.rows) {
+                if (!supabaseGroupIds.has(row.id)) {
+                    console.log(`[Storage] Deleting locally synced group ${row.id} - no longer exists in Supabase`);
+                    await db.query(`DELETE FROM groups WHERE id = $1`, [row.id]);
+                    deleted++;
+                }
+            }
+
+            if (deleted > 0) {
+                console.log(`[Storage] Deleted ${deleted} items that no longer exist in Supabase`);
+            }
+        } catch (err) {
+            console.error('[Storage] Failed to detect deletions:', err);
+            errors.push({ type: 'deletion_detection', error: err.message });
+        }
+
+        console.log(`[Storage] Pull complete: ${pulled} items checked, ${actuallyUpdated} updated/new, ${deleted} deleted, ${errors.length} errors`);
 
         // Notify all listeners to refresh their data
         notifyListeners('receipts');
@@ -1346,7 +1421,62 @@ export const electricStorage = {
             window.dispatchEvent(new Event('refreshLayout'));
         }, 100);
 
-        return { pulled, updated: actuallyUpdated, errors };
+        return { pulled, updated: actuallyUpdated, deleted, errors };
+    },
+
+    /**
+     * Clear all local data and resync from Supabase (Option 3 - Nuclear option)
+     * Use this when sync state is corrupted or user wants a fresh start
+     */
+    async clearAndResync(userId) {
+        console.log('[Storage] Starting clear and resync for user:', userId);
+
+        await initDatabase();
+
+        if (!db) {
+            console.log('[Storage] PGlite not available, nothing to clear locally');
+            return { cleared: 0, pulled: 0, errors: [] };
+        }
+
+        const errors = [];
+        let cleared = 0;
+
+        // Clear all local data for this user (except demo data which is local-only)
+        try {
+            console.log('[Storage] Clearing local receipts...');
+            const receiptResult = await db.query(`DELETE FROM receipts WHERE user_id = $1 AND is_demo = FALSE`, [userId]);
+            cleared += receiptResult.affectedRows || 0;
+
+            console.log('[Storage] Clearing local groups...');
+            const groupResult = await db.query(`DELETE FROM groups WHERE user_id = $1 AND is_demo = FALSE`, [userId]);
+            cleared += groupResult.affectedRows || 0;
+
+            console.log('[Storage] Clearing local categories...');
+            await db.query(`DELETE FROM user_categories WHERE user_id = $1`, [userId]);
+
+            console.log('[Storage] Clearing local settings...');
+            await db.query(`DELETE FROM settings WHERE user_id = $1`, [userId]);
+
+            console.log('[Storage] Clearing local layouts...');
+            await db.query(`DELETE FROM user_layouts WHERE user_id = $1`, [userId]);
+
+            console.log(`[Storage] Cleared local data`);
+        } catch (err) {
+            console.error('[Storage] Failed to clear local data:', err);
+            errors.push({ type: 'clear', error: err.message });
+        }
+
+        // Pull fresh data from Supabase
+        console.log('[Storage] Pulling fresh data from Supabase...');
+        const pullResult = await this.pullFromSupabase(userId);
+
+        console.log('[Storage] Clear and resync complete:', { cleared, pulled: pullResult.pulled });
+
+        return {
+            cleared,
+            pulled: pullResult.pulled,
+            errors: [...errors, ...pullResult.errors]
+        };
     },
 
     /**

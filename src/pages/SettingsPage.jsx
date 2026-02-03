@@ -30,6 +30,7 @@ export default function SettingsPage() {
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
+    const [showClearResyncConfirm, setShowClearResyncConfirm] = useState(false);
     const [showLoadDemoConfirm, setShowLoadDemoConfirm] = useState(false);
     const [showClearDemoConfirm, setShowClearDemoConfirm] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -230,6 +231,43 @@ export default function SettingsPage() {
         }
     };
 
+    const handleClearAndResync = async () => {
+        console.log('[Settings] Clear & Resync clicked');
+        if (!currentUser) {
+            showToast('Please log in to sync', 'error');
+            return;
+        }
+        setSyncing(true);
+        setSyncStatus(null);
+        setShowClearResyncConfirm(false);
+
+        try {
+            console.log('[Settings] Starting clear and resync for userId:', currentUser.userId);
+            const result = await storageService.clearAndResync(currentUser.userId);
+            console.log('[Settings] Clear and resync result:', result);
+
+            if (result.errors && result.errors.length > 0) {
+                console.error('[Settings] Clear and resync errors:', result.errors);
+                showToast('Resync completed with some errors', 'warning');
+                setSyncStatus({ type: 'warning', message: `Resynced with ${result.errors.length} error(s). Pulled ${result.pulled} items.` });
+            } else {
+                showToast('Data cleared and resynced successfully', 'success');
+                setSyncStatus({ type: 'success', message: `Local data cleared and ${result.pulled} items downloaded from cloud` });
+            }
+
+            // Refresh the UI
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshGroups'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+        } catch (err) {
+            console.error('[Settings] Clear and resync error:', err);
+            showToast(`Failed to resync: ${err.message || 'Unknown error'}`, 'error');
+            setSyncStatus({ type: 'error', message: 'Clear and resync failed' });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const handleLogout = async () => {
         console.log('[Settings] Logout clicked');
 
@@ -370,7 +408,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Sync your data with the cloud to access it from multiple devices
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <Button
                         variant="primary"
                         onClick={handleSync}
@@ -380,8 +418,20 @@ export default function SettingsPage() {
                         <Cloud size={18} />
                         {syncing ? 'Syncing...' : 'Sync'}
                     </Button>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                        Syncs both directions automatically. If the same receipt was changed on both devices, changes will be merged (line items combined, newer data preserved).
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Syncs both directions automatically. Deleted items on other devices will be removed locally.
+                    </p>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowClearResyncConfirm(true)}
+                        disabled={syncing}
+                        className="w-full flex items-center justify-center gap-2"
+                    >
+                        <Database size={18} />
+                        Clear & Resync
+                    </Button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Clears all local data and downloads fresh from cloud. Use if sync is not working correctly.
                     </p>
                     {syncStatus && (
                         <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600 dark:text-green-400' :
@@ -577,6 +627,17 @@ export default function SettingsPage() {
                 title="Clear Demo Data"
                 message="This will remove all demo receipts. Continue?"
                 confirmText="Clear"
+                cancelText="Cancel"
+                danger={true}
+            />
+
+            <ConfirmationModal
+                isOpen={showClearResyncConfirm}
+                onClose={() => setShowClearResyncConfirm(false)}
+                onConfirm={handleClearAndResync}
+                title="Clear & Resync"
+                message="This will delete all local data and download everything fresh from the cloud. Any unsynced local changes will be lost. Continue?"
+                confirmText="Clear & Resync"
                 cancelText="Cancel"
                 danger={true}
             />
