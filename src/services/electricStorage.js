@@ -860,7 +860,14 @@ export const electricStorage = {
                     defaultCurrency: row.default_currency,
                 };
             }
-            return null;
+            // Local empty - try Supabase as fallback (for API key sync across devices)
+            try {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.getSettings(userId);
+            } catch (e) {
+                console.warn('[Storage] Supabase getSettings fallback failed:', e);
+                return null;
+            }
         } catch (err) {
             console.error('[Storage] getSettings failed, trying Supabase:', err);
             try {
@@ -894,7 +901,16 @@ export const electricStorage = {
                     updated_at = $6
             `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
 
-            pushToRemote('settings', 'update', { userId, ...settings });
+            // Push settings directly to Supabase (not via pushToRemote, as it doesn't support settings)
+            (async () => {
+                try {
+                    const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                    await supabaseService.saveSettings(userId, settings);
+                    console.log('[Storage] Settings synced to Supabase');
+                } catch (e) {
+                    console.error('[Storage] Failed to sync settings to Supabase:', e);
+                }
+            })();
 
             return id;
         } catch (err) {
