@@ -9,22 +9,37 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
             manifest: {
-                name: 'Receipt Manager',
-                short_name: 'Receipts',
-                description: 'Manage your receipts and expenses with OCR',
+                name: 'Where my money went?',
+                short_name: 'Money Tracker',
+                description: 'Track where your money goes with receipt scanning and expense management',
                 theme_color: '#10b981',
                 background_color: '#ffffff',
                 display: 'standalone',
+                orientation: 'portrait',
                 icons: [
                     {
                         src: 'pwa-192x192.png',
                         sizes: '192x192',
-                        type: 'image/png'
+                        type: 'image/png',
+                        purpose: 'any'
                     },
                     {
                         src: 'pwa-512x512.png',
                         sizes: '512x512',
-                        type: 'image/png'
+                        type: 'image/png',
+                        purpose: 'any'
+                    },
+                    {
+                        src: 'pwa-maskable-192x192.png',
+                        sizes: '192x192',
+                        type: 'image/png',
+                        purpose: 'maskable'
+                    },
+                    {
+                        src: 'pwa-maskable-512x512.png',
+                        sizes: '512x512',
+                        type: 'image/png',
+                        purpose: 'maskable'
                     }
                 ]
             },

@@ -326,7 +326,7 @@ export default function ExpenseChart({ receipts }) {
                 left: 5,
                 right: 5,
                 top: 10,
-                bottom: 20
+                bottom: 30
             }
         },
         plugins: {
@@ -416,32 +416,32 @@ export default function ExpenseChart({ receipts }) {
 
     return (
         <div className="contents">
-            <div className="card h-64 w-full overflow-hidden">
+            <div className="card h-80 w-full overflow-hidden">
                 <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">Last 30 Days (Income & Expenses)</h3>
 
                 {/* Mobile Navigation Bar - only shows on interaction */}
                 {isTouchDevice && daysWithDataIndices.length > 0 && (
-                    <div className={`flex items-center justify-between bg-gray-700 dark:bg-gray-800 rounded-lg px-3 py-2 mb-2 transition-all duration-300 ${showMobileNav ? 'opacity-100 max-h-12' : 'opacity-0 max-h-0 overflow-hidden py-0 mb-0'}`}>
+                    <div className={`flex items-center justify-between bg-gray-200 dark:bg-gray-700 rounded-lg px-3 py-2 mb-2 transition-all duration-300 ${showMobileNav ? 'opacity-100 max-h-12' : 'opacity-0 max-h-0 overflow-hidden py-0 mb-0'}`}>
                         <button
                             onClick={handleNavPrevious}
-                            className="flex items-center gap-1 text-white hover:text-gray-300 active:text-gray-400 p-1"
+                            className="flex items-center gap-1 text-gray-700 dark:text-white hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-400 p-1"
                             aria-label="Previous day with data"
                         >
                             <ChevronLeft size={24} />
                             <span className="text-sm">Prev</span>
                         </button>
 
-                        <div className="text-white text-sm font-medium">
+                        <div className="text-gray-900 dark:text-white text-sm font-medium">
                             {navIndex !== null ? (
                                 <span>{format(last30Days[navIndex], 'MMM dd, yyyy')}</span>
                             ) : (
-                                <span className="text-gray-300">Tap arrows to browse</span>
+                                <span className="text-gray-500 dark:text-gray-300">Tap arrows to browse</span>
                             )}
                         </div>
 
                         <button
                             onClick={handleNavNext}
-                            className="flex items-center gap-1 text-white hover:text-gray-300 active:text-gray-400 p-1"
+                            className="flex items-center gap-1 text-gray-700 dark:text-white hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-400 p-1"
                             aria-label="Next day with data"
                         >
                             <span className="text-sm">Next</span>
@@ -451,7 +451,7 @@ export default function ExpenseChart({ receipts }) {
                 )}
 
                 <div
-                    className="h-52 -mx-2"
+                    className="h-60 -mx-2"
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
@@ -491,21 +491,21 @@ export default function ExpenseChart({ receipts }) {
                                     key={receipt.id}
                                     className={`p-3 border rounded-lg cursor-pointer hover:shadow-md transition-shadow ${
                                         isIncome
-                                            ? 'bg-green-50 border-green-200 dark:bg-green-100 dark:border-green-300'
-                                            : 'bg-red-50 border-red-200 dark:bg-red-100 dark:border-red-300'
+                                            ? 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-700'
+                                            : 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-700'
                                     }`}
                                     onClick={() => navigate(`/receipts/${receipt.id}`)}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-gray-900">{receipt.merchant}</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">{receipt.merchant}</span>
                                         <span className={`font-bold ${
-                                            isIncome ? 'text-green-700' : 'text-red-700'
+                                            isIncome ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
                                         }`}>
                                             <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                                         </span>
                                     </div>
                                     {receipt.category && (
-                                        <span className="text-xs text-gray-600">{receipt.category}</span>
+                                        <span className="text-xs text-gray-600 dark:text-gray-400">{receipt.category}</span>
                                     )}
                                 </div>
                             );

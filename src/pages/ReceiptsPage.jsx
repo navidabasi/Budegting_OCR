@@ -227,9 +227,33 @@ export default function ReceiptsPage() {
         const filterCategory = searchParams.get('category');
         const filterMonth = searchParams.get('month');
         const filterYear = searchParams.get('year');
+        const transactionType = searchParams.get('type'); // income or expense
 
+        // Apply transaction type filter (from CashFlow widget)
+        if (transactionType) {
+            filtered = filtered.filter(r => {
+                const rType = r.transactionType || 'expense';
+                return rType === transactionType;
+            });
+        }
+
+        // Apply month/year filter when type is specified (from CashFlow widget)
+        if (transactionType && filterMonth && filterYear) {
+            const month = parseInt(filterMonth) - 1;
+            const year = parseInt(filterYear);
+            filtered = filtered.filter(r => {
+                const date = new Date(r.date);
+                return date.getMonth() === month && date.getFullYear() === year;
+            });
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+            const typeLabel = transactionType.charAt(0).toUpperCase() + transactionType.slice(1);
+            setActiveFilter({ type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` });
+            setSelectedMonth(filterMonth);
+            setSelectedYear(filterYear);
+        }
         // Apply URL-based filters (from widget clicks)
-        if (filterType === 'category' && filterCategory) {
+        else if (filterType === 'category' && filterCategory) {
             filtered = filtered.filter(r => r.category === decodeURIComponent(filterCategory));
             setActiveFilter({ type: 'category', value: decodeURIComponent(filterCategory) });
             setSelectedCategory(decodeURIComponent(filterCategory));
@@ -249,7 +273,7 @@ export default function ReceiptsPage() {
             const merchant = decodeURIComponent(searchParams.get('merchant'));
             filtered = filtered.filter(r => r.merchant === merchant);
             setActiveFilter({ type: 'merchant', value: merchant });
-        } else {
+        } else if (!transactionType) {
             setActiveFilter(null);
         }
 

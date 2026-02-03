@@ -117,7 +117,7 @@ export default function RecurringPayments({ receipts }) {
                                     ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
                                     : 'border-gray-200 dark:border-gray-700'
                             }`}
-                            onClick={() => navigate('/receipts')}
+                            onClick={() => navigate(`/receipts/${receipt.id}`)}
                         >
                             <div className="flex items-start justify-between">
                                 <div className="flex-1 min-w-0">

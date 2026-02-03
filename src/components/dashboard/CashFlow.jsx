@@ -1,7 +1,23 @@
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function CashFlow({ receipts }) {
+    const navigate = useNavigate();
+
+    // Get current month for filter
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const handleIncomeClick = () => {
+        // Navigate to receipts page with income filter for current month
+        navigate(`/receipts?type=income&month=${currentMonth + 1}&year=${currentYear}`);
+    };
+
+    const handleExpenseClick = () => {
+        // Navigate to receipts page with expense filter for current month
+        navigate(`/receipts?type=expense&month=${currentMonth + 1}&year=${currentYear}`);
+    };
     // Separate income and expenses
     const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');
     const income = receipts.filter(r => r.transactionType === 'income');
@@ -29,7 +45,10 @@ export default function CashFlow({ receipts }) {
 
             <div className="space-y-4">
                 {/* Income Bar */}
-                <div>
+                <div
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={handleIncomeClick}
+                >
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <TrendingUp size={18} className="text-green-600 dark:text-green-400" />
@@ -54,7 +73,10 @@ export default function CashFlow({ receipts }) {
                 </div>
 
                 {/* Expenses Bar */}
-                <div>
+                <div
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={handleExpenseClick}
+                >
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <TrendingDown size={18} className="text-red-600 dark:text-red-400" />

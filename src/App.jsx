@@ -12,6 +12,7 @@ import BottomNav from './components/layout/BottomNav';
 import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
+import InstallAppPrompt from './components/common/InstallAppPrompt';
 
 function ProtectedRoute({ children }) {
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
@@ -241,6 +242,7 @@ function App() {
                         <BottomNav />
                         <Sidebar />
                         <AddReceiptModal />
+                        <InstallAppPrompt />
                     </>
                 )}
 
