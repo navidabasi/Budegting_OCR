@@ -11,7 +11,9 @@ export default function BottomNav() {
 
     const handleHomeClick = () => {
         if (location.pathname === '/') {
-            // Already on home, just refresh the data by dispatching a custom event
+            // Already on home - scroll to top smoothly
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Also refresh the data
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } else {
             navigate('/');

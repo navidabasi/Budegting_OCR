@@ -860,7 +860,31 @@ export const electricStorage = {
                     defaultCurrency: row.default_currency,
                 };
             }
-            return null;
+            // Local storage doesn't have settings - try Supabase as fallback
+            console.log('[Storage] No local settings found, trying Supabase...');
+            try {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                const supabaseSettings = await supabaseService.getSettings(userId);
+                if (supabaseSettings) {
+                    // Cache the settings locally for future use
+                    const now = new Date().toISOString();
+                    const id = crypto.randomUUID();
+                    await db.query(`
+                        INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at, _synced)
+                        VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+                        ON CONFLICT (user_id) DO UPDATE SET
+                            ocr_api_key = EXCLUDED.ocr_api_key,
+                            default_currency = EXCLUDED.default_currency,
+                            updated_at = EXCLUDED.updated_at,
+                            _synced = TRUE
+                    `, [id, userId, supabaseSettings.ocrApiKey, supabaseSettings.defaultCurrency || 'EUR', now, now]);
+                    console.log('[Storage] Cached settings from Supabase to local');
+                }
+                return supabaseSettings;
+            } catch (e) {
+                console.error('[Storage] Supabase getSettings failed:', e);
+                return null;
+            }
         } catch (err) {
             console.error('[Storage] getSettings failed, trying Supabase:', err);
             try {
