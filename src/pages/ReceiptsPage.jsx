@@ -119,6 +119,26 @@ export default function ReceiptsPage() {
         setGroups(groupsWithCounts);
     }, [allGroups, receipts]);
 
+    // Filter groups based on active filter - only show groups that have matching receipts
+    const displayedGroups = activeFilter ? groups.filter(group => {
+        const groupIdToUse = String(group.supabaseId || group.id);
+        // Check if any receipt in filteredReceipts belongs to this group
+        return filteredReceipts.some(r => {
+            if (!r.groupId) return false;
+            return String(r.groupId) === groupIdToUse;
+        });
+    }) : groups;
+
+    // Helper to get filtered receipts for a specific group
+    const getFilteredGroupReceipts = (group) => {
+        const groupIdToUse = String(group.supabaseId || group.id);
+        const receiptsToFilter = activeFilter ? filteredReceipts : receipts;
+        return receiptsToFilter.filter(r => {
+            if (!r.groupId) return false;
+            return String(r.groupId) === groupIdToUse;
+        });
+    };
+
     // Listen for touch-based drops
     useEffect(() => {
         const handleReceiptDrop = async (e) => {
@@ -493,7 +513,7 @@ export default function ReceiptsPage() {
             </div>
 
             {/* Groups Section */}
-            {groups.length > 0 && (
+            {displayedGroups.length > 0 && (
                 <div className="mb-8 mt-6">
                     <div className="flex items-center justify-between mb-4">
                         <button
@@ -507,14 +527,10 @@ export default function ReceiptsPage() {
                     {showGroupsSection && (
                         <>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                                {groups.map((group, index) => {
+                                {displayedGroups.map((group, index) => {
                                     const groupIdToUse = String(group.supabaseId || group.id);
                                     const isExpanded = expandedGroups.has(groupIdToUse);
-                                    const groupReceipts = receipts.filter(r => {
-                                        if (!r.groupId) return false;
-                                        const receiptGroupId = String(r.groupId);
-                                        return receiptGroupId === groupIdToUse;
-                                    });
+                                    const groupReceipts = getFilteredGroupReceipts(group);
 
                                     // Get faded background color
                                     const groupColor = group.color || '#3b82f6';
@@ -535,6 +551,7 @@ export default function ReceiptsPage() {
                                             group={group}
                                             isDragOver={draggedOverGroup === group.id}
                                             isExpanded={isExpanded}
+                                            filteredReceiptCount={activeFilter ? groupReceipts.length : undefined}
                                             onClick={() => {
                                                 setExpandedGroups(prev => {
                                                     const newSet = new Set(prev);
@@ -622,14 +639,10 @@ export default function ReceiptsPage() {
                                     );
                                 })}
                             </div>
-                            {groups.map(group => {
+                            {displayedGroups.map(group => {
                                 const groupIdToUse = String(group.supabaseId || group.id);
                                 const isExpanded = expandedGroups.has(groupIdToUse);
-                                const groupReceipts = receipts.filter(r => {
-                                    if (!r.groupId) return false;
-                                    const receiptGroupId = String(r.groupId);
-                                    return receiptGroupId === groupIdToUse;
-                                });
+                                const groupReceipts = getFilteredGroupReceipts(group);
 
                                 if (!isExpanded) return null;
 
@@ -1206,7 +1219,7 @@ export default function ReceiptsPage() {
 }
 
 // Group Card Component - matches ReceiptCard format
-function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver = false, isExpanded = false, onDragOver, onDragLeave, onDrop }) {
+function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver = false, isExpanded = false, onDragOver, onDragLeave, onDrop, filteredReceiptCount }) {
     const groupColor = group.color || '#3b82f6';
     const fadedColor = groupColor + '15'; // 15% opacity
     const groupId = group.supabaseId || group.id;
@@ -1247,7 +1260,7 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver =
                         )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {group.receiptCount || 0} receipt{(group.receiptCount || 0) !== 1 ? 's' : ''}
+                        {filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0)} receipt{(filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0)) !== 1 ? 's' : ''}
                     </p>
                 </div>
                 <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>

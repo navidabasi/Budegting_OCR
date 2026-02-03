@@ -44,7 +44,7 @@ export default function TopExpenses({ receipts }) {
                         <div
                             key={receipt.id}
                             className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
-                            onClick={() => nav.toReceipt(receipt.id)}
+                            onClick={() => nav.toReceiptDetail(receipt.id)}
                         >
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300">
