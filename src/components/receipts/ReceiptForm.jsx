@@ -557,14 +557,15 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         
                                         // Get the created group
                                         const createdGroup = await storageService.getGroupById(groupId);
-                                        
+
                                         // Reload groups to ensure consistency
                                         await loadGroups();
-                                        
+
                                         // Set form values with validation flags
-                                        const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                        const groupIdToUse = createdGroup?.id || groupId;
+                                        const groupNameToUse = createdGroup?.name || newGroupName.trim();
                                         setValue('groupId', groupIdToUse, { shouldValidate: true, shouldDirty: true });
-                                        setValue('groupName', createdGroup.name, { shouldValidate: true, shouldDirty: true });
+                                        setValue('groupName', groupNameToUse, { shouldValidate: true, shouldDirty: true });
                                         setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
                                         
                                         setNewGroupName('');

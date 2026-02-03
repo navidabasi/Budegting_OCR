@@ -194,17 +194,17 @@ export default function ReceiptsPage() {
                 });
 
                 const createdGroup = await storageService.getGroupById(groupId);
-                const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                const groupIdToUse = createdGroup?.id || groupId;
 
                 // Assign both receipts to the new group
                 await storageService.updateReceipt(draggedReceiptId, {
                     groupId: groupIdToUse,
-                    groupName: createdGroup.name
+                    groupName: createdGroup?.name || groupName
                 });
 
                 await storageService.updateReceipt(targetReceiptId, {
                     groupId: groupIdToUse,
-                    groupName: createdGroup.name
+                    groupName: createdGroup?.name || groupName
                 });
 
                 await reloadReceipts();
@@ -781,17 +781,17 @@ export default function ReceiptsPage() {
                                                                 });
 
                                                                 const createdGroup = await storageService.getGroupById(newGroupId);
-                                                                const newGroupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                                                const newGroupIdToUse = createdGroup?.id || newGroupId;
 
                                                                 // Assign both receipts to the new group
                                                                 await storageService.updateReceipt(draggedReceiptId, {
                                                                     groupId: newGroupIdToUse,
-                                                                    groupName: createdGroup.name
+                                                                    groupName: createdGroup?.name || groupName
                                                                 });
 
                                                                 await storageService.updateReceipt(targetReceiptId, {
                                                                     groupId: newGroupIdToUse,
-                                                                    groupName: createdGroup.name
+                                                                    groupName: createdGroup?.name || groupName
                                                                 });
 
                                                                 await reloadReceipts();
@@ -890,17 +890,17 @@ export default function ReceiptsPage() {
                                     });
 
                                     const createdGroup = await storageService.getGroupById(newGroupId);
-                                    const groupIdToUse = createdGroup.supabaseId || createdGroup.id;
+                                    const groupIdToUse = createdGroup?.id || newGroupId;
 
                                     // Assign both receipts to the new group
                                     await storageService.updateReceipt(draggedReceiptId, {
                                         groupId: groupIdToUse,
-                                        groupName: createdGroup.name
+                                        groupName: createdGroup?.name || groupName
                                     });
 
                                     await storageService.updateReceipt(targetReceiptId, {
                                         groupId: groupIdToUse,
-                                        groupName: createdGroup.name
+                                        groupName: createdGroup?.name || groupName
                                     });
 
                                     await reloadReceipts();

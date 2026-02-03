@@ -86,14 +86,16 @@ export default function GroupManager({ receipts, onUpdate }) {
 
             // Get the created group to get its ID
             const createdGroup = await storageService.getGroupById(groupId);
-            
+            const groupIdToUse = createdGroup?.id || groupId;
+            const groupNameToUse = createdGroup?.name || newGroupName.trim();
+
             // Update selected receipts to reference this group
             for (const receiptId of selectedReceipts) {
                 const receipt = receipts.find(r => r.id === receiptId);
                 if (receipt) {
                     await storageService.updateReceipt(receiptId, {
-                        groupId: createdGroup.supabaseId || createdGroup.id,
-                        groupName: createdGroup.name
+                        groupId: groupIdToUse,
+                        groupName: groupNameToUse
                     });
                 }
             }
