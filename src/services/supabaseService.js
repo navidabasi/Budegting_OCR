@@ -291,10 +291,45 @@ export const supabaseService = {
     async updateReceipt(id, updates) {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Transform updates to Supabase format
-        const supabaseUpdates = this.transformReceiptToSupabase(updates);
-        // Remove user_id from updates (shouldn't change)
-        delete supabaseUpdates.user_id;
+        // Only transform and include fields that are actually provided in updates
+        // This prevents overwriting existing data with empty values
+        const supabaseUpdates = {};
+
+        const fieldMap = {
+            merchant: 'merchant',
+            date: 'date',
+            total: 'total',
+            currency: 'currency',
+            category: 'category',
+            notes: 'notes',
+            lineItems: 'line_items',
+            isDemo: 'is_demo',
+            isPinned: 'is_pinned',
+            transactionType: 'transaction_type',
+            groupId: 'group_id',
+            groupName: 'group_name',
+            groupTags: 'group_tags',
+            splitData: 'split_data',
+            recurringData: 'recurring_data',
+        };
+
+        for (const [appField, dbField] of Object.entries(fieldMap)) {
+            if (updates[appField] !== undefined) {
+                // Special handling for groupId - validate UUID
+                if (appField === 'groupId') {
+                    supabaseUpdates[dbField] = updates[appField] && this.isValidUUID(updates[appField])
+                        ? updates[appField]
+                        : null;
+                } else {
+                    supabaseUpdates[dbField] = updates[appField];
+                }
+            }
+        }
+
+        // Always update the timestamp
+        supabaseUpdates.updated_at = new Date().toISOString();
+
+        console.log('[Supabase updateReceipt] Updating receipt:', id, 'with fields:', Object.keys(supabaseUpdates));
 
         const { data, error } = await supabase
             .from('receipts')
@@ -681,17 +716,25 @@ export const supabaseService = {
     async updateGroup(groupId, updates) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        // Only include fields that are actually provided in updates
         const updateData = {
-            name: updates.name,
-            color: updates.color,
-            is_pinned: updates.isPinned,
             updated_at: new Date().toISOString()
         };
 
-        // Include parentGroupId if provided
+        if (updates.name !== undefined) {
+            updateData.name = updates.name;
+        }
+        if (updates.color !== undefined) {
+            updateData.color = updates.color;
+        }
+        if (updates.isPinned !== undefined) {
+            updateData.is_pinned = updates.isPinned;
+        }
         if (updates.parentGroupId !== undefined) {
             updateData.parent_group_id = updates.parentGroupId || null;
         }
+
+        console.log('[Supabase updateGroup] Updating group:', groupId, 'with fields:', Object.keys(updateData));
 
         const { data, error } = await supabase
             .from('groups')

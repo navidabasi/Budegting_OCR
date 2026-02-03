@@ -706,7 +706,30 @@ export default function ReceiptsPage() {
 
                                                                 if (!draggedReceipt || !targetReceipt) return;
 
-                                                                // Get next available group number
+                                                                // Check if target receipt is already in a group - if so, just add dragged receipt to that group
+                                                                if (targetReceipt.groupId) {
+                                                                    // Add dragged receipt to the same group
+                                                                    await storageService.updateReceipt(draggedReceiptId, {
+                                                                        groupId: targetReceipt.groupId,
+                                                                        groupName: targetReceipt.groupName
+                                                                    });
+                                                                    await reloadReceipts();
+                                                                    showToast(`Receipt added to ${targetReceipt.groupName || 'group'}`, 'success');
+                                                                    return;
+                                                                }
+
+                                                                // Check if dragged receipt is already in a group - if so, add target to that group
+                                                                if (draggedReceipt.groupId) {
+                                                                    await storageService.updateReceipt(targetReceiptId, {
+                                                                        groupId: draggedReceipt.groupId,
+                                                                        groupName: draggedReceipt.groupName
+                                                                    });
+                                                                    await reloadReceipts();
+                                                                    showToast(`Receipt added to ${draggedReceipt.groupName || 'group'}`, 'success');
+                                                                    return;
+                                                                }
+
+                                                                // Both receipts are ungrouped - create a new group
                                                                 const nextNumber = await getNextAvailableGroupNumber();
                                                                 const groupName = `Group ${nextNumber}`;
 
@@ -786,7 +809,36 @@ export default function ReceiptsPage() {
 
                                     if (!draggedReceipt || !targetReceipt) return;
 
-                                    // Get next available group number
+                                    // Check if both receipts are already in the same group
+                                    if (draggedReceipt.groupId && targetReceipt.groupId &&
+                                        String(draggedReceipt.groupId) === String(targetReceipt.groupId)) {
+                                        showToast('Both receipts are already in the same group', 'info');
+                                        return;
+                                    }
+
+                                    // Check if target receipt is already in a group - add dragged receipt to that group
+                                    if (targetReceipt.groupId) {
+                                        await storageService.updateReceipt(draggedReceiptId, {
+                                            groupId: targetReceipt.groupId,
+                                            groupName: targetReceipt.groupName
+                                        });
+                                        await reloadReceipts();
+                                        showToast(`Receipt added to ${targetReceipt.groupName || 'group'}`, 'success');
+                                        return;
+                                    }
+
+                                    // Check if dragged receipt is already in a group - add target to that group
+                                    if (draggedReceipt.groupId) {
+                                        await storageService.updateReceipt(targetReceiptId, {
+                                            groupId: draggedReceipt.groupId,
+                                            groupName: draggedReceipt.groupName
+                                        });
+                                        await reloadReceipts();
+                                        showToast(`Receipt added to ${draggedReceipt.groupName || 'group'}`, 'success');
+                                        return;
+                                    }
+
+                                    // Both receipts are ungrouped - create a new group
                                     const nextNumber = await getNextAvailableGroupNumber();
                                     const groupName = `Group ${nextNumber}`;
 
