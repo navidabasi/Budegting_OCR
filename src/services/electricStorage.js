@@ -894,16 +894,7 @@ export const electricStorage = {
                     updated_at = $6
             `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
 
-            // Push to Supabase directly (not via pushToRemote which expects different method names)
-            (async () => {
-                try {
-                    const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                    await supabaseService.saveSettings(userId, settings);
-                    console.log('[Storage] Settings synced to Supabase');
-                } catch (e) {
-                    console.error('[Storage] Failed to sync settings to Supabase:', e);
-                }
-            })();
+            pushToRemote('settings', 'update', { userId, ...settings });
 
             return id;
         } catch (err) {
