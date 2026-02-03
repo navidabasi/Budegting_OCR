@@ -1,6 +1,7 @@
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+// comment for the new commit on github
 
 export default function CashFlow({ receipts }) {
     const navigate = useNavigate();
