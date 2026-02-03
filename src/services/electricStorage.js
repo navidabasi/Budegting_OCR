@@ -872,7 +872,7 @@ export const electricStorage = {
                 const supabaseSettings = await supabaseService.getSettings(userId);
                 if (supabaseSettings) {
                     // Cache the settings locally in background (don't block)
-                    this.saveSettingsLocally(userId, supabaseSettings).catch(e => {
+                    electricStorage.saveSettingsLocally(userId, supabaseSettings).catch(e => {
                         console.warn('[Storage] Failed to cache settings locally:', e);
                     });
                 }
