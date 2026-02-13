@@ -36,7 +36,9 @@ export const storageService = {
     getCategories: electricStorage.getCategories,
     getUserCategories: electricStorage.getCategories,
     createCategory: electricStorage.createCategory,
-    createUserCategory: electricStorage.createCategory,
+    async createUserCategory(userId, categoryData) {
+        return electricStorage.createCategory({ userId, ...categoryData });
+    },
     deleteCategory: electricStorage.deleteCategory,
     deleteUserCategory: electricStorage.deleteCategory,
     updateUserCategory: electricStorage.updateCategory,

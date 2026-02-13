@@ -34,15 +34,39 @@ export default function CategoryChart({ receipts }) {
     const categoryIncome = {};
 
     receipts.forEach(receipt => {
-        const category = receipt.category || 'Other';
-        // Use effective amount (user's share if split)
         const amount = getEffectiveAmount(receipt);
         const transactionType = receipt.transactionType || 'expense';
+        const bucket = transactionType === 'income' ? categoryIncome : categoryTotals;
 
-        if (transactionType === 'income') {
-            categoryIncome[category] = (categoryIncome[category] || 0) + amount;
+        // Check if any line items have their own categories
+        const lineItems = receipt.lineItems || [];
+        const itemsWithCategory = lineItems.filter(item => item.category);
+
+        if (itemsWithCategory.length > 0) {
+            // Calculate total of items with categories
+            const categorizedTotal = itemsWithCategory.reduce(
+                (sum, item) => sum + (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1), 0
+            );
+            // Remainder goes to receipt-level category
+            const rawTotal = parseFloat(receipt.total) || 0;
+            const remainder = rawTotal - categorizedTotal;
+            // Scale factor to match effective amount (handles splits)
+            const scale = rawTotal > 0 ? amount / rawTotal : 0;
+
+            itemsWithCategory.forEach(item => {
+                const cat = item.category;
+                const itemAmount = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1) * scale;
+                bucket[cat] = (bucket[cat] || 0) + itemAmount;
+            });
+
+            if (remainder > 0) {
+                const cat = receipt.category || 'Other';
+                bucket[cat] = (bucket[cat] || 0) + remainder * scale;
+            }
         } else {
-            categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+            // No item-level categories — use receipt-level category
+            const category = receipt.category || 'Other';
+            bucket[category] = (bucket[category] || 0) + amount;
         }
     });
 
