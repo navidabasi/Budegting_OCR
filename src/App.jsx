@@ -6,6 +6,7 @@ import { electricStorage } from './services/electricStorage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
+import LandingPage from './pages/LandingPage';
 import ReceiptsPage from './pages/ReceiptsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/layout/BottomNav';
@@ -213,6 +214,12 @@ function App() {
                     />
                     <Route
                         path="/"
+                        element={
+                            isAuthenticated ? <HomePage /> : <LandingPage />
+                        }
+                    />
+                    <Route
+                        path="/dashboard"
                         element={
                             <ProtectedRoute>
                                 <HomePage />
