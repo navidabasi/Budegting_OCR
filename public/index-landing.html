@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where My Money Went? - Receipt Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #00573f 0%, #004030 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        .tagline {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin: 50px 0;
+            text-align: left;
+        }
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 25px;
+            border-radius: 12px;
+        }
+        .feature h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+        .feature p {
+            opacity: 0.85;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #fff;
+            color: #00573f;
+            padding: 15px 40px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .footer a {
+            color: #fff;
+            margin: 0 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">💰</div>
+        <h1>Where My Money Went?</h1>
+        <p class="tagline">Track your expenses effortlessly with OCR-powered receipt scanning</p>
+
+        <a href="https://where-my-money-went.vercel.app" class="cta-button">Open App</a>
+
+        <div class="features">
+            <div class="feature">
+                <h3>📸 OCR Scanning</h3>
+                <p>Snap a photo of your receipt and let AI extract the details automatically.</p>
+            </div>
+            <div class="feature">
+                <h3>📊 Visual Analytics</h3>
+                <p>See where your money goes with beautiful charts and insights.</p>
+            </div>
+            <div class="feature">
+                <h3>🔄 Cloud Sync</h3>
+                <p>Access your data from any device with secure cloud synchronization.</p>
+            </div>
+            <div class="feature">
+                <h3>📱 Works Offline</h3>
+                <p>Full functionality even without internet. Data syncs when you're back online.</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <p style="margin-top: 20px;">&copy; 2024 Where My Money Went? All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
