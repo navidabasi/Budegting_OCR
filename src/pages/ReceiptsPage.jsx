@@ -814,9 +814,6 @@ export default function ReceiptsPage() {
                 </div>
             )}
 
-            {/* Receipts Section Header */}
-            <SectionHeader title="Receipts" />
-
             {filteredReceipts.length === 0 ? (
                 <EmptyState
                     message={searchQuery ? 'No receipts found matching your search' : 'No receipts yet'}

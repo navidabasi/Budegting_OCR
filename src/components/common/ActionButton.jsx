@@ -24,7 +24,7 @@ export default function ActionButton({
         <Button
             variant={variant}
             onClick={onClick}
-            className={`${sizeClasses[size]} flex items-center gap-1 ${className}`}
+            className={`${sizeClasses[size]} flex items-center gap-1 whitespace-nowrap ${className}`}
             {...props}
         >
             {Icon && <Icon size={iconSize} />}

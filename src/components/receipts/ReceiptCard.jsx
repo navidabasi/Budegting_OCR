@@ -8,6 +8,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     const navigate = useNavigate();
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
+    const [isLongPress, setIsLongPress] = useState(false);
+    const [longPressTimer, setLongPressTimer] = useState(null);
     const [isDragOver, setIsDragOver] = useState(false);
 
     const handleDragStart = (e) => {
@@ -69,6 +71,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     };
 
     // Touch handlers for mobile drag and drop
+    // Requires a long-press (500ms hold) before drag activates to prevent
+    // accidental group creation from normal scrolling or pull-to-refresh
     const handleTouchStart = (e) => {
         const touch = e.touches[0];
         setTouchStart({
@@ -76,6 +80,13 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
             y: touch.clientY,
             time: Date.now()
         });
+        setIsLongPress(false);
+
+        // Start long-press timer — drag only activates after 500ms hold
+        const timer = setTimeout(() => {
+            setIsLongPress(true);
+        }, 500);
+        setLongPressTimer(timer);
     };
 
     const handleTouchMove = (e) => {
@@ -83,20 +94,35 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         const touch = e.touches[0];
         const deltaX = Math.abs(touch.clientX - touchStart.x);
         const deltaY = Math.abs(touch.clientY - touchStart.y);
-        
-        // If moved significantly, start drag
+
+        // Cancel long-press if finger moves before timer fires (user is scrolling)
         if (deltaX > 10 || deltaY > 10) {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                setLongPressTimer(null);
+            }
+        }
+
+        // Only start drag if long-press was achieved first
+        if (isLongPress && (deltaX > 10 || deltaY > 10)) {
             setIsDragging(true);
             e.currentTarget.style.opacity = '0.5';
         }
     };
 
     const handleTouchEnd = (e) => {
+        // Clean up long-press timer
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            setLongPressTimer(null);
+        }
+        setIsLongPress(false);
+
         if (!touchStart) return;
-        
+
         const touch = e.changedTouches[0];
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        
+
         if (isDragging) {
             // Check if dropped on a group card (including nested groups and expanded group containers)
             const groupCard = elementBelow?.closest('[data-group-id]');

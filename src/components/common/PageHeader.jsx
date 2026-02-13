@@ -10,8 +10,8 @@ export default function PageHeader({
 }) {
     return (
         <div className={`mb-8 ${className}`}>
-            <div className="flex items-start justify-between mb-1">
-                <div>
+            <div className="flex items-center justify-between mb-1 gap-4">
+                <div className="min-w-0">
                     {title && (
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
                             {title}
@@ -24,7 +24,7 @@ export default function PageHeader({
                     )}
                 </div>
                 {actions && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-shrink-0 flex-wrap gap-2 justify-end">
                         {actions}
                     </div>
                 )}
