@@ -11,37 +11,75 @@ export default function AuthCallbackPage() {
     useEffect(() => {
         const handleCallback = async () => {
             try {
-                // Import supabase dynamically
                 const { supabase } = await import('../services/supabaseService');
 
                 if (!supabase) {
                     throw new Error('Supabase not configured');
                 }
 
-                // Get the session from the URL hash/params
-                const { data: { session }, error } = await supabase.auth.getSession();
+                // Get URL parameters
+                const url = new URL(window.location.href);
+                const code = url.searchParams.get('code');
+                const errorParam = url.searchParams.get('error');
+                const errorDescription = url.searchParams.get('error_description');
 
-                if (error) {
-                    console.error('Auth callback error:', error);
+                // Check for OAuth error
+                if (errorParam) {
+                    console.error('OAuth error:', errorParam, errorDescription);
                     setStatus('Sign in failed');
-                    showToast(error.message || 'Failed to sign in', 'error');
+                    showToast(errorDescription || errorParam, 'error');
                     setTimeout(() => navigate('/login'), 2000);
                     return;
                 }
 
+                // If we have a code, exchange it for a session
+                if (code) {
+                    console.log('Exchanging code for session...');
+                    setStatus('Completing sign in...');
+
+                    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+                    if (error) {
+                        console.error('Code exchange error:', error);
+                        setStatus('Sign in failed');
+                        showToast(error.message || 'Failed to sign in', 'error');
+                        setTimeout(() => navigate('/login'), 2000);
+                        return;
+                    }
+
+                    if (data?.session?.user) {
+                        console.log('Sign in successful:', data.session.user.email);
+                        setCurrentUser({
+                            userId: data.session.user.id,
+                            email: data.session.user.email
+                        });
+                        showToast('Successfully signed in with Google', 'success');
+
+                        // Clean up URL and navigate
+                        window.history.replaceState({}, '', '/');
+                        navigate('/');
+                        return;
+                    }
+                }
+
+                // No code - check for existing session
+                const { data: { session } } = await supabase.auth.getSession();
+
                 if (session?.user) {
-                    // Successfully signed in
+                    console.log('Existing session found:', session.user.email);
                     setCurrentUser({
                         userId: session.user.id,
                         email: session.user.email
                     });
-                    showToast('Successfully signed in with Google', 'success');
                     navigate('/');
-                } else {
-                    // No session found, redirect to login
-                    setStatus('No session found');
-                    setTimeout(() => navigate('/login'), 1000);
+                    return;
                 }
+
+                // No session found
+                console.log('No session found');
+                setStatus('No session found. Redirecting...');
+                setTimeout(() => navigate('/login'), 2000);
+
             } catch (err) {
                 console.error('Auth callback error:', err);
                 setStatus('An error occurred');
