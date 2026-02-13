@@ -97,12 +97,33 @@ function App() {
                 // Check for OAuth callback in URL
                 const urlParams = new URLSearchParams(window.location.search);
                 const hash = window.location.hash;
-                const hasOAuthCallback = urlParams.has('code') || hash.includes('access_token') || hash.includes('type=recovery');
+                const code = urlParams.get('code');
+                const hasOAuthCallback = code || hash.includes('access_token') || hash.includes('type=recovery');
 
                 if (hasOAuthCallback) {
-                    // OAuth callback detected - Supabase will handle it via auth state change
+                    console.log('[App] OAuth callback detected');
+
+                    // If we have a code, exchange it for a session
+                    if (code) {
+                        console.log('[App] Exchanging code for session...');
+                        const { supabase } = await import('./services/supabaseService');
+                        if (supabase) {
+                            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+                            if (error) {
+                                console.error('[App] Code exchange error:', error);
+                            } else if (data?.session?.user) {
+                                console.log('[App] Code exchange successful');
+                                setCurrentUser({
+                                    userId: data.session.user.id,
+                                    email: data.session.user.email
+                                });
+                            }
+                        }
+                    }
+
                     // Clean up URL
                     window.history.replaceState({}, document.title, window.location.pathname);
+                    return;
                 }
 
                 const session = await authService.getCurrentSession();
