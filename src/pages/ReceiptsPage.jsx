@@ -505,7 +505,7 @@ export default function ReceiptsPage() {
                 </div>
             )}
 
-            <div className="relative mt-4">
+            <div className="relative mt-4 mb-6">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
                     type="text"
