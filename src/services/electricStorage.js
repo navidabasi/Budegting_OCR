@@ -224,15 +224,16 @@ async function pushToRemote(table, operation, data) {
     const supabaseService = await import('./supabaseService.js');
 
     try {
+        const suffix = tableToMethodSuffix(singularize(table));
         if (operation === 'insert') {
-            await supabaseService.default[`create${capitalizeFirst(singularize(table))}`](data);
+            await supabaseService.default[`create${suffix}`](data);
         } else if (operation === 'update') {
-            await supabaseService.default[`update${capitalizeFirst(singularize(table))}`](data.id, data);
+            await supabaseService.default[`update${suffix}`](data.id, data);
         } else if (operation === 'upsert') {
             // Upsert - insert if not exists, update if exists
-            await supabaseService.default[`upsert${capitalizeFirst(singularize(table))}`](data);
+            await supabaseService.default[`upsert${suffix}`](data);
         } else if (operation === 'delete') {
-            await supabaseService.default[`delete${capitalizeFirst(singularize(table))}`](data.id);
+            await supabaseService.default[`delete${suffix}`](data.id);
         }
 
         // Mark as synced successfully
@@ -262,6 +263,11 @@ function singularize(str) {
     if (str.endsWith('ies')) return str.slice(0, -3) + 'y';
     if (str.endsWith('s')) return str.slice(0, -1);
     return str;
+}
+
+// Convert table name like "user_categories" to method suffix like "UserCategory"
+function tableToMethodSuffix(table) {
+    return table.split('_').map(capitalizeFirst).join('');
 }
 
 function notifyListeners(table) {
@@ -1096,6 +1102,33 @@ export const electricStorage = {
         } catch (err) {
             console.error('[Storage] Failed to query unsynced groups:', err);
             errors.push({ type: 'groups', error: err.message });
+        }
+
+        // Push unsynced categories
+        try {
+            const unsyncedCategories = await db.query(
+                `SELECT * FROM user_categories WHERE user_id = $1 AND _synced = FALSE`,
+                [userId]
+            );
+            console.log(`[Storage] Found ${unsyncedCategories.rows.length} unsynced categories`);
+
+            for (const row of unsyncedCategories.rows) {
+                try {
+                    await pushToRemote('user_categories', 'upsert', {
+                        id: row.id,
+                        userId: row.user_id,
+                        name: row.name,
+                        color: row.color,
+                    });
+                    pushed++;
+                } catch (err) {
+                    console.error(`[Storage] Failed to push category ${row.id}:`, err);
+                    errors.push({ type: 'category', id: row.id, error: err.message });
+                }
+            }
+        } catch (err) {
+            console.error('[Storage] Failed to query unsynced categories:', err);
+            errors.push({ type: 'categories', error: err.message });
         }
 
         console.log(`[Storage] Push complete: ${pushed} items pushed, ${errors.length} errors`);

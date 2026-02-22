@@ -564,7 +564,44 @@ export const supabaseService = {
     },
 
     // User Categories operations
-    async createUserCategory(userId, category) {
+    async createUserCategory(dataOrUserId, category) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Support both (data) and (userId, category) calling conventions
+        const catData = category || dataOrUserId;
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
+        const authenticatedUserId = user.id;
+
+        const record = {
+            ...(catData.id && { id: catData.id }),
+            user_id: authenticatedUserId,
+            name: catData.name,
+            color: catData.color || null
+        };
+
+        const { data, error } = await supabase
+            .from('user_categories')
+            .insert([record])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return {
+            id: data.id,
+            userId: data.user_id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        };
+    },
+
+    async upsertUserCategory(catData) {
         if (!supabase) throw new Error('Supabase not configured');
 
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -576,11 +613,13 @@ export const supabaseService = {
 
         const { data, error } = await supabase
             .from('user_categories')
-            .insert([{
+            .upsert({
+                id: catData.id,
                 user_id: authenticatedUserId,
-                name: category.name,
-                color: category.color || null
-            }])
+                name: catData.name,
+                color: catData.color || null,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
             .select()
             .single();
 
