@@ -132,7 +132,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
+                        <div className="input-wrapper">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 <Calendar size={14} className="inline mr-1" />
                                 Next Due Date
@@ -144,7 +144,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                                 className={inputClass}
                             />
                         </div>
-                        <div>
+                        <div className="input-wrapper">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 <Calendar size={14} className="inline mr-1" />
                                 End Date

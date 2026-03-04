@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
+function ScrollToTop() {
+    const { pathname } = useLocation();
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [pathname]);
+    return null;
+}
 import { useAppStore } from './store/appStore';
 import { authService } from './services/authService';
 import { electricStorage } from './services/electricStorage';
@@ -220,6 +228,7 @@ function App() {
 
     return (
         <BrowserRouter>
+            <ScrollToTop />
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
                 <Routes>
                     <Route

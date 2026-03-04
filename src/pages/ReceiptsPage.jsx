@@ -415,7 +415,7 @@ export default function ReceiptsPage() {
     return (
         <PageLayout>
             <PageHeader
-                title={showFilters ? '' : 'Receipts'}
+                title={(showFilters || activeFilter) ? '' : 'Receipts'}
                 actions={
                     <>
                         <ActionButton
