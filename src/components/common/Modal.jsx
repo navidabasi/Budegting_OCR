@@ -24,14 +24,16 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-            {/* Backdrop: absolute so it doesn't create nested-fixed issues on iOS */}
+        /* Outer div IS the backdrop — fixed inset-0 guarantees full coverage including safe area */
+        <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
+            onClick={onClose}
+        >
             <div
-                className="absolute inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
-                onClick={onClose}
-            />
-            <div className="relative flex items-center justify-center min-h-full px-4 safe-area-top pt-4 pb-20 text-center sm:block sm:p-0">
-                <div className={`relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full ${sizeClasses[size]}`}>
+                className="flex items-center justify-center min-h-full px-4 safe-area-top pt-4 pb-20"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className={`bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl w-full ${sizeClasses[size]}`}>
                     <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 overflow-x-hidden">
                         <div className="flex items-center justify-between mb-4">
                             {title && <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{title}</h3>}

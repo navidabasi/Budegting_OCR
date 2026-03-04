@@ -38,7 +38,7 @@
         width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box;
-        overflow: hidden;
+        /* overflow: hidden removed — clips right border/radius on iOS Safari */
     }
 
     /* Ensure date picker doesn't overflow on mobile */
