@@ -21,7 +21,7 @@ export default function BottomNav() {
     };
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom px-4 pb-4">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom px-4">
             <div
                 className="relative flex items-center h-16 rounded-2xl shadow-lg border border-[#004030] max-w-xs mx-auto mb-4"
                 style={{

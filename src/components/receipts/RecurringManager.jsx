@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Calendar, Bell, X } from 'lucide-react';
-import Button from '../common/Button';
+import { RefreshCw, Calendar, Bell } from 'lucide-react';
 
 const FREQUENCY_OPTIONS = [
     { value: 'weekly', label: 'Weekly' },
@@ -14,6 +13,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
     const [isRecurring, setIsRecurring] = useState(!!recurringData?.isActive);
     const [frequency, setFrequency] = useState(recurringData?.frequency || 'monthly');
     const [nextDueDate, setNextDueDate] = useState(recurringData?.nextDueDate || '');
+    const [endDate, setEndDate] = useState(recurringData?.endDate || '');
     const [reminderDays, setReminderDays] = useState(recurringData?.reminderDays ?? 3);
 
     // Calculate default next due date based on receipt date and frequency
@@ -50,18 +50,22 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
         return formattedDate;
     };
 
+    const buildData = (overrides = {}) => ({
+        isActive: true,
+        frequency,
+        nextDueDate,
+        endDate: endDate || null,
+        reminderDays,
+        ...overrides,
+    });
+
     const handleToggle = () => {
         const newIsRecurring = !isRecurring;
         setIsRecurring(newIsRecurring);
 
         if (newIsRecurring) {
             const calculatedNextDate = nextDueDate || calculateNextDate(receiptDate || new Date(), frequency);
-            onChange({
-                isActive: true,
-                frequency,
-                nextDueDate: calculatedNextDate,
-                reminderDays
-            });
+            onChange(buildData({ nextDueDate: calculatedNextDate }));
         } else {
             onChange(null);
         }
@@ -70,37 +74,29 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
     const handleFrequencyChange = (newFrequency) => {
         setFrequency(newFrequency);
         const newNextDate = calculateNextDate(receiptDate || new Date(), newFrequency);
-        onChange({
-            isActive: true,
-            frequency: newFrequency,
-            nextDueDate: newNextDate,
-            reminderDays
-        });
+        onChange(buildData({ frequency: newFrequency, nextDueDate: newNextDate }));
     };
 
     const handleDateChange = (newDate) => {
         setNextDueDate(newDate);
-        onChange({
-            isActive: true,
-            frequency,
-            nextDueDate: newDate,
-            reminderDays
-        });
+        onChange(buildData({ nextDueDate: newDate }));
+    };
+
+    const handleEndDateChange = (newEndDate) => {
+        setEndDate(newEndDate);
+        onChange(buildData({ endDate: newEndDate || null }));
     };
 
     const handleReminderChange = (days) => {
         setReminderDays(days);
-        onChange({
-            isActive: true,
-            frequency,
-            nextDueDate,
-            reminderDays: days
-        });
+        onChange(buildData({ reminderDays: days }));
     };
+
+    const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500";
 
     return (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <RefreshCw size={18} className={isRecurring ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'} />
                     <span className="font-medium text-gray-700 dark:text-gray-200">Recurring Payment</span>
@@ -127,7 +123,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                         <select
                             value={frequency}
                             onChange={(e) => handleFrequencyChange(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className={inputClass}
                         >
                             {FREQUENCY_OPTIONS.map(opt => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -135,17 +131,32 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                         </select>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            <Calendar size={14} className="inline mr-1" />
-                            Next Due Date
-                        </label>
-                        <input
-                            type="date"
-                            value={nextDueDate}
-                            onChange={(e) => handleDateChange(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <Calendar size={14} className="inline mr-1" />
+                                Next Due Date
+                            </label>
+                            <input
+                                type="date"
+                                value={nextDueDate}
+                                onChange={(e) => handleDateChange(e.target.value)}
+                                className={inputClass}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <Calendar size={14} className="inline mr-1" />
+                                End Date
+                                <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
+                            </label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => handleEndDateChange(e.target.value)}
+                                className={inputClass}
+                            />
+                        </div>
                     </div>
 
                     <div>
@@ -156,7 +167,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                         <select
                             value={reminderDays}
                             onChange={(e) => handleReminderChange(parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className={inputClass}
                         >
                             <option value={0}>On due date</option>
                             <option value={1}>1 day before</option>

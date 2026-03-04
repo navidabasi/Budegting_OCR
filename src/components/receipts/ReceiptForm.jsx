@@ -416,7 +416,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                         Items Total
                     </label>
-                    <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white items-total-display">
+                    <div className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white items-total-display">
                         {formatCurrency(itemsTotal, selectedCurrency)}
                     </div>
                 </div>

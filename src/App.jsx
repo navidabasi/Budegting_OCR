@@ -167,8 +167,12 @@ function App() {
                                     }
                                 }
                             } else if (event === 'SIGNED_OUT') {
-                                setCurrentUser(null);
-                                electricInitialized.current = false;
+                                // Only clear auth state if actually online — offline token
+                                // validation failures should not log the user out
+                                if (navigator.onLine) {
+                                    setCurrentUser(null);
+                                    electricInitialized.current = false;
+                                }
                             }
                         }
                     );

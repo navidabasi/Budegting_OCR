@@ -44,7 +44,16 @@ export default defineConfig({
                 ]
             },
             workbox: {
-                globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+                navigateFallback: '/index.html',
+                navigateFallbackDenylist: [/^\/api/],
+                runtimeCaching: [
+                    {
+                        urlPattern: /\.wasm$/,
+                        handler: 'CacheFirst',
+                        options: { cacheName: 'wasm-cache', expiration: { maxAgeSeconds: 60 * 60 * 24 * 30 } }
+                    }
+                ]
             }
         })
     ],

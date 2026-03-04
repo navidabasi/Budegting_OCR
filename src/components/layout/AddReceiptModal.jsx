@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Camera, Upload, FileText, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Camera, Upload, FileText, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
@@ -14,7 +14,16 @@ export default function AddReceiptModal() {
     const showToast = useAppStore((state) => state.showToast);
     const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
     const [selectedFile, setSelectedFile] = useState(null);
+    const [hasOcrKey, setHasOcrKey] = useState(null); // null=loading, true/false
     const fileInputRef = useRef(null);
+
+    // Check if OCR API key is configured
+    useEffect(() => {
+        if (!addReceiptModalOpen || !currentUser?.userId) return;
+        storageService.getOcrApiKey(currentUser.userId)
+            .then(key => setHasOcrKey(!!key))
+            .catch(() => setHasOcrKey(false));
+    }, [addReceiptModalOpen, currentUser?.userId]);
 
     const handleClose = () => {
         setMode(null);
@@ -32,7 +41,6 @@ export default function AddReceiptModal() {
             });
             showToast('Receipt saved successfully', 'success');
             handleClose();
-            // Dispatch events to refresh components using hooks
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
@@ -41,28 +49,15 @@ export default function AddReceiptModal() {
         }
     };
 
-    const handleCameraClick = () => {
-        setMode('camera');
-    };
-
-    const handleUploadClick = () => {
-        fileInputRef.current?.click();
-    };
-
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
         if (file) {
             setSelectedFile(file);
             setMode('upload');
         }
-        // Reset input so the same file can be selected again if needed
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
-    };
-
-    const handleManualClick = () => {
-        setMode('manual');
     };
 
     if (mode === 'camera' || mode === 'upload') {
@@ -73,7 +68,7 @@ export default function AddReceiptModal() {
                     onClose={handleClose}
                     mode={mode}
                     initialFile={selectedFile}
-                    onSwitchToManual={handleManualClick}
+                    onSwitchToManual={() => setMode('manual')}
                 />
             </ErrorBoundary>
         );
@@ -94,6 +89,14 @@ export default function AddReceiptModal() {
         );
     }
 
+    const ocrDisabled = hasOcrKey === false;
+    const ocrButtonClass = (disabled) =>
+        `w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-colors ${
+            disabled
+                ? 'border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                : 'border-gray-200 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900'
+        }`;
+
     return (
         <Modal
             isOpen={addReceiptModalOpen}
@@ -102,8 +105,9 @@ export default function AddReceiptModal() {
         >
             <div className="space-y-4">
                 <button
-                    onClick={handleCameraClick}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
+                    onClick={ocrDisabled ? undefined : () => setMode('camera')}
+                    disabled={ocrDisabled}
+                    className={ocrButtonClass(ocrDisabled)}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Camera size={24} className="primary-color" />
@@ -115,8 +119,9 @@ export default function AddReceiptModal() {
                 </button>
 
                 <button
-                    onClick={handleUploadClick}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
+                    onClick={ocrDisabled ? undefined : () => fileInputRef.current?.click()}
+                    disabled={ocrDisabled}
+                    className={ocrButtonClass(ocrDisabled)}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Upload size={24} className="primary-color" />
@@ -127,6 +132,13 @@ export default function AddReceiptModal() {
                     </div>
                 </button>
 
+                {ocrDisabled && (
+                    <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
+                        <AlertCircle size={16} className="flex-shrink-0" />
+                        <span>Add your OCR API key in Settings to enable scanning.</span>
+                    </div>
+                )}
+
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -136,7 +148,7 @@ export default function AddReceiptModal() {
                 />
 
                 <button
-                    onClick={handleManualClick}
+                    onClick={() => setMode('manual')}
                     className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
@@ -151,4 +163,3 @@ export default function AddReceiptModal() {
         </Modal>
     );
 }
-
