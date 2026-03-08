@@ -44,7 +44,10 @@ export default defineConfig({
                 ]
             },
             workbox: {
-                globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+                // PGlite ships large wasm/data assets required for true offline startup.
+                // Increase precache file-size cap so Workbox includes them.
+                maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,data}'],
                 navigateFallback: '/index.html',
                 navigateFallbackDenylist: [/^\/api/],
                 runtimeCaching: [
@@ -52,6 +55,11 @@ export default defineConfig({
                         urlPattern: /\.wasm$/,
                         handler: 'CacheFirst',
                         options: { cacheName: 'wasm-cache', expiration: { maxAgeSeconds: 60 * 60 * 24 * 30 } }
+                    },
+                    {
+                        urlPattern: /\.data$/,
+                        handler: 'CacheFirst',
+                        options: { cacheName: 'wasm-data-cache', expiration: { maxAgeSeconds: 60 * 60 * 24 * 30 } }
                     }
                 ]
             }
@@ -77,4 +85,3 @@ export default defineConfig({
         }
     }
 })
-

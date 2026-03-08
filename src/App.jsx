@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 function ScrollToTop() {
@@ -49,6 +49,38 @@ function App() {
     const syncInProgressRef = useRef(false);
     const storageWarningShownRef = useRef(false);
     const showToastRef = useRef(showToast);
+    const [isRecoveringStorage, setIsRecoveringStorage] = useState(false);
+
+    const handleRefreshStorage = async () => {
+        if (!currentUser?.userId || isRecoveringStorage) return;
+
+        if (!navigator.onLine) {
+            showToastRef.current('You are offline. Reconnect, then tap Refresh.', 'warning');
+            return;
+        }
+
+        setIsRecoveringStorage(true);
+        try {
+            await electricStorage.init(currentUser.userId, { force: true });
+            const health = electricStorage.getStorageHealth();
+            setStorageHealth(health);
+
+            if (health.hasLocalCache) {
+                storageWarningShownRef.current = false;
+                showToastRef.current('Offline cache restored.', 'success');
+                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                window.dispatchEvent(new CustomEvent('refreshGroups'));
+            } else {
+                showToastRef.current('Still in cloud-only mode. Please try Refresh again in a few seconds.', 'warning');
+            }
+        } catch (error) {
+            console.error('[App] Manual storage refresh failed:', error);
+            showToastRef.current('Unable to refresh local cache right now.', 'error');
+        } finally {
+            setIsRecoveringStorage(false);
+        }
+    };
 
     // Keep showToast ref updated
     useEffect(() => {
@@ -129,8 +161,13 @@ function App() {
             syncInProgressRef.current = true;
             try {
                 console.log(`[App] Starting sync (${reason})...`);
-                await electricStorage.init(currentUser.userId);
-                setStorageHealth(electricStorage.getStorageHealth());
+                const shouldForceRetry = reason === 'online' || reason === 'focus' || reason === 'visibility' || reason === 'manual';
+                await electricStorage.init(currentUser.userId, { force: shouldForceRetry });
+                const health = electricStorage.getStorageHealth();
+                setStorageHealth(health);
+                if (health.hasLocalCache) {
+                    storageWarningShownRef.current = false;
+                }
                 await electricStorage.syncBidirectional(currentUser.userId);
             } catch (error) {
                 console.error(`[App] Sync failed (${reason}):`, error);
@@ -273,7 +310,19 @@ function App() {
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
                 {isAuthenticated && storageHealth?.fallbackMode && (
                     <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
-                        Local cache is unavailable. You are in cloud-only mode and offline data access is limited.
+                        <div className="flex items-start justify-between gap-3">
+                            <p className="leading-5">
+                                Local cache is unavailable. You are in cloud-only mode. Reconnect to the internet and tap Refresh to restore offline access.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleRefreshStorage}
+                                disabled={isRecoveringStorage}
+                                className="h-11 px-3 rounded-md border border-amber-400 bg-white/70 text-amber-900 disabled:opacity-60 dark:bg-amber-900/30 dark:border-amber-600 dark:text-amber-100"
+                            >
+                                {isRecoveringStorage ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                        </div>
                     </div>
                 )}
                 <Routes>

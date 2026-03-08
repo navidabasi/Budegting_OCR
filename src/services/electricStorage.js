@@ -40,13 +40,13 @@ const withTimeout = (promise, timeoutMs, errorMessage) => {
 /**
  * Initialize PGlite database with schema
  */
-async function initDatabase() {
+async function initDatabase(forceRetry = false) {
     // Return existing db if available
     if (db) return db;
 
     // If recent initialization failed, avoid retry storm but allow periodic retries
     const now = Date.now();
-    if (dbInitFailed && (now - lastDbInitAttemptAt) < DB_RETRY_INTERVAL_MS) {
+    if (!forceRetry && dbInitFailed && (now - lastDbInitAttemptAt) < DB_RETRY_INTERVAL_MS) {
         return null;
     }
     
@@ -325,9 +325,10 @@ export const electricStorage = {
     /**
      * Initialize the local PGlite database
      */
-    async init(userId = null) {
+    async init(userId = null, options = {}) {
+        const { force = false } = options;
         try {
-            await initDatabase();
+            await initDatabase(force);
             if (db) {
                 console.log('[Storage] PGlite database initialized');
             } else {
