@@ -107,6 +107,9 @@ export default function InstallAppPrompt() {
 
                         {isIOS ? (
                             <>
+                                <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                                    On iPhone/iPad, install works only in Safari using the Share menu.
+                                </p>
                                 <button
                                     onClick={handleIOSInstall}
                                     className="mt-3 flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium text-sm transition-colors min-h-[44px]"
@@ -119,7 +122,8 @@ export default function InstallAppPrompt() {
                                     <div className="mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
                                         <p className="font-medium text-gray-900 dark:text-white mb-2">To install:</p>
                                         <ol className="list-decimal list-inside space-y-1">
-                                            <li>Tap the Share button <span className="inline-block w-5 h-5 align-middle">
+                                            <li>Open this app in Safari</li>
+                                            <li>Tap the Share button in Safari <span className="inline-block w-5 h-5 align-middle">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                     <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/>
                                                 </svg>
