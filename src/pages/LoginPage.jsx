@@ -88,7 +88,7 @@ export default function LoginPage() {
                         onClick={async () => {
                             try {
                                 setLoading(true);
-                                await authService.signInWithGoogle();
+                                await authService.signInWithGoogle({ intent: 'signin' });
                             } catch (err) {
                                 showToast(err.message || 'Failed to sign in with Google', 'error');
                                 setLoading(false);
@@ -112,4 +112,3 @@ export default function LoginPage() {
         </AuthLayout>
     );
 }
-

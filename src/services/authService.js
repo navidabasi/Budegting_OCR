@@ -121,22 +121,31 @@ export const authService = {
         return await authHelpers.getUser();
     },
 
-    async signInWithGoogle() {
+    async signInWithGoogle({ intent = 'signin' } = {}) {
         const authHelpers = await getAuthHelpers();
+        const isSignUpIntent = intent === 'signup';
+        const redirectUrl = new URL('/auth/callback', window.location.origin);
+        redirectUrl.searchParams.set('intent', isSignUpIntent ? 'signup' : 'signin');
 
         try {
             const { data, error } = await authHelpers.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: redirectUrl.toString(),
                     queryParams: {
                         access_type: 'offline',
-                        prompt: 'consent'
+                        prompt: 'consent',
+                        ...(isSignUpIntent ? { screen_hint: 'signup' } : {})
                     }
                 }
             });
 
             if (error) throw error;
+
+            // Fallback for environments where automatic browser redirect doesn't occur.
+            if (data?.url) {
+                window.location.assign(data.url);
+            }
 
             // OAuth redirects the user, so we don't return here
             return { redirecting: true, url: data?.url };
@@ -144,5 +153,9 @@ export const authService = {
             console.error('Google sign-in error:', error);
             throw new Error(error.message || 'Failed to sign in with Google');
         }
+    },
+
+    async signUpWithGoogle() {
+        return this.signInWithGoogle({ intent: 'signup' });
     }
 };

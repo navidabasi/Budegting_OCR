@@ -6,18 +6,21 @@ export default function AuthCallbackPage() {
     const navigate = useNavigate();
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const showToast = useAppStore((state) => state.showToast);
-    const [status, setStatus] = useState('Completing Google sign in...');
+    const [status, setStatus] = useState('Completing Google authentication...');
 
     useEffect(() => {
         let isMounted = true;
+        const url = new URL(window.location.href);
+        const intent = url.searchParams.get('intent') === 'signup' ? 'signup' : 'signin';
+        const targetAuthRoute = intent === 'signup' ? '/register' : '/login';
 
         const redirectToLogin = (message) => {
             if (!isMounted) return;
             if (message) {
                 showToast(message, 'error');
             }
-            setStatus('Sign in failed. Redirecting to login...');
-            setTimeout(() => navigate('/login', { replace: true }), 1800);
+            setStatus(`Google ${intent === 'signup' ? 'sign up' : 'sign in'} failed. Redirecting...`);
+            setTimeout(() => navigate(targetAuthRoute, { replace: true }), 1800);
         };
 
         const handleCallback = async () => {
@@ -29,11 +32,10 @@ export default function AuthCallbackPage() {
                     return;
                 }
 
-                const url = new URL(window.location.href);
                 const errorParam = url.searchParams.get('error');
 
                 if (errorParam) {
-                    redirectToLogin('Google sign in was cancelled or failed. Please try again.');
+                    redirectToLogin(`Google ${intent === 'signup' ? 'sign up' : 'sign in'} was cancelled or failed. Please try again.`);
                     return;
                 }
 
@@ -47,11 +49,11 @@ export default function AuthCallbackPage() {
                 if (!activeSession?.user) {
                     const code = url.searchParams.get('code');
                     if (code) {
-                        setStatus('Finalizing sign in...');
+                        setStatus(`Finalizing Google ${intent === 'signup' ? 'sign up' : 'sign in'}...`);
                         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
                         if (error) {
                             console.error('OAuth code exchange failed:', error);
-                            redirectToLogin('Unable to complete Google sign in. Please try again.');
+                            redirectToLogin(`Unable to complete Google ${intent === 'signup' ? 'sign up' : 'sign in'}. Please try again.`);
                             return;
                         }
                         activeSession = data?.session;
@@ -68,11 +70,14 @@ export default function AuthCallbackPage() {
                     userId: activeSession.user.id,
                     email: activeSession.user.email
                 });
-                showToast('Successfully signed in with Google', 'success');
+                showToast(
+                    intent === 'signup' ? 'Successfully signed up with Google' : 'Successfully signed in with Google',
+                    'success'
+                );
                 navigate('/', { replace: true });
             } catch (err) {
                 console.error('Auth callback error:', err);
-                redirectToLogin('Unable to complete sign in right now.');
+                redirectToLogin(`Unable to complete Google ${intent === 'signup' ? 'sign up' : 'sign in'} right now.`);
             }
         };
 

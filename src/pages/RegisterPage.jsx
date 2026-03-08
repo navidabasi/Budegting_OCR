@@ -94,9 +94,9 @@ export default function RegisterPage() {
                         onClick={async () => {
                             try {
                                 setLoading(true);
-                                await authService.signInWithGoogle();
+                                await authService.signUpWithGoogle();
                             } catch (err) {
-                                showToast(err.message || 'Failed to sign in with Google', 'error');
+                                showToast(err.message || 'Failed to sign up with Google', 'error');
                                 setLoading(false);
                             }
                         }}
