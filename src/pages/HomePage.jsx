@@ -110,7 +110,10 @@ export default function HomePage() {
                         widgets.push(
                             <div key={`chart-group-${index}`} className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                                 {chartGroup.map((chartWidget) => (
-                                    <div key={chartWidget.id}>
+                                    <div
+                                        key={chartWidget.id}
+                                        className={chartWidget.id === WIDGET_TYPES.EXPENSE_CHART ? 'contents' : ''}
+                                    >
                                         {renderWidget(chartWidget.id)}
                                     </div>
                                 ))}
@@ -141,7 +144,10 @@ export default function HomePage() {
                 widgets.push(
                     <div key="chart-group-final" className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                         {chartGroup.map((chartWidget) => (
-                            <div key={chartWidget.id}>
+                            <div
+                                key={chartWidget.id}
+                                className={chartWidget.id === WIDGET_TYPES.EXPENSE_CHART ? 'contents' : ''}
+                            >
                                 {renderWidget(chartWidget.id)}
                             </div>
                         ))}
@@ -186,4 +192,3 @@ export default function HomePage() {
         </PageLayout>
     );
 }
-
