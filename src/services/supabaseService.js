@@ -3,25 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Debug logging (works in both dev and production)
-console.log('[Supabase Config]', {
-    url: supabaseUrl ? '✅ Set' : '❌ Missing',
-    key: supabaseAnonKey ? '✅ Set' : '❌ Missing',
-    urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'N/A',
-    envMode: import.meta.env.MODE,
-    allViteEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
-});
-
 if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Supabase credentials not found. Cloud sync will be disabled.');
-    console.error('Environment check:', {
-        VITE_SUPABASE_URL: supabaseUrl ? 'exists' : 'undefined',
-        VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'exists' : 'undefined',
-        allEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')),
-        mode: import.meta.env.MODE,
-        prod: import.meta.env.PROD,
-        dev: import.meta.env.DEV
-    });
+    console.error('Supabase credentials are missing. Cloud sync and auth are disabled.');
 }
 
 // Create Supabase client with proper auth persistence
@@ -36,12 +19,9 @@ try {
                 storage: window.localStorage
             }
         });
-        console.log('✅ Supabase client created successfully');
-    } else {
-        console.error('❌ Supabase client not created - missing credentials');
     }
 } catch (error) {
-    console.error('❌ Failed to create Supabase client:', error);
+    console.error('Failed to initialize Supabase client:', error);
 }
 
 export { supabase };
@@ -65,12 +45,6 @@ export const authHelpers = {
                 errorMsg += 'Supabase client failed to initialize. ';
             }
             errorMsg += 'Please check your environment variables in Vercel project settings.';
-
-            console.error('Supabase signUp error:', {
-                hasUrl: !!supabaseUrl,
-                hasKey: !!supabaseAnonKey,
-                envKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
-            });
 
             throw new Error(errorMsg);
         }
@@ -1023,4 +997,3 @@ export const supabaseService = {
 };
 
 export default supabaseService;
-

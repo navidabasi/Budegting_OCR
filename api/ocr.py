@@ -8,10 +8,10 @@ import base64
 import os
 import re
 import tempfile
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode
 
 # YAML for template loading
 try:
@@ -29,10 +29,105 @@ except ImportError:
 
 
 OCR_SPACE_API_URL = 'https://api.ocr.space/parse/image'
-OCR_SPACE_FREE_KEY = 'helloworld'  # Free tier test key
+OCR_SPACE_SERVER_API_KEY = os.getenv('OCR_SPACE_API_KEY')
+ALLOW_FREE_OCR_FALLBACK = os.getenv('ALLOW_FREE_OCR_FALLBACK', 'false').lower() == 'true'
+OCR_SPACE_FREE_KEY = 'helloworld' if ALLOW_FREE_OCR_FALLBACK else None
+INVOICE2DATA_AVAILABLE = False
+
+DEFAULT_ALLOWED_ORIGINS = {
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+}
+
+
+def _safe_int_env(var_name, default):
+    value = os.getenv(var_name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+MAX_REQUEST_BYTES = _safe_int_env('MAX_OCR_REQUEST_BYTES', 12 * 1024 * 1024)
+OCR_RATE_LIMIT_REQUESTS = _safe_int_env('OCR_RATE_LIMIT_REQUESTS', 30)
+OCR_RATE_LIMIT_WINDOW_SECONDS = _safe_int_env('OCR_RATE_LIMIT_WINDOW_SECONDS', 60)
+ALLOW_VERCEL_PREVIEWS = os.getenv('ALLOW_VERCEL_PREVIEWS', 'false').lower() == 'true'
+_rate_limit_state = {}
+
+
+def get_allowed_origins():
+    """Build an origin allow-list from environment and sane defaults."""
+    configured = {
+        origin.strip().rstrip('/')
+        for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
+        if origin.strip()
+    }
+    app_url = os.getenv('APP_URL', '').strip().rstrip('/')
+    if app_url:
+        configured.add(app_url)
+    return configured | DEFAULT_ALLOWED_ORIGINS
+
+
+ALLOWED_ORIGINS = get_allowed_origins()
 
 # Cache for loaded templates
 _templates_cache = None
+
+
+def is_origin_allowed(origin):
+    """Check whether request origin is allowed to call this endpoint."""
+    if not origin:
+        return True
+
+    normalized_origin = origin.strip().rstrip('/')
+    if normalized_origin in ALLOWED_ORIGINS:
+        return True
+
+    if (
+        ALLOW_VERCEL_PREVIEWS
+        and normalized_origin.startswith('https://')
+        and normalized_origin.endswith('.vercel.app')
+    ):
+        return True
+
+    return False
+
+
+def get_client_identifier(headers):
+    """Get client identifier for best-effort rate limiting."""
+    forwarded_for = headers.get('x-forwarded-for')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return headers.get('x-real-ip', 'unknown')
+
+
+def is_rate_limited(client_id):
+    """Simple in-memory rate limiter suitable for serverless best-effort protection."""
+    now = int(time.time())
+
+    expired_clients = [
+        key for key, value in _rate_limit_state.items()
+        if now >= value['reset_at']
+    ]
+    for key in expired_clients:
+        _rate_limit_state.pop(key, None)
+
+    entry = _rate_limit_state.get(client_id)
+
+    if not entry or now >= entry['reset_at']:
+        _rate_limit_state[client_id] = {
+            'count': 1,
+            'reset_at': now + OCR_RATE_LIMIT_WINDOW_SECONDS
+        }
+        return False
+
+    entry['count'] += 1
+    if entry['count'] > OCR_RATE_LIMIT_REQUESTS:
+        return True
+
+    return False
 
 
 def get_templates_path():
@@ -236,8 +331,10 @@ def call_ocr_space(file_data, file_name, api_key=None):
         # Build multipart body
         parts = []
 
-        # API key
-        actual_key = api_key or OCR_SPACE_FREE_KEY
+        # API key (user-provided first, then server key, optional free fallback if explicitly enabled)
+        actual_key = api_key or OCR_SPACE_SERVER_API_KEY or OCR_SPACE_FREE_KEY
+        if not actual_key:
+            raise ValueError('OCR API key is required. Add one in Settings or configure OCR_SPACE_API_KEY on the server.')
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="apikey"\r\n\r\n{actual_key}\r\n')
 
         # OCR settings
@@ -842,17 +939,38 @@ def process_receipt(file_data, file_name, api_key=None):
 class handler(BaseHTTPRequestHandler):
     """Vercel Python serverless handler"""
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
+    def _set_cors_headers(self):
+        origin = self.headers.get('Origin')
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Vary', 'Origin')
+
+    def _forbidden_origin(self):
+        self.send_response(403)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Vary', 'Origin')
+        self.end_headers()
+        self.wfile.write(json.dumps({'error': 'Origin not allowed'}).encode())
+
+    def do_OPTIONS(self):
+        if not is_origin_allowed(self.headers.get('Origin')):
+            self._forbidden_origin()
+            return
+
+        self.send_response(204)
+        self._set_cors_headers()
         self.end_headers()
 
     def do_GET(self):
+        if not is_origin_allowed(self.headers.get('Origin')):
+            self._forbidden_origin()
+            return
+
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self._set_cors_headers()
         self.end_headers()
 
         response = {
@@ -866,7 +984,24 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not is_origin_allowed(self.headers.get('Origin')):
+                self._forbidden_origin()
+                return
+
+            client_id = get_client_identifier(self.headers)
+            if is_rate_limited(client_id):
+                self.send_error_response(429, 'Too many OCR requests. Please try again later.')
+                return
+
             content_length = int(self.headers.get('Content-Length', 0))
+            if content_length <= 0:
+                self.send_error_response(400, 'Request body is required')
+                return
+
+            if content_length > MAX_REQUEST_BYTES:
+                self.send_error_response(413, 'Request payload too large')
+                return
+
             body = self.rfile.read(content_length)
             data = json.loads(body.decode('utf-8'))
 
@@ -878,28 +1013,49 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_response(400, 'File is required')
                 return
 
+            if not (api_key or OCR_SPACE_SERVER_API_KEY or OCR_SPACE_FREE_KEY):
+                self.send_error_response(
+                    400,
+                    'OCR API key is required. Add one in Settings or configure OCR_SPACE_API_KEY on the server.'
+                )
+                return
+
             print(f"[OCR] Processing file: {file_name}")
 
-            file_data = base64.b64decode(file_base64)
+            try:
+                file_data = base64.b64decode(file_base64, validate=True)
+            except Exception:
+                self.send_error_response(400, 'Invalid base64 file payload')
+                return
+
+            if len(file_data) > MAX_REQUEST_BYTES:
+                self.send_error_response(413, 'Decoded file is too large')
+                return
+
             result = process_receipt(file_data, file_name, api_key)
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self._set_cors_headers()
             self.end_headers()
 
             self.wfile.write(json.dumps(result).encode())
 
+        except json.JSONDecodeError:
+            self.send_error_response(400, 'Invalid JSON payload')
         except Exception as e:
             print(f"[OCR] Error: {e}")
             import traceback
             traceback.print_exc()
-            self.send_error_response(500, str(e))
+            self.send_error_response(500, 'Failed to process receipt')
 
     def send_error_response(self, status_code, message):
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        origin = self.headers.get('Origin')
+        if origin and is_origin_allowed(origin):
+            self.send_header('Access-Control-Allow-Origin', origin)
+        self.send_header('Vary', 'Origin')
         self.end_headers()
 
         response = {'error': message}

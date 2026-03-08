@@ -14,6 +14,18 @@ let dbInitFailed = false;
 let dbInitializing = null; // Promise to track ongoing initialization
 let PGliteClass = null;
 let syncListeners = new Map();
+let lastDbInitError = null;
+let lastDbInitAttemptAt = 0;
+
+const DB_RETRY_INTERVAL_MS = 30000;
+
+function isOffline() {
+    return typeof navigator !== 'undefined' && !navigator.onLine;
+}
+
+function localCacheUnavailableOfflineError() {
+    return new Error('Local cache unavailable while offline. Reconnect once to sync and enable offline access.');
+}
 
 // Timeout helper
 const withTimeout = (promise, timeoutMs, errorMessage) => {
@@ -31,9 +43,12 @@ const withTimeout = (promise, timeoutMs, errorMessage) => {
 async function initDatabase() {
     // Return existing db if available
     if (db) return db;
-    
-    // Don't retry if already failed
-    if (dbInitFailed) return null;
+
+    // If recent initialization failed, avoid retry storm but allow periodic retries
+    const now = Date.now();
+    if (dbInitFailed && (now - lastDbInitAttemptAt) < DB_RETRY_INTERVAL_MS) {
+        return null;
+    }
     
     // If already initializing, wait for that to complete
     if (dbInitializing) {
@@ -41,6 +56,7 @@ async function initDatabase() {
         return dbInitializing;
     }
 
+    lastDbInitAttemptAt = now;
     console.log('[Storage] Initializing PGlite database...');
 
     // Create a promise for the initialization
@@ -78,10 +94,13 @@ async function initDatabase() {
             await withTimeout(createSchema(), 30000, 'Schema creation timed out');
 
             console.log('[Storage] Database initialized successfully');
+            dbInitFailed = false;
+            lastDbInitError = null;
             return db;
         } catch (err) {
             console.error('[Storage] PGlite initialization failed:', err);
             dbInitFailed = true;
+            lastDbInitError = err;
             db = null;
             return null;
         } finally {
@@ -291,6 +310,19 @@ export const electricStorage = {
     },
 
     /**
+     * Get local storage health to inform UI/offline behavior
+     */
+    getStorageHealth() {
+        return {
+            hasLocalCache: db !== null,
+            initFailed: dbInitFailed,
+            fallbackMode: db === null,
+            lastError: lastDbInitError?.message || null,
+            lastAttemptAt: lastDbInitAttemptAt || null,
+        };
+    },
+
+    /**
      * Initialize the local PGlite database
      */
     async init(userId = null) {
@@ -330,9 +362,16 @@ export const electricStorage = {
         try {
             await initDatabase();
             if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
                 // Fallback to Supabase
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getReceiptsByUserId(userId);
+                return await withTimeout(
+                    supabaseService.getReceiptsByUserId(userId),
+                    10000,
+                    'Cloud receipts fetch timed out'
+                );
             }
             const result = await db.query(
                 `SELECT * FROM receipts WHERE user_id = $1 ORDER BY date DESC, created_at DESC`,
@@ -340,9 +379,16 @@ export const electricStorage = {
             );
             return result.rows.map(this._mapReceipt);
         } catch (err) {
+            if (isOffline()) {
+                throw localCacheUnavailableOfflineError();
+            }
             console.error('[Storage] getReceipts failed, trying Supabase:', err);
             const supabaseService = (await import('./supabaseService.js')).supabaseService;
-            return await supabaseService.getReceiptsByUserId(userId);
+            return await withTimeout(
+                supabaseService.getReceiptsByUserId(userId),
+                10000,
+                'Cloud receipts fallback timed out'
+            );
         }
     },
 
@@ -350,15 +396,29 @@ export const electricStorage = {
         try {
             await initDatabase();
             if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getReceiptById(id);
+                return await withTimeout(
+                    supabaseService.getReceiptById(id),
+                    10000,
+                    'Cloud receipt fetch timed out'
+                );
             }
             const result = await db.query(`SELECT * FROM receipts WHERE id = $1`, [id]);
             return result.rows[0] ? this._mapReceipt(result.rows[0]) : null;
         } catch (err) {
+            if (isOffline()) {
+                throw localCacheUnavailableOfflineError();
+            }
             console.error('[Storage] getReceipt failed, trying Supabase:', err);
             const supabaseService = (await import('./supabaseService.js')).supabaseService;
-            return await supabaseService.getReceiptById(id);
+            return await withTimeout(
+                supabaseService.getReceiptById(id),
+                10000,
+                'Cloud receipt fallback timed out'
+            );
         }
     },
 
@@ -624,8 +684,15 @@ export const electricStorage = {
         try {
             await initDatabase();
             if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getGroups(userId);
+                return await withTimeout(
+                    supabaseService.getGroups(userId),
+                    10000,
+                    'Cloud groups fetch timed out'
+                );
             }
             const result = await db.query(
                 `SELECT * FROM groups WHERE user_id = $1 ORDER BY is_pinned DESC, name ASC`,
@@ -633,9 +700,16 @@ export const electricStorage = {
             );
             return result.rows.map(this._mapGroup);
         } catch (err) {
+            if (isOffline()) {
+                throw localCacheUnavailableOfflineError();
+            }
             console.error('[Storage] getGroups failed, trying Supabase:', err);
             const supabaseService = (await import('./supabaseService.js')).supabaseService;
-            return await supabaseService.getGroups(userId);
+            return await withTimeout(
+                supabaseService.getGroups(userId),
+                10000,
+                'Cloud groups fallback timed out'
+            );
         }
     },
 
@@ -770,19 +844,46 @@ export const electricStorage = {
     // ============================================
 
     async getCategories(userId) {
-        await initDatabase();
-        const result = await db.query(
-            `SELECT * FROM user_categories WHERE user_id = $1 ORDER BY name ASC`,
-            [userId]
-        );
-        return result.rows.map(row => ({
-            id: row.id,
-            userId: row.user_id,
-            name: row.name,
-            color: row.color,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at,
-        }));
+        try {
+            await initDatabase();
+            if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                const categories = await withTimeout(
+                    supabaseService.getUserCategories(userId),
+                    10000,
+                    'Cloud categories fetch timed out'
+                );
+                return categories || [];
+            }
+
+            const result = await db.query(
+                `SELECT * FROM user_categories WHERE user_id = $1 ORDER BY name ASC`,
+                [userId]
+            );
+            return result.rows.map(row => ({
+                id: row.id,
+                userId: row.user_id,
+                name: row.name,
+                color: row.color,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            }));
+        } catch (err) {
+            if (isOffline()) {
+                throw localCacheUnavailableOfflineError();
+            }
+            console.error('[Storage] getCategories failed, trying Supabase:', err);
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            const categories = await withTimeout(
+                supabaseService.getUserCategories(userId),
+                10000,
+                'Cloud categories fallback timed out'
+            );
+            return categories || [];
+        }
     },
 
     async createCategory(category) {
@@ -849,9 +950,16 @@ export const electricStorage = {
         try {
             await initDatabase();
             if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
                 // Fallback to Supabase
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getSettings(userId);
+                return await withTimeout(
+                    supabaseService.getSettings(userId),
+                    10000,
+                    'Cloud settings fetch timed out'
+                );
             }
             const result = await db.query(
                 `SELECT * FROM settings WHERE user_id = $1`,
@@ -868,8 +976,15 @@ export const electricStorage = {
             }
             // Local empty - try Supabase as fallback (for API key sync across devices)
             try {
+                if (isOffline()) {
+                    return null;
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getSettings(userId);
+                return await withTimeout(
+                    supabaseService.getSettings(userId),
+                    10000,
+                    'Cloud settings fallback timed out'
+                );
             } catch (e) {
                 console.warn('[Storage] Supabase getSettings fallback failed:', e);
                 return null;
@@ -877,8 +992,15 @@ export const electricStorage = {
         } catch (err) {
             console.error('[Storage] getSettings failed, trying Supabase:', err);
             try {
+                if (isOffline()) {
+                    return null;
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getSettings(userId);
+                return await withTimeout(
+                    supabaseService.getSettings(userId),
+                    10000,
+                    'Cloud settings second fallback timed out'
+                );
             } catch (e) {
                 console.error('[Storage] Supabase getSettings also failed:', e);
                 return null;
@@ -934,8 +1056,15 @@ export const electricStorage = {
         try {
             await initDatabase();
             if (!db) {
+                if (isOffline()) {
+                    throw localCacheUnavailableOfflineError();
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getUserLayout(userId);
+                return await withTimeout(
+                    supabaseService.getUserLayout(userId),
+                    10000,
+                    'Cloud layout fetch timed out'
+                );
             }
             const result = await db.query(
                 `SELECT * FROM user_layouts WHERE user_id = $1`,
@@ -953,8 +1082,15 @@ export const electricStorage = {
         } catch (err) {
             console.error('[Storage] getUserLayout failed, trying Supabase:', err);
             try {
+                if (isOffline()) {
+                    return null;
+                }
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.getUserLayout(userId);
+                return await withTimeout(
+                    supabaseService.getUserLayout(userId),
+                    10000,
+                    'Cloud layout fallback timed out'
+                );
             } catch (e) {
                 console.error('[Storage] Supabase getUserLayout also failed:', e);
                 return null;

@@ -10,8 +10,10 @@ import { DEFAULT_CATEGORIES } from '../utils/constants';
  */
 export function useCategories() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const showToast = useAppStore((state) => state.showToast);
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
     const loadingRef = useRef(false);
+    const offlineWarningShownRef = useRef(false);
 
     const loadCategories = useCallback(async () => {
         if (!currentUser) {
@@ -48,11 +50,19 @@ export function useCategories() {
             }
         } catch (error) {
             console.error('Failed to load categories:', error);
+            if (error.message?.includes('Local cache unavailable while offline') && !offlineWarningShownRef.current) {
+                showToast('Offline category data is unavailable until local cache is restored. Reconnect and sync once.', 'warning');
+                offlineWarningShownRef.current = true;
+            }
+
+            if (!error.message?.includes('Local cache unavailable while offline')) {
+                offlineWarningShownRef.current = false;
+            }
             setCategories(DEFAULT_CATEGORIES);
         } finally {
             loadingRef.current = false;
         }
-    }, [currentUser]);
+    }, [currentUser, showToast]);
 
     useEffect(() => {
         loadCategories();

@@ -125,10 +125,9 @@ Access settings via the Settings icon:
 
 The app uses OCR.Space for receipt text extraction.
 
-### Free Tier (No API Key)
-- Works out of the box
-- ~500 requests/month
-- Good for personal use
+### Without User API Key
+- Works only if your deployment sets a server-side `OCR_SPACE_API_KEY`
+- Good for shared/team deployments
 
 ### With API Key (Optional)
 1. Get a free key at [ocr.space/ocrapi](https://ocr.space/ocrapi)
@@ -173,7 +172,8 @@ src/
 └── utils/            # Helper functions and constants
 
 api/
-└── ocr-proxy.js      # Vercel serverless function for OCR
+├── ocr.py            # Main Vercel serverless OCR endpoint
+└── ocr-proxy.js      # Optional OCR proxy endpoint
 ```
 
 ## Browser Support

@@ -16,6 +16,13 @@ export const useAppStore = create(
             toast: null,
             darkMode: false,
             darkModeManual: null, // null = use system, true/false = manual override
+            storageHealth: {
+                hasLocalCache: true,
+                initFailed: false,
+                fallbackMode: false,
+                lastError: null,
+                lastAttemptAt: null
+            },
             
             // Chart state (session persistence)
             selectedChartDate: null,
@@ -37,7 +44,14 @@ export const useAppStore = create(
                     currentUser: null,
                     isAuthenticated: false,
                     sidebarOpen: false,
-                    addReceiptModalOpen: false
+                    addReceiptModalOpen: false,
+                    storageHealth: {
+                        hasLocalCache: true,
+                        initFailed: false,
+                        fallbackMode: false,
+                        lastError: null,
+                        lastAttemptAt: null
+                    }
                 });
             },
 
@@ -55,6 +69,13 @@ export const useAppStore = create(
                 set({ toast: { message, type, id: Date.now() } });
                 setTimeout(() => set({ toast: null }), 3000);
             },
+
+            setStorageHealth: (health) => set((state) => ({
+                storageHealth: {
+                    ...state.storageHealth,
+                    ...health
+                }
+            })),
             
             setSelectedChartDate: (date, receipts) => set({ 
                 selectedChartDate: date ? date.toISOString() : null,
@@ -141,4 +162,3 @@ export const useAppStore = create(
         }
     )
 );
-

@@ -69,11 +69,11 @@ export default function RegisterPage() {
                         <Input
                             label="OCR API Key (Optional)"
                             type="text"
-                            placeholder="Leave empty to use free OCR tier"
+                            placeholder="Leave empty to use server default (if configured)"
                             {...register('ocrApiKey')}
                         />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            OCR works without an API key. You can add one later in Settings for higher limits.
+                            If no server default key is configured, add your OCR.Space key here or in Settings.
                         </p>
                     </div>
 
@@ -118,4 +118,3 @@ export default function RegisterPage() {
         </AuthLayout>
     );
 }
-

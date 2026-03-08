@@ -38,12 +38,16 @@ function App() {
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const currentUser = useAppStore((state) => state.currentUser);
+    const storageHealth = useAppStore((state) => state.storageHealth);
+    const setStorageHealth = useAppStore((state) => state.setStorageHealth);
     const showToast = useAppStore((state) => state.showToast);
     const darkMode = useAppStore((state) => state.darkMode);
     const initializeDarkMode = useAppStore((state) => state.initializeDarkMode);
     const darkModeManual = useAppStore((state) => state.darkModeManual);
     const applyDarkMode = useAppStore((state) => state.applyDarkMode);
     const electricInitialized = useRef(false);
+    const syncInProgressRef = useRef(false);
+    const storageWarningShownRef = useRef(false);
     const showToastRef = useRef(showToast);
 
     // Keep showToast ref updated
@@ -64,78 +68,110 @@ function App() {
                     electricInitialized.current = true;
                     console.log('[App] PGlite storage initialized');
 
+                    const storageHealth = electricStorage.getStorageHealth();
+                    setStorageHealth(storageHealth);
+                    if (!storageHealth.hasLocalCache && !storageWarningShownRef.current) {
+                        showToastRef.current(
+                            'Offline mode is limited because local cache is unavailable. Reconnect and retry shortly.',
+                            'warning'
+                        );
+                        storageWarningShownRef.current = true;
+                    } else if (storageHealth.hasLocalCache) {
+                        storageWarningShownRef.current = false;
+                    }
+
                     // Trigger initial data load from local storage first (instant)
                     window.dispatchEvent(new CustomEvent('refreshDashboard'));
                     window.dispatchEvent(new CustomEvent('refreshReceipts'));
                     window.dispatchEvent(new CustomEvent('refreshGroups'));
-
-                    // Sync with Supabase in background (non-blocking)
-                    // Use setTimeout to let the UI render first
-                    setTimeout(async () => {
-                        console.log('[App] Starting background sync with Supabase...');
-                        try {
-                            const syncResult = await electricStorage.syncBidirectional(currentUser.userId);
-                            console.log('[App] Background sync complete:', syncResult);
-                            // Events are dispatched inside syncBidirectional
-                        } catch (syncError) {
-                            console.error('[App] Background sync failed:', syncError);
-                            // Don't show error toast - app works with local data
-                        }
-                    }, 500);
                 } catch (error) {
                     console.error('[App] Failed to initialize storage:', error);
+                    setStorageHealth({
+                        hasLocalCache: false,
+                        initFailed: true,
+                        fallbackMode: true,
+                        lastError: error?.message || 'Storage initialization failed'
+                    });
                 }
             }
         };
 
         initStorage();
-    }, [currentUser?.userId]);
+    }, [currentUser?.userId, setStorageHealth]);
 
     // Reset Electric on logout
     useEffect(() => {
         if (!currentUser?.userId && electricInitialized.current) {
             electricInitialized.current = false;
+            syncInProgressRef.current = false;
+            storageWarningShownRef.current = false;
+            setStorageHealth({
+                hasLocalCache: true,
+                initFailed: false,
+                fallbackMode: false,
+                lastError: null,
+                lastAttemptAt: null
+            });
         }
-    }, [currentUser?.userId]);
+    }, [currentUser?.userId, setStorageHealth]);
 
-    // Check for existing Supabase session on mount and handle OAuth callback
+    // Sync lifecycle: startup, online/focus/visibility, and periodic sync every 5 minutes
     useEffect(() => {
+        if (!currentUser?.userId) return;
+
+        let disposed = false;
+
+        const runSync = async (reason) => {
+            if (disposed || !currentUser?.userId || !navigator.onLine || syncInProgressRef.current) {
+                return;
+            }
+
+            syncInProgressRef.current = true;
+            try {
+                console.log(`[App] Starting sync (${reason})...`);
+                await electricStorage.init(currentUser.userId);
+                setStorageHealth(electricStorage.getStorageHealth());
+                await electricStorage.syncBidirectional(currentUser.userId);
+            } catch (error) {
+                console.error(`[App] Sync failed (${reason}):`, error);
+            } finally {
+                syncInProgressRef.current = false;
+            }
+        };
+
+        const handleOnline = () => runSync('online');
+        const handleFocus = () => runSync('focus');
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                runSync('visibility');
+            }
+        };
+
+        const syncInterval = setInterval(() => runSync('interval'), 5 * 60 * 1000);
+        runSync('startup');
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            disposed = true;
+            clearInterval(syncInterval);
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
+    }, [currentUser?.userId, setStorageHealth]);
+
+    // Check for existing Supabase session on mount
+    useEffect(() => {
+        let isMounted = true;
+        let unsubscribeAuth = null;
+
         const checkSession = async () => {
             try {
-                // Check for OAuth callback in URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const hash = window.location.hash;
-                const code = urlParams.get('code');
-                const hasOAuthCallback = code || hash.includes('access_token') || hash.includes('type=recovery');
-
-                if (hasOAuthCallback) {
-                    console.log('[App] OAuth callback detected');
-
-                    // If we have a code, exchange it for a session
-                    if (code) {
-                        console.log('[App] Exchanging code for session...');
-                        const { supabase } = await import('./services/supabaseService');
-                        if (supabase) {
-                            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-                            if (error) {
-                                console.error('[App] Code exchange error:', error);
-                            } else if (data?.session?.user) {
-                                console.log('[App] Code exchange successful');
-                                setCurrentUser({
-                                    userId: data.session.user.id,
-                                    email: data.session.user.email
-                                });
-                            }
-                        }
-                    }
-
-                    // Clean up URL
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    return;
-                }
-
                 const session = await authService.getCurrentSession();
-                if (session?.user) {
+                if (isMounted && session?.user) {
                     setCurrentUser({
                         userId: session.user.id,
                         email: session.user.email
@@ -146,52 +182,57 @@ function App() {
             }
         };
 
-        checkSession();
-
         // Listen for auth state changes
         const setupAuthListener = async () => {
             try {
                 const { supabase, authHelpers } = await import('./services/supabaseService');
-                if (supabase) {
-                    const { data: { subscription } } = authHelpers.onAuthStateChange(
-                        async (event, session) => {
-                            if (event === 'SIGNED_IN' && session?.user) {
-                                setCurrentUser({
-                                    userId: session.user.id,
-                                    email: session.user.email
-                                });
+                if (!supabase) return;
 
-                                // Initialize Electric and pull from Supabase
-                                // (useEffect will handle full initialization, but we can start pulling early)
-                                showToastRef.current('Signed in successfully', 'success');
+                const { data: { subscription } } = authHelpers.onAuthStateChange(
+                    async (event, session) => {
+                        if (event === 'SIGNED_IN' && session?.user) {
+                            setCurrentUser({
+                                userId: session.user.id,
+                                email: session.user.email
+                            });
 
-                                // Trigger sync after sign-in if Electric is already initialized
-                                if (electricInitialized.current) {
-                                    try {
-                                        console.log('[App] Pulling data after sign-in...');
-                                        await electricStorage.pullFromSupabase(session.user.id);
-                                    } catch (error) {
-                                        console.error('[App] Post-signin sync failed:', error);
-                                    }
-                                }
-                            } else if (event === 'SIGNED_OUT') {
-                                // Only clear auth state if actually online — offline token
-                                // validation failures should not log the user out
-                                if (navigator.onLine) {
-                                    setCurrentUser(null);
-                                    electricInitialized.current = false;
+                            // Initialize Electric and pull from Supabase
+                            // (useEffect will handle full initialization, but we can start pulling early)
+                            showToastRef.current('Signed in successfully', 'success');
+
+                            // Trigger sync after sign-in if Electric is already initialized
+                            if (electricInitialized.current) {
+                                try {
+                                    console.log('[App] Pulling data after sign-in...');
+                                    await electricStorage.pullFromSupabase(session.user.id);
+                                } catch (error) {
+                                    console.error('[App] Post-signin sync failed:', error);
                                 }
                             }
+                        } else if (event === 'SIGNED_OUT') {
+                            // Only clear auth state if actually online — offline token
+                            // validation failures should not log the user out
+                            if (navigator.onLine) {
+                                setCurrentUser(null);
+                                electricInitialized.current = false;
+                            }
                         }
-                    );
-                    return () => subscription?.unsubscribe();
-                }
+                    }
+                );
+
+                unsubscribeAuth = () => subscription?.unsubscribe();
             } catch (error) {
                 console.error('Error setting up auth listener:', error);
             }
         };
 
+        checkSession();
         setupAuthListener();
+
+        return () => {
+            isMounted = false;
+            if (unsubscribeAuth) unsubscribeAuth();
+        };
     }, [setCurrentUser]);
 
     // Initialize dark mode on mount
@@ -230,6 +271,11 @@ function App() {
         <BrowserRouter>
             <ScrollToTop />
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+                {isAuthenticated && storageHealth?.fallbackMode && (
+                    <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
+                        Local cache is unavailable. You are in cloud-only mode and offline data access is limited.
+                    </div>
+                )}
                 <Routes>
                     <Route
                         path="/login"

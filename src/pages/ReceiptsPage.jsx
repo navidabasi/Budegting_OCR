@@ -498,6 +498,7 @@ export default function ReceiptsPage() {
                 <div className="mb-4 px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg">
                     <p className="text-sm text-primary-800">
                         <span className="font-medium">Active Filter:</span>{' '}
+                        {activeFilter.type === 'transaction' && `Transaction: ${activeFilter.value}`}
                         {activeFilter.type === 'category' && `Category: ${activeFilter.value}`}
                         {activeFilter.type === 'month' && `Month: ${activeFilter.value}`}
                         {activeFilter.type === 'merchant' && `Merchant: ${activeFilter.value}`}
@@ -1291,4 +1292,3 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver =
         </div>
     );
 }
-

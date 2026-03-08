@@ -9,9 +9,11 @@ import { electricStorage } from '../services/electricStorage';
  */
 export function useGroups() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const showToast = useAppStore((state) => state.showToast);
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const loadingRef = useRef(false);
+    const offlineWarningShownRef = useRef(false);
 
     const loadGroups = useCallback(async () => {
         if (!currentUser?.userId) {
@@ -38,12 +40,20 @@ export function useGroups() {
             setGroups(allGroups || []);
         } catch (err) {
             console.error('Failed to load groups:', err);
+            if (err.message?.includes('Local cache unavailable while offline') && !offlineWarningShownRef.current) {
+                showToast('Offline group data is unavailable until local cache is restored. Reconnect and sync once.', 'warning');
+                offlineWarningShownRef.current = true;
+            }
+
+            if (!err.message?.includes('Local cache unavailable while offline')) {
+                offlineWarningShownRef.current = false;
+            }
             setGroups([]); // Set empty array on error so app doesn't hang
         } finally {
             setLoading(false);
             loadingRef.current = false;
         }
-    }, [currentUser]);
+    }, [currentUser, showToast]);
 
     useEffect(() => {
         loadGroups();

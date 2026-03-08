@@ -12,6 +12,25 @@ The code has been migrated to use Supabase Auth. Here's what you need to do in S
 4. Make sure **Email** provider is enabled (it should be by default)
 5. **Optional**: Configure email templates if you want custom emails
 
+## Step 1.1: Configure Google OAuth (Required for Google Sign-In)
+
+1. In **Supabase Dashboard**:
+   - Go to **Authentication** → **Providers** → **Google**
+   - Enable Google provider
+   - Add your Google OAuth Client ID and Client Secret
+
+2. In **Google Cloud Console**:
+   - Open your OAuth 2.0 Client
+   - Add this **Authorized redirect URI**:
+     - `https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/auth/v1/callback`
+
+3. In **Supabase Dashboard** → **Authentication** → **URL Configuration**:
+   - Set **Site URL** to your app URL
+   - Add these **Redirect URLs** (exact paths):
+     - `http://localhost:5173/auth/callback`
+     - `https://<YOUR_PRODUCTION_DOMAIN>/auth/callback`
+   - Optional (if using previews): `https://*.vercel.app/auth/callback`
+
 ## Step 2: Run the SQL Setup Script
 
 1. In Supabase Dashboard, go to **SQL Editor**
@@ -91,6 +110,12 @@ This will:
 - Make sure Supabase Auth is enabled
 - Check that your `.env.local` file has the correct credentials
 
+### Google sign-in returns to app but user is logged out
+- Verify Supabase redirect URLs include `/auth/callback` (not just the origin)
+- Verify Google provider is enabled in Supabase
+- Verify Google Cloud redirect URI uses Supabase callback URL (`/auth/v1/callback`)
+- Ensure production hosting rewrites SPA routes to `index.html` so `/auth/callback` loads the app
+
 ### Data not appearing in Supabase
 - Check browser console for errors
 - Verify RLS policies were created correctly
@@ -106,4 +131,3 @@ After setup is complete:
 5. ✅ Test sync buttons in Settings
 
 The app should now work with Supabase Auth! 🎉
-

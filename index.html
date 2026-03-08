@@ -15,32 +15,9 @@
     <div id="root">
         <div style="padding: 20px; font-family: sans-serif; background: #f0f0f0;">
             <h1>Loading React App...</h1>
-            <p id="status">Initializing...</p>
+            <p>Initializing...</p>
         </div>
     </div>
-    <script>
-        console.log('HTML loaded, starting React...');
-        document.getElementById('status').textContent = 'Loading JavaScript modules...';
-        
-        // Catch any unhandled errors
-        window.addEventListener('error', (event) => {
-            console.error('Global error:', event.error);
-            const statusEl = document.getElementById('status');
-            if (statusEl) {
-                statusEl.textContent = 'ERROR: ' + (event.error?.message || event.message);
-                statusEl.style.color = 'red';
-            }
-        });
-        
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Unhandled promise rejection:', event.reason);
-            const statusEl = document.getElementById('status');
-            if (statusEl) {
-                statusEl.textContent = 'PROMISE ERROR: ' + (event.reason?.message || event.reason);
-                statusEl.style.color = 'red';
-            }
-        });
-    </script>
     <script type="module" src="/src/main.jsx"></script>
 </body>
 

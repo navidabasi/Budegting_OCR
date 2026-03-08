@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
 import { Pie } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
@@ -12,9 +11,11 @@ import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function CategoryChart({ receipts }) {
-    const navigate = useNavigate();
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const currentDate = new Date();
+    const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
 
     // Detect dark mode
     useEffect(() => {
@@ -30,13 +31,76 @@ export default function CategoryChart({ receipts }) {
         return () => observer.disconnect();
     }, []);
 
-    const categoryTotals = {};
-    const categoryIncome = {};
+    const monthOptions = useMemo(() => {
+        const monthMap = new Map();
 
-    receipts.forEach(receipt => {
+        receipts.forEach(receipt => {
+            if ((receipt.transactionType || 'expense') !== 'expense') {
+                return;
+            }
+
+            const date = new Date(receipt.date);
+            if (isNaN(date.getTime())) {
+                return;
+            }
+
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            if (!monthMap.has(key)) {
+                monthMap.set(key, {
+                    key,
+                    year: date.getFullYear(),
+                    month: date.getMonth(),
+                    label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                });
+            }
+        });
+
+        return Array.from(monthMap.values()).sort((a, b) => {
+            if (a.year !== b.year) return b.year - a.year;
+            return b.month - a.month;
+        });
+    }, [receipts]);
+
+    useEffect(() => {
+        if (monthOptions.length === 0) {
+            setSelectedMonthKey('');
+            return;
+        }
+
+        const hasSelection = monthOptions.some(option => option.key === selectedMonthKey);
+        if (hasSelection) return;
+
+        const hasCurrentMonth = monthOptions.some(option => option.key === currentMonthKey);
+        const nextDefault = hasCurrentMonth ? currentMonthKey : monthOptions[0].key;
+        setSelectedMonthKey(nextDefault);
+    }, [monthOptions, currentMonthKey, selectedMonthKey]);
+
+    useEffect(() => {
+        // Hidden categories are scoped per-month
+        setHiddenCategories(new Set());
+    }, [selectedMonthKey]);
+
+    const monthReceipts = useMemo(() => {
+        if (!selectedMonthKey) {
+            return [];
+        }
+
+        return receipts.filter(receipt => {
+            if ((receipt.transactionType || 'expense') !== 'expense') {
+                return false;
+            }
+            const date = new Date(receipt.date);
+            if (isNaN(date.getTime())) {
+                return false;
+            }
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            return key === selectedMonthKey;
+        });
+    }, [receipts, selectedMonthKey]);
+
+    const categoryTotals = {};
+    monthReceipts.forEach(receipt => {
         const amount = getEffectiveAmount(receipt);
-        const transactionType = receipt.transactionType || 'expense';
-        const bucket = transactionType === 'income' ? categoryIncome : categoryTotals;
 
         // Check if any line items have their own categories
         const lineItems = receipt.lineItems || [];
@@ -56,17 +120,17 @@ export default function CategoryChart({ receipts }) {
             itemsWithCategory.forEach(item => {
                 const cat = item.category;
                 const itemAmount = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1) * scale;
-                bucket[cat] = (bucket[cat] || 0) + itemAmount;
+                categoryTotals[cat] = (categoryTotals[cat] || 0) + itemAmount;
             });
 
             if (remainder > 0) {
                 const cat = receipt.category || 'Other';
-                bucket[cat] = (bucket[cat] || 0) + remainder * scale;
+                categoryTotals[cat] = (categoryTotals[cat] || 0) + remainder * scale;
             }
         } else {
             // No item-level categories — use receipt-level category
             const category = receipt.category || 'Other';
-            bucket[category] = (bucket[category] || 0) + amount;
+            categoryTotals[category] = (categoryTotals[category] || 0) + amount;
         }
     });
 
@@ -206,7 +270,7 @@ export default function CategoryChart({ receipts }) {
     if (categories.length === 0) {
         return (
             <div className="card h-80 flex items-center justify-center">
-                <p className="text-gray-500 dark:text-gray-300">No data to display</p>
+                <p className="text-gray-500 dark:text-gray-300">No expense data for selected month</p>
             </div>
         );
     }
@@ -214,7 +278,22 @@ export default function CategoryChart({ receipts }) {
     return (
         <div className="card h-80 w-full overflow-hidden flex flex-col relative">
             <div className="flex items-start justify-between mb-2">
-                <h3 className="text-base sm:text-lg font-semibold dark:text-white">Expenses by Category</h3>
+                <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold dark:text-white">Expenses by Category</h3>
+                    {monthOptions.length > 0 && (
+                        <select
+                            value={selectedMonthKey}
+                            onChange={(e) => setSelectedMonthKey(e.target.value)}
+                            className="mt-1 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
+                        >
+                            {monthOptions.map((option) => (
+                                <option key={option.key} value={option.key}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
                 <div className="text-right">
                     <div className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                         {formatCurrency(visibleTotal)}
@@ -236,4 +315,3 @@ export default function CategoryChart({ receipts }) {
         </div>
     );
 }
-

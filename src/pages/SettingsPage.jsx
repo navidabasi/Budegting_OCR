@@ -307,7 +307,7 @@ export default function SettingsPage() {
                         {...register('ocrApiKey')}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        OCR works without an API key using the free tier. Add your own key for higher limits (25,000 requests/month). Get one at{' '}
+                        OCR uses your personal key unless the server has a shared default key configured. Get a free key at{' '}
                         <a
                             href="https://ocr.space/ocrapi"
                             target="_blank"
@@ -318,7 +318,7 @@ export default function SettingsPage() {
                         </a>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <strong>Note:</strong> Leave empty to use the free tier, or enter your API key for higher limits.
+                        <strong>Note:</strong> Leave empty only if your deployment provides `OCR_SPACE_API_KEY`.
                     </p>
                     <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save API Key'}

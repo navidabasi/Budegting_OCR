@@ -11,6 +11,8 @@ Set environment variables when building:
 ```bash
 VITE_SUPABASE_URL=https://oorwminabbdyfftdbibn.supabase.co \
 VITE_SUPABASE_ANON_KEY=your-anon-key-here \
+ALLOWED_ORIGINS=https://your-domain.com \
+OCR_SPACE_API_KEY=your-ocr-space-api-key \
 npm run build
 ```
 
@@ -21,6 +23,8 @@ Create a `.env.production` file in your project root:
 ```env
 VITE_SUPABASE_URL=https://oorwminabbdyfftdbibn.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ALLOWED_ORIGINS=https://your-domain.com,http://localhost:5173
+OCR_SPACE_API_KEY=your-ocr-space-api-key
 ```
 
 Then build:
@@ -36,6 +40,8 @@ npm run build
 3. Add:
    - `VITE_SUPABASE_URL` = `https://oorwminabbdyfftdbibn.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` = `your-anon-key-here`
+   - `ALLOWED_ORIGINS` = `https://your-domain.com`
+   - `OCR_SPACE_API_KEY` = `your-ocr-space-api-key`
 4. Redeploy
 
 #### Netlify
@@ -43,7 +49,26 @@ npm run build
 2. Add:
    - `VITE_SUPABASE_URL` = `https://oorwminabbdyfftdbibn.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` = `your-anon-key-here`
+   - `ALLOWED_ORIGINS` = `https://your-domain.com`
+   - `OCR_SPACE_API_KEY` = `your-ocr-space-api-key`
 3. Redeploy
+
+## Google OAuth Redirect Configuration
+
+For Google sign-in to work in production:
+
+1. Supabase → **Authentication** → **URL Configuration**
+   - Site URL: `https://your-domain.com`
+   - Redirect URLs must include:
+     - `https://your-domain.com/auth/callback`
+     - `http://localhost:5173/auth/callback` (for local dev)
+
+2. Supabase → **Authentication** → **Providers** → **Google**
+   - Enable provider and add Google client credentials
+
+3. Google Cloud Console (OAuth client)
+   - Add Supabase callback URI:
+     - `https://<your-supabase-project-ref>.supabase.co/auth/v1/callback`
 
 #### GitHub Pages / Static Hosting
 You'll need to set them at build time before deploying, or use a build script.
@@ -99,4 +124,3 @@ If you see "KeyPath supabaseId on object store users is not indexed":
 2. Verify email confirmation is disabled (for testing)
 3. Check Supabase Dashboard → Authentication → Users → Check user's email status
 4. Make sure your production URL is whitelisted in Supabase (if using redirects)
-

@@ -1,23 +1,18 @@
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// comment for the new commit on github
 
 export default function CashFlow({ receipts }) {
     const navigate = useNavigate();
 
-    // Get current month for filter
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-
     const handleIncomeClick = () => {
-        // Navigate to receipts page with income filter for current month
-        navigate(`/receipts?type=income&month=${currentMonth + 1}&year=${currentYear}`);
+        // Navigate to receipts page with all-time income filter
+        navigate('/receipts?type=income');
     };
 
     const handleExpenseClick = () => {
-        // Navigate to receipts page with expense filter for current month
-        navigate(`/receipts?type=expense&month=${currentMonth + 1}&year=${currentYear}`);
+        // Navigate to receipts page with all-time expense filter
+        navigate('/receipts?type=expense');
     };
     // Separate income and expenses
     const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');

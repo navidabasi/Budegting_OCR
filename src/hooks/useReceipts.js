@@ -9,9 +9,11 @@ import { electricStorage } from '../services/electricStorage';
  */
 export function useReceipts() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const showToast = useAppStore((state) => state.showToast);
     const [receipts, setReceipts] = useState([]);
     const [loading, setLoading] = useState(true);
     const loadingRef = useRef(false);
+    const offlineWarningShownRef = useRef(false);
 
     const loadReceipts = useCallback(async () => {
         if (!currentUser) {
@@ -38,12 +40,22 @@ export function useReceipts() {
             setReceipts(userReceipts || []);
         } catch (err) {
             console.error('Failed to load receipts:', err);
+
+            if (err.message?.includes('Local cache unavailable while offline') && !offlineWarningShownRef.current) {
+                showToast('Offline data is unavailable until local cache is restored. Reconnect and sync once.', 'warning');
+                offlineWarningShownRef.current = true;
+            }
+
+            if (!err.message?.includes('Local cache unavailable while offline')) {
+                offlineWarningShownRef.current = false;
+            }
+
             setReceipts([]); // Set empty array on error so app doesn't hang
         } finally {
             setLoading(false);
             loadingRef.current = false;
         }
-    }, [currentUser]);
+    }, [currentUser, showToast]);
 
     useEffect(() => {
         loadReceipts();

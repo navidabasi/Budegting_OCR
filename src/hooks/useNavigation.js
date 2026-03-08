@@ -19,8 +19,8 @@ export function useReceiptNavigation() {
         toMonth: useCallback((month, year) => {
             navigate(`/receipts?filter=month&month=${month}&year=${year}`);
         }, [navigate]),
-        toReceiptDetail: useCallback((receiptId) => {
-            navigate(`/receipts/${receiptId}`);
+        toReceiptDetail: useCallback((receiptId, state = undefined) => {
+            navigate(`/receipts/${receiptId}`, state ? { state } : undefined);
         }, [navigate]),
         // Navigate to all income receipts (all time)
         toAllIncome: useCallback(() => {

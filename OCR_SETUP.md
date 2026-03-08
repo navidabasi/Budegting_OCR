@@ -4,10 +4,9 @@ This app uses OCR.Space for receipt text extraction.
 
 ## How it works
 
-1. **Free tier (no API key required)**
-   - Works out of the box
-   - Limited to ~500 requests/month
-   - Good for personal use
+1. **Without user API key**
+   - Works only when server-side `OCR_SPACE_API_KEY` is configured
+   - Useful for shared/team deployments
 
 2. **With API key (optional)**
    - Get a free API key at https://ocr.space/ocrapi
@@ -17,10 +16,10 @@ This app uses OCR.Space for receipt text extraction.
 ## Architecture
 
 ```
-Browser → /api/ocr-proxy → OCR.Space API
+Browser → /api/ocr (Python serverless function) → OCR.Space API
 ```
 
-The app uses a Vercel serverless function (`api/ocr-proxy.js`) to:
+The app uses serverless functions (`api/ocr.py` and optional `api/ocr-proxy.js`) to:
 - Handle CORS issues
 - Keep API keys server-side
 - Process images securely
@@ -28,15 +27,16 @@ The app uses a Vercel serverless function (`api/ocr-proxy.js`) to:
 ## Files
 
 - `src/services/ocrApi.js` - Frontend OCR service
-- `api/ocr-proxy.js` - Vercel serverless proxy function
+- `api/ocr.py` - Main Vercel OCR endpoint
+- `api/ocr-proxy.js` - Optional JS proxy endpoint
 
 ## Local Development
 
 The Vite dev server proxies `/api` requests. For local testing:
 
 1. Start the dev server: `npm run dev`
-2. OCR requests go to `/api/ocr-proxy`
-3. The proxy forwards to OCR.Space API
+2. OCR requests go to `/api/ocr`
+3. The serverless endpoint forwards to OCR.Space API
 
 ## Production (Vercel)
 
@@ -44,7 +44,7 @@ Vercel automatically deploys files in `/api` as serverless functions.
 
 1. Push to GitHub
 2. Vercel deploys automatically
-3. `/api/ocr-proxy` becomes a serverless function
+3. `/api/ocr` becomes the main serverless OCR endpoint
 
 ## OCR.Space Features Used
 
@@ -80,5 +80,4 @@ OCR.Space returns plain text. The app parses it to extract:
 
 ### Proxy not working
 - Check Vercel function logs
-- Verify the function is deployed (`/api/ocr-proxy` returns a response)
-
+- Verify the function is deployed (`/api/ocr` returns a response)
