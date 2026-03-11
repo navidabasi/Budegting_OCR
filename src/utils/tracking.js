@@ -20,6 +20,13 @@ export function normalizeTrackingData(trackingData) {
     };
 }
 
+export function getLocalDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 export function isTrackedReceipt(receipt) {
     return !!normalizeTrackingData(receipt?.trackingData)?.isTracked;
 }
@@ -53,12 +60,21 @@ export function buildDoneTrackingData(existingTrackingData = null, completedAt =
     };
 }
 
-export function buildCompletedReceiptFromSource(receipt, completedAt = new Date().toISOString()) {
+export function shouldIncludeInFinancialTotals(receipt) {
+    const trackingData = normalizeTrackingData(receipt?.trackingData);
+    if (!trackingData?.isTracked) {
+        return true;
+    }
+
+    return trackingData.status === 'done';
+}
+
+export function buildCompletedReceiptFromSource(receipt, completedAt = new Date().toISOString(), completionDate = getLocalDateString()) {
     const sourceTrackingData = normalizeTrackingData(receipt.trackingData);
     return {
         userId: receipt.userId,
         merchant: receipt.merchant,
-        date: receipt.date,
+        date: completionDate,
         total: receipt.total,
         currency: receipt.currency,
         category: receipt.category,

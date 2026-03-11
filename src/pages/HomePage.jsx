@@ -18,6 +18,7 @@ import { useReceipts } from '../hooks/useReceipts';
 import { useUserLayout } from '../hooks/useUserLayout';
 import { useCustomEvent } from '../hooks/useCustomEvent';
 import { Settings, Layout } from 'lucide-react';
+import { shouldIncludeInFinancialTotals } from '../utils/tracking';
 
 export default function HomePage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -34,6 +35,8 @@ export default function HomePage() {
     if (loading || !layout) {
         return <LoadingSpinner />;
     }
+
+    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
     const handleSaveLayout = async (newLayout) => {
         if (!currentUser) return;
@@ -55,17 +58,17 @@ export default function HomePage() {
     const renderWidget = (widgetId) => {
         switch (widgetId) {
             case WIDGET_TYPES.SUMMARY_CARDS:
-                return <SummaryCards receipts={receipts} />;
+                return <SummaryCards receipts={financialReceipts} />;
             case WIDGET_TYPES.CATEGORY_CHART:
-                return <CategoryChart receipts={receipts} />;
+                return <CategoryChart receipts={financialReceipts} />;
             case WIDGET_TYPES.EXPENSE_CHART:
-                return <ExpenseChart receipts={receipts} />;
+                return <ExpenseChart receipts={financialReceipts} />;
             case WIDGET_TYPES.TOP_MERCHANTS:
-                return <TopMerchants receipts={receipts} />;
+                return <TopMerchants receipts={financialReceipts} />;
             case WIDGET_TYPES.TOP_EXPENSES:
-                return <TopExpenses receipts={receipts} />;
+                return <TopExpenses receipts={financialReceipts} />;
             case WIDGET_TYPES.CASH_FLOW:
-                return <CashFlow receipts={receipts} />;
+                return <CashFlow receipts={financialReceipts} />;
             case WIDGET_TYPES.RECURRING_PAYMENTS:
                 return <RecurringPayments receipts={receipts} />;
             default:
