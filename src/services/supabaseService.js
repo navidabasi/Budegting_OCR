@@ -264,6 +264,11 @@ export const supabaseService = {
     async getReceiptById(id) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        if (!this.isValidUUID(id)) {
+            console.warn('[Supabase getReceiptById] Invalid receipt id format:', id);
+            return null;
+        }
+
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
             throw new Error('Not authenticated. Please log in again.');

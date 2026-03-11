@@ -11,10 +11,12 @@ export default function ReceiptDetailPage() {
     const { id } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
+    const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const initialReceipt = location.state?.initialReceipt?.id === id ? location.state.initialReceipt : null;
     const [receipt, setReceipt] = useState(initialReceipt);
     const [loading, setLoading] = useState(!initialReceipt);
+    const [loadError, setLoadError] = useState(null);
     const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
@@ -22,23 +24,44 @@ export default function ReceiptDetailPage() {
 
         // Optimistic render from navigation state when available
         setReceipt(initialReceipt || null);
+        setLoadError(null);
+
+        const getFallbackMonthYear = () => {
+            const candidate = initialReceipt?.date ? new Date(initialReceipt.date) : new Date();
+            if (Number.isNaN(candidate.getTime())) {
+                const now = new Date();
+                return {
+                    month: now.getMonth() + 1,
+                    year: now.getFullYear()
+                };
+            }
+
+            return {
+                month: candidate.getMonth() + 1,
+                year: candidate.getFullYear()
+            };
+        };
 
         const loadReceipt = async () => {
+            if (!id) {
+                showToast('Invalid receipt link. Returning to receipts.', 'warning');
+                navigate('/receipts', { replace: true });
+                return;
+            }
+
             const shouldShowSpinner = !initialReceipt;
             if (shouldShowSpinner) {
                 setLoading(true);
             }
 
             try {
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Load receipt timed out')), 10000)
-                );
+                let receiptData = await storageService.getReceiptById(id);
 
-                // Use ID as-is (UUID string)
-                const receiptData = await Promise.race([
-                    storageService.getReceiptById(id),
-                    timeoutPromise
-                ]);
+                // Fallback strategy: if direct fetch fails to resolve an item, refresh from list.
+                if (!receiptData && currentUser?.userId) {
+                    const userReceipts = await storageService.getReceiptsByUserId(currentUser.userId);
+                    receiptData = userReceipts.find((item) => item.id === id) || null;
+                }
 
                 if (!active) return;
 
@@ -49,14 +72,25 @@ export default function ReceiptDetailPage() {
                 setReceipt(receiptData);
             } catch (err) {
                 if (!active) return;
-                console.error('Failed to load receipt:', err);
+                console.error(`Failed to load receipt (${id}):`, err);
+                const message = err?.message || 'Failed to load receipt details';
+                const isNotFound = /not found|invalid receipt|missing receipt/i.test(message.toLowerCase());
 
-                const fallbackDate = initialReceipt?.date ? new Date(initialReceipt.date) : new Date();
-                const month = fallbackDate.getMonth() + 1;
-                const year = fallbackDate.getFullYear();
+                if (isNotFound) {
+                    const { month, year } = getFallbackMonthYear();
+                    showToast('Unable to open receipt details. Showing month receipts instead.', 'warning');
+                    navigate(`/receipts?filter=month&month=${month}&year=${year}`, { replace: true });
+                    return;
+                }
 
-                showToast('Unable to open receipt details. Showing month receipts instead.', 'warning');
-                navigate(`/receipts?filter=month&month=${month}&year=${year}`, { replace: true });
+                setLoadError(message);
+                if (initialReceipt) {
+                    setReceipt(initialReceipt);
+                    showToast('Unable to refresh receipt details. Showing saved data.', 'warning');
+                } else {
+                    setReceipt(null);
+                    showToast('Unable to load receipt details. Please try again.', 'error');
+                }
             } finally {
                 if (active) {
                     setLoading(false);
@@ -69,7 +103,7 @@ export default function ReceiptDetailPage() {
         return () => {
             active = false;
         };
-    }, [id, initialReceipt, navigate, reloadKey, showToast]);
+    }, [id, initialReceipt, navigate, reloadKey, showToast, currentUser?.userId]);
 
     if (loading) {
         return <LoadingSpinner className="pb-20" />;
@@ -78,7 +112,25 @@ export default function ReceiptDetailPage() {
     if (!receipt) {
         return (
             <PageLayout>
-                <EmptyState message="Receipt not found" />
+                <EmptyState
+                    message={loadError ? 'Unable to load receipt details' : 'Receipt not found'}
+                    action={
+                        <div className="flex justify-center gap-2">
+                            <button
+                                onClick={() => setReloadKey((prev) => prev + 1)}
+                                className="btn btn-primary"
+                            >
+                                Retry
+                            </button>
+                            <button
+                                onClick={() => navigate('/receipts')}
+                                className="btn btn-secondary"
+                            >
+                                Back to Receipts
+                            </button>
+                        </div>
+                    }
+                />
             </PageLayout>
         );
     }
