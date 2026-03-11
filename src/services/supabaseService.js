@@ -210,7 +210,7 @@ export const supabaseService = {
             .from('receipts')
             .insert([supabaseReceipt])
             .select()
-            .single();
+            .maybeSingle();
 
         if (error) {
             const errorMessage = error.message || error.details || error.hint || JSON.stringify(error);
@@ -230,7 +230,12 @@ export const supabaseService = {
             descriptiveError.originalError = error;
             throw descriptiveError;
         }
-        return data;
+        if (data) {
+            return data;
+        }
+
+        // In some PostgREST/RLS paths insert succeeds but no single row can be coerced.
+        return { id: receipt.id };
     },
 
     async getReceiptsByUserId(userId) {
@@ -259,18 +264,29 @@ export const supabaseService = {
     async getReceiptById(id) {
         if (!supabase) throw new Error('Supabase not configured');
 
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
+
         const { data, error } = await supabase
             .from('receipts')
             .select('*')
             .eq('id', id)
-            .single();
+            .eq('user_id', user.id)
+            .maybeSingle();
 
         if (error) throw error;
-        return this.transformReceiptFromSupabase(data);
+        return data ? this.transformReceiptFromSupabase(data) : null;
     },
 
     async updateReceipt(id, updates) {
         if (!supabase) throw new Error('Supabase not configured');
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            throw new Error('Not authenticated. Please log in again.');
+        }
 
         // Only transform and include fields that are actually provided in updates
         // This prevents overwriting existing data with empty values
@@ -319,11 +335,20 @@ export const supabaseService = {
             .from('receipts')
             .update(supabaseUpdates)
             .eq('id', id)
+            .eq('user_id', user.id)
             .select()
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
-        return this.transformReceiptFromSupabase(data);
+        if (data) {
+            return this.transformReceiptFromSupabase(data);
+        }
+
+        const fallback = await this.getReceiptById(id);
+        if (!fallback) {
+            throw new Error('Receipt not found in cloud for current user');
+        }
+        return fallback;
     },
 
     async deleteReceipt(id) {
