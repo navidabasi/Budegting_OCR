@@ -403,7 +403,8 @@ def parse_price(text):
     if not text:
         return 0.0
 
-    text = re.sub(r'[$€£¥]', '', str(text)).strip()
+    text = re.sub(r'[$€£¥]', '', str(text))
+    text = re.sub(r'\s+', '', text).strip()
 
     if ',' in text and '.' in text:
         if text.index(',') > text.index('.'):
@@ -455,7 +456,7 @@ def extract_date_from_text(text):
 def extract_prices_from_text(text):
     """Extract all prices from text"""
     prices = []
-    pattern = r'[$€£]?\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})'
+    pattern = r'[$€£]?\s*(\d{1,3}(?:[.,]\d{3})*\s*[.,]\s*\d{2})'
     matches = re.findall(pattern, text)
 
     for match in matches:
@@ -464,6 +465,56 @@ def extract_prices_from_text(text):
             prices.append(price)
 
     return prices
+
+
+def is_valid_merchant_name(candidate):
+    """Validate merchant candidate text and reject common OCR noise."""
+    if not candidate:
+        return False
+
+    text = re.sub(r'^[\*\-\s]+|[\*\-\s]+$', '', candidate).strip()
+    if len(text) < 3 or len(text) > 80:
+        return False
+
+    if re.match(r'^\d', text):
+        return False
+
+    if not re.search(r'[A-Za-zÀ-ÖØ-öø-ÿ]', text):
+        return False
+
+    normalized = re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9 ]', ' ', text).strip().lower()
+    banned_exact = {
+        'euro', 'totale', 'total', 'iva', 'vat', 'documento', 'scontrino',
+        'descrizione', 'prestazione', 'pagamento'
+    }
+    banned_prefixes = ('cassa', 'documento commerciale', 'p v ')
+    if normalized in banned_exact:
+        return False
+    if any(normalized.startswith(prefix) for prefix in banned_prefixes):
+        return False
+
+    return True
+
+
+def extract_merchant_from_text(raw_text):
+    """Extract merchant from OCR text when overlay is missing or noisy."""
+    if not raw_text:
+        return None
+
+    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+
+    for line in lines[:10]:
+        for token in re.split(r'[\*\|]', line):
+            candidate = token.strip()
+            if is_valid_merchant_name(candidate):
+                return re.sub(r'\s{2,}', ' ', candidate)
+
+    for line in lines[:10]:
+        candidate = re.sub(r'\s{2,}', ' ', line).strip()
+        if is_valid_merchant_name(candidate):
+            return candidate
+
+    return None
 
 
 def find_price_column(lines):
@@ -704,7 +755,7 @@ def extract_tabular_items(text):
         # Match: text + optional percentage + price at end
         # Price pattern: digits with comma or dot as decimal (EU format)
         match = re.match(
-            r'^(.+?)\s+(\d{1,2}%?)?\s*(\d{1,3}[.,]\s?\d{2})\s*$',
+            r'^(.+?)\s+(\d{1,2}%?)?\s*(\d{1,3}\s*[.,]\s*\d{2})\s*$',
             line
         )
 
@@ -731,8 +782,141 @@ def extract_tabular_items(text):
     return items
 
 
+def normalize_text_for_item_lines(text):
+    """Create line boundaries when OCR returns one long block without newlines."""
+    if not text:
+        return text
+
+    normalized = text
+
+    # Keep the item section when a receipt header marker is present.
+    header_match = re.search(r'(descrizione|description|item|articolo)\b', normalized, re.IGNORECASE)
+    if header_match:
+        normalized = normalized[header_match.end():].strip()
+
+    # Put weighted-price segments on dedicated lines so they can be skipped cleanly.
+    normalized = re.sub(
+        r'\s+(Net\s+\d+[.,]\d+\s*kg\s*x\s*\d{1,3}\s*[.,]\s*\d{2}\s*(?:EUR/kg|€/kg)?)',
+        r'\n\1',
+        normalized,
+        flags=re.IGNORECASE
+    )
+
+    newline_count = normalized.count('\n')
+    if newline_count >= 4:
+        return normalized
+
+    # Split after prices when next token looks like a new product label.
+    normalized = re.sub(
+        r'(\d{1,3}\s*[.,]\s*\d{2})\s+(?=[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý0-9./ -]{1,})',
+        r'\1\n',
+        normalized
+    )
+
+    # Split after common weighted-price trailing markers.
+    normalized = re.sub(
+        r'(EUR/kg|€/kg)\s+(?=[A-ZÀ-ÖØ-Ý])',
+        r'\1\n',
+        normalized,
+        flags=re.IGNORECASE
+    )
+
+    return normalized
+
+
+def is_noise_item_name(name):
+    """Detect OCR fragments that should not become line items."""
+    if not name:
+        return True
+
+    normalized = re.sub(r'\s+', ' ', name).strip().lower()
+    noise_patterns = [
+        r'^net\b',
+        r'^pz\b',
+        r'eur/kg',
+        r'^x$',
+        r'^\d+[.,]\d+$',
+        r'^(?:iva|vat|totale|total)$',
+    ]
+    return any(re.search(pattern, normalized) for pattern in noise_patterns)
+
+
+def line_items_quality_score(items, expected_total=0):
+    """Score line-item candidates and prefer sets with realistic product names."""
+    if not items:
+        return float('-inf')
+
+    score = 0.0
+    seen_names = set()
+    valid_names = 0
+    noise_names = 0
+    sum_prices = 0.0
+
+    for item in items:
+        name = (item or {}).get('name', '') or ''
+        price = parse_price((item or {}).get('price', 0))
+        normalized_name = re.sub(r'\s+', ' ', name).strip().lower()
+
+        if price > 0:
+            sum_prices += price
+            score += 0.8
+        else:
+            score -= 1.5
+
+        if normalized_name and normalized_name not in seen_names:
+            seen_names.add(normalized_name)
+            score += 0.3
+        elif normalized_name:
+            score -= 0.4
+
+        has_letters = bool(re.search(r'[A-Za-zÀ-ÖØ-öø-ÿ]', name))
+        if has_letters and len(name.strip()) >= 3:
+            valid_names += 1
+            score += 1.2
+        else:
+            score -= 1.0
+
+        if is_noise_item_name(name):
+            noise_names += 1
+            score -= 2.0
+
+    score += min(len(items), 25) * 0.5
+
+    if expected_total and expected_total > 0 and sum_prices > 0:
+        deviation = abs(sum_prices - expected_total) / max(expected_total, 1)
+        score += max(-3.0, 3.0 - (deviation * 8.0))
+
+    if noise_names >= max(2, len(items) // 2):
+        score -= 3.0
+
+    if valid_names == 0:
+        score -= 5.0
+
+    return score
+
+
+def choose_best_line_items(overlay_items, text_items, expected_total=0):
+    """Choose between overlay and text line items using quality scoring."""
+    if overlay_items and not text_items:
+        return overlay_items
+    if text_items and not overlay_items:
+        return text_items
+    if not overlay_items and not text_items:
+        return []
+
+    overlay_score = line_items_quality_score(overlay_items, expected_total)
+    text_score = line_items_quality_score(text_items, expected_total)
+    print(f"[OCR] Line-item scores overlay={overlay_score:.2f}, text={text_score:.2f}")
+
+    # Slight bias to text parser because overlay is prone to weighted-price noise.
+    if text_score >= overlay_score - 0.2:
+        return text_items
+    return overlay_items
+
+
 def extract_line_items_from_text(text):
     """Extract line items from plain text"""
+    text = normalize_text_for_item_lines(text)
 
     # First, check if this is a tabular receipt
     if detect_tabular_format(text):
@@ -746,13 +930,16 @@ def extract_line_items_from_text(text):
     lines = text.split('\n')
 
     skip_patterns = [
-        r'^total|^subtotal|^tax|^iva\s|^vat\s',
+        r'^total|^subtotal|^tax',
+        r'^iva(?:\s*$|\s+\d{1,2}%\s+\d)',
+        r'^vat(?:\s*$|\s+\d{1,2}%\s+\d)',
         r'^thank|^grazie|^merci',
         r'^\d{5,}$',
         r'^change|^cash|^card|^visa|^mastercard',
         r'^pagamento|^contant|^importo pagato',
         r'^documento|^scontrino',
         r'^di cui iva',
+        r'^net\s+\d',
     ]
 
     for line in lines:
@@ -760,12 +947,15 @@ def extract_line_items_from_text(text):
         if not line or len(line) < 3:
             continue
 
+        # Some Italian receipts put "IVA EURO" as a header prefix on the first item line.
+        line = re.sub(r'^\s*(?:iva|vat)\s+(?:euro|eur)\s+', '', line, flags=re.IGNORECASE)
+
         should_skip = any(re.search(p, line, re.IGNORECASE) for p in skip_patterns)
         if should_skip:
             continue
 
         # Match price at end of line (handles both 2,79 and 2.79 formats)
-        price_match = re.search(r'(\d{1,3}[.,]\s?\d{2})\s*$', line)
+        price_match = re.search(r'(\d{1,3}\s*[.,]\s*\d{2})\s*$', line)
         if price_match:
             price_str = price_match.group(1).replace(' ', '')
             price = parse_price(price_str)
@@ -777,7 +967,7 @@ def extract_line_items_from_text(text):
             name = re.sub(r'\s+\d{1,2}%\s*', ' ', name)
             name = name.strip()
 
-            if name and len(name) >= 2 and 0 < price < 10000:
+            if name and len(name) >= 2 and 0 < price < 10000 and not is_noise_item_name(name):
                 items.append({
                     'name': name,
                     'quantity': 1,
@@ -874,31 +1064,34 @@ def parse_receipt(raw_text, text_overlay=None):
         'rawData': {'parsedText': raw_text}
     }
 
-    # Try overlay-based extraction (more accurate for spatial data)
+    overlay_merchant = None
+    overlay_total = 0
+    overlay_items = []
+
+    # Try overlay-based extraction (more accurate when OCR boxes are clean)
     if text_overlay:
-        result['merchant'] = extract_merchant_from_overlay(text_overlay)
-        result['total'] = extract_total_from_overlay(text_overlay)
-        result['lineItems'] = extract_line_items_from_overlay(text_overlay)
+        overlay_merchant = extract_merchant_from_overlay(text_overlay)
+        overlay_total = extract_total_from_overlay(text_overlay)
+        overlay_items = extract_line_items_from_overlay(text_overlay)
 
-    # Fallback to text-based extraction for merchant
-    if not result['merchant']:
-        lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
-        for line in lines[:5]:
-            if re.match(r'^\d|^via |^tel|^phone|^fax', line, re.IGNORECASE):
-                continue
-            if 2 <= len(line) <= 60:
-                result['merchant'] = line
-                break
-
-    if not result['merchant']:
+    # Merchant: prefer overlay only when it is meaningful.
+    text_merchant = extract_merchant_from_text(raw_text)
+    if overlay_merchant and is_valid_merchant_name(overlay_merchant):
+        result['merchant'] = overlay_merchant
+    elif text_merchant:
+        result['merchant'] = text_merchant
+    else:
         result['merchant'] = 'Unknown Merchant'
+
+    # Keep overlay total when found, otherwise fallback later.
+    result['total'] = overlay_total if overlay_total > 0 else 0
 
     # Extract date
     result['date'] = extract_date_from_text(raw_text) or datetime.now().isoformat()
 
-    # Fallback for line items
-    if not result['lineItems']:
-        result['lineItems'] = extract_line_items_from_text(raw_text)
+    # Compare overlay and text item extraction; choose the better candidate.
+    text_items = extract_line_items_from_text(raw_text)
+    result['lineItems'] = choose_best_line_items(overlay_items, text_items, result['total'])
 
     # Fallback for total
     if result['total'] == 0:
@@ -910,6 +1103,12 @@ def parse_receipt(raw_text, text_overlay=None):
             if match:
                 result['total'] = parse_price(match.group(1).replace(' ', ''))
                 break
+
+    # If explicit total is missing, use the item sum for multi-item receipts.
+    if result['total'] == 0 and len(result['lineItems']) >= 2:
+        sum_items = round(sum(parse_price(item.get('price', 0)) for item in result['lineItems']), 2)
+        if sum_items > 0:
+            result['total'] = sum_items
 
     # Last resort: use max price as total
     if result['total'] == 0:
