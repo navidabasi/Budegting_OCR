@@ -11,6 +11,7 @@ import { storageService } from '../../services/storage';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
 import { useCategories } from '../../hooks/useCategories';
+import { buildOpenTrackingData } from '../../utils/tracking';
 
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -25,6 +26,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [showSplitManager, setShowSplitManager] = useState(false);
     const [splitData, setSplitData] = useState(null);
     const [recurringData, setRecurringData] = useState(null);
+    const [trackingEnabled, setTrackingEnabled] = useState(!!initialData?.trackingData?.isTracked);
+    const [trackingData, setTrackingData] = useState(initialData?.trackingData || null);
 
     const formatDateForInput = (dateString) => {
         if (!dateString) return new Date().toISOString().split('T')[0];
@@ -69,6 +72,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         if (initialData?.recurringData) {
             setRecurringData(initialData.recurringData);
         }
+        setTrackingEnabled(!!initialData?.trackingData?.isTracked);
+        setTrackingData(initialData?.trackingData || null);
     }, [initialData]);
 
     useEffect(() => {
@@ -245,7 +250,10 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             groupName: finalGroupName,
             groupTags: currentGroupTags,
             splitData: splitData || null,
-            recurringData: recurringData || null
+            recurringData: recurringData || null,
+            trackingData: trackingEnabled
+                ? (trackingData?.isTracked ? { ...trackingData, isTracked: true } : buildOpenTrackingData())
+                : null
         };
 
         console.log('[ReceiptForm] Submitting receipt with group:', { 
@@ -631,6 +639,29 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 receiptDate={watch('date')}
             />
 
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={trackingEnabled}
+                        onChange={(e) => {
+                            const enabled = e.target.checked;
+                            setTrackingEnabled(enabled);
+                            setTrackingData(enabled ? (trackingData?.isTracked ? trackingData : buildOpenTrackingData()) : null);
+                        }}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div>
+                        <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                            Enable &quot;Mark as done&quot;
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Track whether this item is paid and show a Mark as done action on its detail page.
+                        </p>
+                    </div>
+                </label>
+            </div>
+
             <div className="flex gap-2 pt-4">
                 <Button type="submit" variant="primary" className="flex-1">
                     Save Receipt
@@ -658,4 +689,3 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         </form>
     );
 }
-

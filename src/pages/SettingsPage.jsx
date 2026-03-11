@@ -28,6 +28,8 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(false);
     const [loadingCurrency, setLoadingCurrency] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);
+    const [clearingDemo, setClearingDemo] = useState(false);
+    const [demoReceiptCount, setDemoReceiptCount] = useState(0);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
     const [showClearResyncConfirm, setShowClearResyncConfirm] = useState(false);
@@ -44,6 +46,18 @@ export default function SettingsPage() {
     useEffect(() => {
         loadSettings();
         loadCustomCategories();
+        loadDemoReceiptCount();
+    }, [currentUser]);
+
+    useEffect(() => {
+        const handleReceiptRefresh = () => {
+            loadDemoReceiptCount();
+        };
+
+        window.addEventListener('refreshReceipts', handleReceiptRefresh);
+        return () => {
+            window.removeEventListener('refreshReceipts', handleReceiptRefresh);
+        };
     }, [currentUser]);
 
     const loadCustomCategories = async () => {
@@ -72,6 +86,20 @@ export default function SettingsPage() {
             resetCurrency({ defaultCurrency: currency });
         } catch (err) {
             console.error('Failed to load settings:', err);
+        }
+    };
+
+    const loadDemoReceiptCount = async () => {
+        if (!currentUser) {
+            setDemoReceiptCount(0);
+            return;
+        }
+
+        try {
+            const count = await storageService.getDemoReceiptCount(currentUser.userId);
+            setDemoReceiptCount(count);
+        } catch (err) {
+            console.error('Failed to load demo receipt count:', err);
         }
     };
 
@@ -142,11 +170,20 @@ export default function SettingsPage() {
         if (!currentUser) return;
 
         setLoadingDemo(true);
+        setShowLoadDemoConfirm(false);
         try {
-            const count = await storageService.seedDemoData(currentUser.userId);
-            showToast(`Loaded ${count} demo receipts`, 'success');
-            // Reload the page to show new data
-            setTimeout(() => window.location.reload(), 1000);
+            const result = await storageService.seedDemoData(currentUser.userId);
+
+            if (result.alreadyExists) {
+                showToast('Demo data already loaded', 'info');
+            } else {
+                showToast(`Loaded ${result.importedCount} demo receipts`, 'success');
+            }
+
+            await loadDemoReceiptCount();
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
         } catch (err) {
             showToast('Failed to load demo data', 'error');
         } finally {
@@ -157,12 +194,21 @@ export default function SettingsPage() {
     const handleClearDemoData = async () => {
         if (!currentUser) return;
 
+        setClearingDemo(true);
+        setShowClearDemoConfirm(false);
         try {
-            await storageService.clearDemoData(currentUser.userId);
+            const clearedCount = await storageService.clearDemoData(currentUser.userId);
             showToast('Demo data cleared', 'success');
-            setTimeout(() => window.location.reload(), 1000);
+            if (clearedCount > 0) {
+                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                window.dispatchEvent(new CustomEvent('refreshReceipts'));
+                window.dispatchEvent(new CustomEvent('refreshGroups'));
+            }
+            await loadDemoReceiptCount();
         } catch (err) {
             showToast('Failed to clear demo data', 'error');
+        } finally {
+            setClearingDemo(false);
         }
     };
 
@@ -221,6 +267,7 @@ export default function SettingsPage() {
                 window.dispatchEvent(new CustomEvent('refreshReceipts'));
                 window.dispatchEvent(new CustomEvent('refreshGroups'));
             }, 200);
+            await loadDemoReceiptCount();
         } catch (err) {
             clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync error:', err);
@@ -259,6 +306,7 @@ export default function SettingsPage() {
             window.dispatchEvent(new Event('refreshReceipts'));
             window.dispatchEvent(new Event('refreshGroups'));
             window.dispatchEvent(new Event('refreshDashboard'));
+            await loadDemoReceiptCount();
         } catch (err) {
             console.error('[Settings] Clear and resync error:', err);
             showToast(`Failed to resync: ${err.message || 'Unknown error'}`, 'error');
@@ -449,13 +497,18 @@ export default function SettingsPage() {
                 title="Demo Data"
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Load sample receipts to see how the app works
+                    Load sample receipts to test the app. Demo receipts sync across your devices and can be removed with Clear Demo Data.
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    {demoReceiptCount > 0
+                        ? `${demoReceiptCount} demo receipt${demoReceiptCount !== 1 ? 's are' : ' is'} currently loaded.`
+                        : 'No demo receipts are currently loaded.'}
                 </p>
                 <div className="flex gap-2">
                     <Button
                         variant="secondary"
                         onClick={() => setShowLoadDemoConfirm(true)}
-                        disabled={loadingDemo}
+                        disabled={loadingDemo || clearingDemo || demoReceiptCount > 0}
                         className="flex-1"
                     >
                         {loadingDemo ? 'Loading...' : 'Load Demo Data'}
@@ -463,9 +516,10 @@ export default function SettingsPage() {
                     <Button
                         variant="secondary"
                         onClick={() => setShowClearDemoConfirm(true)}
+                        disabled={loadingDemo || clearingDemo || demoReceiptCount === 0}
                         className="flex-1"
                     >
-                        Clear Demo Data
+                        {clearingDemo ? 'Clearing...' : 'Clear Demo Data'}
                     </Button>
                 </div>
             </SettingsCard>
@@ -615,7 +669,7 @@ export default function SettingsPage() {
                 onClose={() => setShowLoadDemoConfirm(false)}
                 onConfirm={handleLoadDemoData}
                 title="Load Demo Data"
-                message="This will add sample receipts to your account. Continue?"
+                message="This will add sample receipts to your account and sync them to your other devices. Continue?"
                 confirmText="Load"
                 cancelText="Cancel"
             />
@@ -625,7 +679,7 @@ export default function SettingsPage() {
                 onClose={() => setShowClearDemoConfirm(false)}
                 onConfirm={handleClearDemoData}
                 title="Clear Demo Data"
-                message="This will remove all demo receipts. Continue?"
+                message="This will remove all demo receipts from this device and synced devices after sync. Continue?"
                 confirmText="Clear"
                 cancelText="Cancel"
                 danger={true}

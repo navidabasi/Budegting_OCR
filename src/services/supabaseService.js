@@ -1,4 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { calculateNextRecurringDate } from '../utils/recurring';
+import {
+    buildCompletedReceiptFromSource,
+    buildDoneTrackingData,
+    buildOpenTrackingData,
+} from '../utils/tracking';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -285,6 +291,7 @@ export const supabaseService = {
             groupTags: 'group_tags',
             splitData: 'split_data',
             recurringData: 'recurring_data',
+            trackingData: 'tracking_data',
         };
 
         for (const [appField, dbField] of Object.entries(fieldMap)) {
@@ -325,6 +332,47 @@ export const supabaseService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async markReceiptAsDone(id) {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const receipt = await this.getReceiptById(id);
+        if (!receipt) {
+            throw new Error('Receipt not found');
+        }
+
+        if (!receipt.trackingData?.isTracked) {
+            throw new Error('Receipt is not enabled for mark as done');
+        }
+
+        if (receipt.trackingData.status === 'done') {
+            return receipt;
+        }
+
+        const completedAt = new Date().toISOString();
+
+        if (receipt.recurringData?.isActive) {
+            const nextDate = calculateNextRecurringDate(receipt.date, receipt.recurringData.frequency);
+
+            await this.createReceipt(buildCompletedReceiptFromSource(receipt, completedAt));
+            await this.updateReceipt(id, {
+                date: nextDate,
+                recurringData: {
+                    ...receipt.recurringData,
+                    nextDueDate: nextDate,
+                },
+                trackingData: buildOpenTrackingData(receipt.trackingData),
+            });
+
+            return await this.getReceiptById(id);
+        }
+
+        await this.updateReceipt(id, {
+            trackingData: buildDoneTrackingData(receipt.trackingData, completedAt),
+        });
+
+        return await this.getReceiptById(id);
     },
 
     // Upsert receipt - insert if not exists, update if exists
@@ -453,6 +501,7 @@ export const supabaseService = {
             groupTags: supabaseReceipt.group_tags || [],
             splitData: supabaseReceipt.split_data || null,
             recurringData: supabaseReceipt.recurring_data || null,
+            trackingData: supabaseReceipt.tracking_data || null,
             createdAt: supabaseReceipt.created_at,
             updatedAt: supabaseReceipt.updated_at
         };
@@ -488,7 +537,8 @@ export const supabaseService = {
             group_name: receipt.groupName || null,
             group_tags: receipt.groupTags || [],
             split_data: receipt.splitData || null,
-            recurring_data: receipt.recurringData || null
+            recurring_data: receipt.recurringData || null,
+            tracking_data: receipt.trackingData || null
         };
     },
 

@@ -5,6 +5,13 @@
  * Falls back to Supabase-only if PGlite fails (CSP issues)
  */
 
+import { calculateNextRecurringDate } from '../utils/recurring';
+import {
+    buildCompletedReceiptFromSource,
+    buildDoneTrackingData,
+    buildOpenTrackingData,
+} from '../utils/tracking';
+
 // Configuration
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -143,6 +150,7 @@ async function createSchema() {
             group_tags TEXT[],
             split_data JSONB,
             recurring_data JSONB,
+            tracking_data JSONB,
             field_timestamps JSONB,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -154,6 +162,12 @@ async function createSchema() {
     // Add _sync_failed column if it doesn't exist (for existing databases)
     try {
         await db.exec(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS _sync_failed BOOLEAN DEFAULT FALSE;`);
+    } catch (e) {
+        // Column might already exist
+    }
+
+    try {
+        await db.exec(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tracking_data JSONB;`);
     } catch (e) {
         // Column might already exist
     }
@@ -442,8 +456,8 @@ export const electricStorage = {
                 INSERT INTO receipts (
                     id, user_id, merchant, date, total, currency, category, notes,
                     line_items, is_demo, is_pinned, transaction_type, group_id,
-                    group_name, group_tags, split_data, recurring_data, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                    group_name, group_tags, split_data, recurring_data, tracking_data, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
             `, [
                 id,
                 receipt.userId,
@@ -462,6 +476,7 @@ export const electricStorage = {
                 receipt.groupTags || [],
                 receipt.splitData ? JSON.stringify(receipt.splitData) : null,
                 receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
+                receipt.trackingData ? JSON.stringify(receipt.trackingData) : null,
                 now,
                 now
             ]);
@@ -507,12 +522,13 @@ export const electricStorage = {
             groupTags: 'group_tags',
             splitData: 'split_data',
             recurringData: 'recurring_data',
+            trackingData: 'tracking_data',
         };
 
         for (const [key, dbField] of Object.entries(fieldMap)) {
             if (updates[key] !== undefined) {
                 let value = updates[key];
-                if (['lineItems', 'splitData', 'recurringData'].includes(key)) {
+                if (['lineItems', 'splitData', 'recurringData', 'trackingData'].includes(key)) {
                     value = JSON.stringify(value);
                 }
                 setClause.push(`${dbField} = $${paramIndex}`);
@@ -543,113 +559,167 @@ export const electricStorage = {
         return id;
     },
 
+    async markReceiptAsDone(id) {
+        await initDatabase();
+
+        if (!db) {
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            const updatedReceipt = await supabaseService.markReceiptAsDone(id);
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+            return updatedReceipt;
+        }
+
+        const receipt = await this.getReceipt(id);
+        if (!receipt) {
+            throw new Error('Receipt not found');
+        }
+
+        if (!receipt.trackingData?.isTracked) {
+            throw new Error('Receipt is not enabled for mark as done');
+        }
+
+        if (receipt.trackingData.status === 'done') {
+            return receipt;
+        }
+
+        const completedAt = new Date().toISOString();
+
+        if (receipt.recurringData?.isActive) {
+            const nextDate = calculateNextRecurringDate(receipt.date, receipt.recurringData.frequency);
+
+            await this.createReceipt(buildCompletedReceiptFromSource(receipt, completedAt));
+            await this.updateReceipt(id, {
+                date: nextDate,
+                recurringData: {
+                    ...receipt.recurringData,
+                    nextDueDate: nextDate,
+                },
+                trackingData: buildOpenTrackingData(receipt.trackingData),
+            });
+
+            return await this.getReceipt(id);
+        }
+
+        await this.updateReceipt(id, {
+            trackingData: buildDoneTrackingData(receipt.trackingData, completedAt),
+        });
+
+        return await this.getReceipt(id);
+    },
+
     async deleteReceipt(id) {
         await initDatabase();
-        
-        // Check if this is a demo receipt (don't push demo deletions to Supabase)
-        let isDemo = false;
-        if (db) {
-            const result = await db.query(`SELECT is_demo FROM receipts WHERE id = $1`, [id]);
-            isDemo = result.rows[0]?.is_demo || false;
-        }
-        
-        await db.query(`DELETE FROM receipts WHERE id = $1`, [id]);
 
-        // Only push to remote if not a demo receipt
-        if (!isDemo) {
-            pushToRemote('receipts', 'delete', { id });
+        if (!db) {
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            await supabaseService.deleteReceipt(id);
+            window.dispatchEvent(new Event('refreshReceipts'));
+            window.dispatchEvent(new Event('refreshDashboard'));
+            return;
         }
+
+        await db.query(`DELETE FROM receipts WHERE id = $1`, [id]);
+        pushToRemote('receipts', 'delete', { id });
 
         window.dispatchEvent(new Event('refreshReceipts'));
         window.dispatchEvent(new Event('refreshDashboard'));
     },
 
     /**
-     * Create a demo receipt (local-only, not synced to Supabase)
+     * Create a demo receipt using the normal synced receipt flow.
      */
     async createDemoReceipt(receipt) {
-        const now = new Date().toISOString();
-        const id = crypto.randomUUID();
+        return await this.createReceipt({
+            ...receipt,
+            isDemo: true,
+        });
+    },
 
-        try {
-            await initDatabase();
-            if (!db) {
-                console.warn('[Storage] PGlite not available, demo data cannot be created');
-                return null;
+    async getDemoReceiptCount(userId) {
+        await initDatabase();
+
+        let localCount = 0;
+        if (db) {
+            try {
+                const countResult = await db.query(
+                    `SELECT COUNT(*) as count FROM receipts WHERE user_id = $1 AND is_demo = TRUE`,
+                    [userId]
+                );
+                localCount = parseInt(countResult.rows[0]?.count || 0, 10);
+            } catch (err) {
+                console.error('[Storage] Failed to query local demo count:', err);
             }
-
-            await db.query(`
-                INSERT INTO receipts (
-                    id, user_id, merchant, date, total, currency, category, notes,
-                    line_items, is_demo, is_pinned, transaction_type, group_id,
-                    group_name, group_tags, split_data, recurring_data, created_at, updated_at, _synced
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, TRUE)
-            `, [
-                id,
-                receipt.userId,
-                receipt.merchant,
-                receipt.date,
-                receipt.total,
-                receipt.currency || 'EUR',
-                receipt.category,
-                receipt.notes,
-                JSON.stringify(receipt.lineItems || []),
-                true, // Always true for demo receipts
-                receipt.isPinned || false,
-                receipt.transactionType || 'expense',
-                receipt.groupId,
-                receipt.groupName,
-                receipt.groupTags || [],
-                receipt.splitData ? JSON.stringify(receipt.splitData) : null,
-                receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
-                now,
-                now
-            ]);
-
-            // Don't push to Supabase - demo data is local only
-            console.log('[Storage] Created demo receipt locally (not synced):', id);
-        } catch (err) {
-            console.error('[Storage] createDemoReceipt failed:', err);
-            return null;
         }
 
-        window.dispatchEvent(new Event('refreshReceipts'));
-        window.dispatchEvent(new Event('refreshDashboard'));
+        if (localCount > 0 || !SUPABASE_URL) {
+            return localCount;
+        }
 
-        return id;
+        try {
+            const supabaseService = (await import('./supabaseService.js')).supabaseService;
+            if (!supabaseService.isConfigured()) {
+                return localCount;
+            }
+            const remoteReceipts = await supabaseService.getReceiptsByUserId(userId);
+            return remoteReceipts.filter(receipt => receipt.isDemo).length;
+        } catch (err) {
+            console.error('[Storage] Failed to query remote demo count:', err);
+            return localCount;
+        }
     },
 
     /**
-     * Clear all demo data (local-only operation)
+     * Clear all demo data and propagate deletions through normal sync.
      */
     async clearDemoData(userId) {
         await initDatabase();
-        if (!db) {
-            console.warn('[Storage] PGlite not available, cannot clear demo data');
-            return 0;
+
+        const demoIds = new Set();
+        let supabaseService = null;
+
+        if (db) {
+            try {
+                const localDemoReceipts = await db.query(
+                    `SELECT id FROM receipts WHERE user_id = $1 AND is_demo = TRUE`,
+                    [userId]
+                );
+                localDemoReceipts.rows.forEach(row => demoIds.add(row.id));
+            } catch (err) {
+                console.error('[Storage] Failed to read local demo receipts:', err);
+            }
         }
 
-        try {
-            // Get count of demo receipts
-            const countResult = await db.query(
-                `SELECT COUNT(*) as count FROM receipts WHERE user_id = $1 AND is_demo = TRUE`,
-                [userId]
-            );
-            const count = parseInt(countResult.rows[0]?.count || 0);
-
-            // Delete all demo receipts locally (no Supabase push needed)
-            await db.query(`DELETE FROM receipts WHERE user_id = $1 AND is_demo = TRUE`, [userId]);
-
-            console.log(`[Storage] Cleared ${count} demo receipts locally`);
-
-            window.dispatchEvent(new Event('refreshReceipts'));
-            window.dispatchEvent(new Event('refreshDashboard'));
-
-            return count;
-        } catch (err) {
-            console.error('[Storage] clearDemoData failed:', err);
-            return 0;
+        if (SUPABASE_URL) {
+            try {
+                supabaseService = (await import('./supabaseService.js')).supabaseService;
+                if (supabaseService.isConfigured()) {
+                    const remoteReceipts = await supabaseService.getReceiptsByUserId(userId);
+                    remoteReceipts
+                        .filter(receipt => receipt.isDemo)
+                        .forEach(receipt => demoIds.add(receipt.id));
+                }
+            } catch (err) {
+                console.error('[Storage] Failed to read remote demo receipts:', err);
+            }
         }
+
+        if (db) {
+            for (const demoId of demoIds) {
+                await db.query(`DELETE FROM receipts WHERE id = $1`, [demoId]);
+            }
+        }
+
+        for (const demoId of demoIds) {
+            if (supabaseService?.isConfigured()) {
+                await supabaseService.deleteReceipt(demoId);
+            }
+        }
+
+        window.dispatchEvent(new Event('refreshReceipts'));
+        window.dispatchEvent(new Event('refreshDashboard'));
+
+        return demoIds.size;
     },
 
     _mapReceipt(row) {
@@ -671,6 +741,7 @@ export const electricStorage = {
             groupTags: row.group_tags || [],
             splitData: typeof row.split_data === 'string' ? JSON.parse(row.split_data) : row.split_data,
             recurringData: typeof row.recurring_data === 'string' ? JSON.parse(row.recurring_data) : row.recurring_data,
+            trackingData: typeof row.tracking_data === 'string' ? JSON.parse(row.tracking_data) : row.tracking_data,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             synced: row._synced,
@@ -1311,7 +1382,7 @@ export const electricStorage = {
             }
         };
 
-        // Pull receipts (skip demo receipts - they are local only)
+        // Pull receipts
         try {
             console.log('[Storage] Fetching receipts from Supabase...');
             const receipts = await withTimeout(
@@ -1319,11 +1390,9 @@ export const electricStorage = {
                 15000,
                 'getReceiptsByUserId'
             );
-            // Filter out any demo receipts that may have been accidentally synced
-            const nonDemoReceipts = receipts.filter(r => !r.isDemo);
-            console.log(`[Storage] Pulled ${nonDemoReceipts.length} receipts from Supabase (${receipts.length - nonDemoReceipts.length} demo receipts skipped)`);
+            console.log(`[Storage] Pulled ${receipts.length} receipts from Supabase`);
 
-            for (const receipt of nonDemoReceipts) {
+            for (const receipt of receipts) {
                 try {
                     // Check if this receipt needs updating
                     const shouldUpdate = await needsUpdate('receipts', receipt.id, receipt.updatedAt);
@@ -1332,8 +1401,8 @@ export const electricStorage = {
                         INSERT INTO receipts (
                             id, user_id, merchant, date, total, currency, category, notes,
                             line_items, is_demo, is_pinned, transaction_type, group_id,
-                            group_name, group_tags, split_data, recurring_data, created_at, updated_at, _synced
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, TRUE)
+                            group_name, group_tags, split_data, recurring_data, tracking_data, created_at, updated_at, _synced
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, TRUE)
                         ON CONFLICT (id) DO UPDATE SET
                             merchant = EXCLUDED.merchant,
                             date = EXCLUDED.date,
@@ -1350,6 +1419,7 @@ export const electricStorage = {
                             group_tags = EXCLUDED.group_tags,
                             split_data = EXCLUDED.split_data,
                             recurring_data = EXCLUDED.recurring_data,
+                            tracking_data = EXCLUDED.tracking_data,
                             updated_at = EXCLUDED.updated_at,
                             _synced = TRUE
                     `, [
@@ -1370,6 +1440,7 @@ export const electricStorage = {
                         receipt.groupTags || [],
                         receipt.splitData ? JSON.stringify(receipt.splitData) : null,
                         receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
+                        receipt.trackingData ? JSON.stringify(receipt.trackingData) : null,
                         receipt.createdAt || new Date().toISOString(),
                         receipt.updatedAt || new Date().toISOString()
                     ]);
@@ -1551,7 +1622,7 @@ export const electricStorage = {
 
             // Find local receipts that were synced but no longer exist in Supabase
             const localSyncedReceipts = await db.query(
-                `SELECT id FROM receipts WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL) AND is_demo = FALSE`,
+                `SELECT id FROM receipts WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL)`,
                 [userId]
             );
 
@@ -1570,7 +1641,7 @@ export const electricStorage = {
 
             // Find local groups that were synced but no longer exist in Supabase
             const localSyncedGroups = await db.query(
-                `SELECT id FROM groups WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL) AND is_demo = FALSE`,
+                `SELECT id FROM groups WHERE user_id = $1 AND _synced = TRUE AND (_sync_failed = FALSE OR _sync_failed IS NULL)`,
                 [userId]
             );
 
@@ -1627,14 +1698,14 @@ export const electricStorage = {
         const errors = [];
         let cleared = 0;
 
-        // Clear all local data for this user (except demo data which is local-only)
+        // Clear all local data for this user
         try {
             console.log('[Storage] Clearing local receipts...');
-            const receiptResult = await db.query(`DELETE FROM receipts WHERE user_id = $1 AND is_demo = FALSE`, [userId]);
+            const receiptResult = await db.query(`DELETE FROM receipts WHERE user_id = $1`, [userId]);
             cleared += receiptResult.affectedRows || 0;
 
             console.log('[Storage] Clearing local groups...');
-            const groupResult = await db.query(`DELETE FROM groups WHERE user_id = $1 AND is_demo = FALSE`, [userId]);
+            const groupResult = await db.query(`DELETE FROM groups WHERE user_id = $1`, [userId]);
             cleared += groupResult.affectedRows || 0;
 
             console.log('[Storage] Clearing local categories...');

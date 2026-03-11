@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Calendar, Bell } from 'lucide-react';
+import { calculateNextRecurringDate } from '../../utils/recurring';
 
 const FREQUENCY_OPTIONS = [
     { value: 'weekly', label: 'Weekly' },
@@ -19,33 +20,12 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
     // Calculate default next due date based on receipt date and frequency
     useEffect(() => {
         if (isRecurring && !nextDueDate && receiptDate) {
-            const date = new Date(receiptDate);
-            calculateNextDate(date, frequency);
+            calculateNextDate(receiptDate, frequency);
         }
     }, [isRecurring, receiptDate, frequency]);
 
     const calculateNextDate = (fromDate, freq) => {
-        const date = new Date(fromDate);
-        switch (freq) {
-            case 'weekly':
-                date.setDate(date.getDate() + 7);
-                break;
-            case 'biweekly':
-                date.setDate(date.getDate() + 14);
-                break;
-            case 'monthly':
-                date.setMonth(date.getMonth() + 1);
-                break;
-            case 'quarterly':
-                date.setMonth(date.getMonth() + 3);
-                break;
-            case 'yearly':
-                date.setFullYear(date.getFullYear() + 1);
-                break;
-            default:
-                date.setMonth(date.getMonth() + 1);
-        }
-        const formattedDate = date.toISOString().split('T')[0];
+        const formattedDate = calculateNextRecurringDate(fromDate, freq);
         setNextDueDate(formattedDate);
         return formattedDate;
     };

@@ -20,6 +20,7 @@ export const storageService = {
     createReceipt: electricStorage.createReceipt,
     updateReceipt: electricStorage.updateReceipt,
     deleteReceipt: electricStorage.deleteReceipt,
+    markReceiptAsDone: electricStorage.markReceiptAsDone,
 
     // Groups
     getAllGroups: electricStorage.getGroups,
@@ -136,8 +137,20 @@ export const storageService = {
         return null;
     },
 
+    async getDemoReceiptCount(userId) {
+        return await electricStorage.getDemoReceiptCount(userId);
+    },
+
     // Demo data methods
     async seedDemoData(userId) {
+        const existingDemoCount = await electricStorage.getDemoReceiptCount(userId);
+        if (existingDemoCount > 0) {
+            return {
+                importedCount: 0,
+                alreadyExists: true,
+            };
+        }
+
         const demoReceipts = [
             { merchant: 'Grocery Store', total: 85.50, category: 'Groceries', date: new Date().toISOString() },
             { merchant: 'Gas Station', total: 45.00, category: 'Gas', date: new Date(Date.now() - 86400000).toISOString() },
@@ -148,8 +161,7 @@ export const storageService = {
 
         let count = 0;
         for (const receipt of demoReceipts) {
-            // Use createDemoReceipt which handles local-only storage
-            await electricStorage.createDemoReceipt({
+            await electricStorage.createReceipt({
                 userId,
                 ...receipt,
                 currency: 'EUR',
@@ -158,7 +170,10 @@ export const storageService = {
             });
             count++;
         }
-        return count;
+        return {
+            importedCount: count,
+            alreadyExists: false,
+        };
     },
 
     async clearDemoData(userId) {

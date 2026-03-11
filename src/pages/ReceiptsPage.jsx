@@ -18,6 +18,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useCategories } from '../hooks/useCategories';
 import { useCustomEvent } from '../hooks/useCustomEvent';
 import { useNavigate } from 'react-router-dom';
+import { getTrackingStatus } from '../utils/tracking';
 
 export default function ReceiptsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -248,6 +249,8 @@ export default function ReceiptsPage() {
         const filterMonth = searchParams.get('month');
         const filterYear = searchParams.get('year');
         const transactionType = searchParams.get('type'); // income or expense
+        const trackingFilter = searchParams.get('tracking');
+        let nextActiveFilter = null;
 
         // Apply transaction type filter (from KPI cards or CashFlow widget)
         if (transactionType) {
@@ -268,18 +271,18 @@ export default function ReceiptsPage() {
                 });
                 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                     'July', 'August', 'September', 'October', 'November', 'December'];
-                setActiveFilter({ type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` });
+                nextActiveFilter = { type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` };
                 setSelectedMonth(filterMonth);
                 setSelectedYear(filterYear);
             } else {
                 // Type only - all time (from Total Income/Total Expenses KPI)
-                setActiveFilter({ type: 'transaction', value: `All ${typeLabel}` });
+                nextActiveFilter = { type: 'transaction', value: `All ${typeLabel}` };
             }
         }
         // Apply URL-based filters (from widget clicks)
         else if (filterType === 'category' && filterCategory) {
             filtered = filtered.filter(r => r.category === decodeURIComponent(filterCategory));
-            setActiveFilter({ type: 'category', value: decodeURIComponent(filterCategory) });
+            nextActiveFilter = { type: 'category', value: decodeURIComponent(filterCategory) };
             setSelectedCategory(decodeURIComponent(filterCategory));
         } else if (filterType === 'month' && filterMonth && filterYear) {
             const month = parseInt(filterMonth) - 1;
@@ -290,22 +293,20 @@ export default function ReceiptsPage() {
             });
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'];
-            setActiveFilter({ type: 'month', value: `${monthNames[month]} ${year}` });
+            nextActiveFilter = { type: 'month', value: `${monthNames[month]} ${year}` };
             setSelectedMonth(filterMonth);
             setSelectedYear(filterYear);
         } else if (filterType === 'merchant' && searchParams.get('merchant')) {
             const merchant = decodeURIComponent(searchParams.get('merchant'));
             filtered = filtered.filter(r => r.merchant === merchant);
-            setActiveFilter({ type: 'merchant', value: merchant });
-        } else if (!transactionType) {
-            setActiveFilter(null);
+            nextActiveFilter = { type: 'merchant', value: merchant };
         }
 
         // Apply dropdown filters
         if (selectedCategory) {
             filtered = filtered.filter(r => r.category === selectedCategory);
-            if (!activeFilter) {
-                setActiveFilter({ type: 'category', value: selectedCategory });
+            if (!nextActiveFilter) {
+                nextActiveFilter = { type: 'category', value: selectedCategory };
             }
         }
 
@@ -318,8 +319,28 @@ export default function ReceiptsPage() {
             });
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'];
-            if (!activeFilter || activeFilter.type !== 'month') {
-                setActiveFilter({ type: 'month', value: `${monthNames[month]} ${year}` });
+            if (!nextActiveFilter || nextActiveFilter.type !== 'month') {
+                nextActiveFilter = { type: 'month', value: `${monthNames[month]} ${year}` };
+            }
+        }
+
+        if (trackingFilter) {
+            filtered = filtered.filter(receipt => {
+                const status = getTrackingStatus(receipt);
+                if (trackingFilter === 'tracked') return !!status;
+                return status === trackingFilter;
+            });
+
+            if (!nextActiveFilter) {
+                const trackingLabels = {
+                    tracked: 'Tracked items',
+                    open: 'Open tracked items',
+                    done: 'Done tracked items',
+                };
+                nextActiveFilter = {
+                    type: 'tracking',
+                    value: trackingLabels[trackingFilter] || trackingFilter,
+                };
             }
         }
 
@@ -352,6 +373,7 @@ export default function ReceiptsPage() {
         }
 
 
+        setActiveFilter(nextActiveFilter);
         setFilteredReceipts(filtered);
     };
 
@@ -379,29 +401,73 @@ export default function ReceiptsPage() {
 
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
+        const nextParams = new URLSearchParams(searchParams);
+
         if (category) {
-            setSearchParams({ filter: 'category', category: encodeURIComponent(category) });
+            nextParams.set('filter', 'category');
+            nextParams.set('category', encodeURIComponent(category));
         } else {
-            setSearchParams({});
+            if (nextParams.get('filter') === 'category') {
+                nextParams.delete('filter');
+            }
+            nextParams.delete('category');
         }
+
+        setSearchParams(nextParams);
     };
 
     const handleMonthChange = (month) => {
         setSelectedMonth(month);
+        const nextParams = new URLSearchParams(searchParams);
+
         if (month && selectedYear) {
-            setSearchParams({ filter: 'month', month, year: selectedYear });
+            nextParams.set('filter', 'month');
+            nextParams.set('month', month);
+            nextParams.set('year', selectedYear);
         } else {
-            setSearchParams({});
+            if (nextParams.get('filter') === 'month') {
+                nextParams.delete('filter');
+            }
+            nextParams.delete('month');
+            if (!selectedYear) {
+                nextParams.delete('year');
+            }
         }
+
+        setSearchParams(nextParams);
     };
 
     const handleYearChange = (year) => {
         setSelectedYear(year);
+        const nextParams = new URLSearchParams(searchParams);
+
         if (year && selectedMonth) {
-            setSearchParams({ filter: 'month', month: selectedMonth, year });
+            nextParams.set('filter', 'month');
+            nextParams.set('month', selectedMonth);
+            nextParams.set('year', year);
         } else {
-            setSearchParams({});
+            if (nextParams.get('filter') === 'month') {
+                nextParams.delete('filter');
+            }
+            nextParams.delete('year');
+            if (!selectedMonth) {
+                nextParams.delete('month');
+            }
         }
+
+        setSearchParams(nextParams);
+    };
+
+    const handleTrackingChange = (tracking) => {
+        const nextParams = new URLSearchParams(searchParams);
+
+        if (tracking) {
+            nextParams.set('tracking', tracking);
+        } else {
+            nextParams.delete('tracking');
+        }
+
+        setSearchParams(nextParams);
     };
 
     if (loading) {
@@ -490,6 +556,19 @@ export default function ReceiptsPage() {
                                 ))}
                             </select>
                         </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
+                            <select
+                                value={searchParams.get('tracking') || ''}
+                                onChange={(e) => handleTrackingChange(e.target.value)}
+                                className="input text-sm py-2"
+                            >
+                                <option value="">All Receipts</option>
+                                <option value="tracked">Tracked only</option>
+                                <option value="open">Open only</option>
+                                <option value="done">Done only</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             )}
@@ -502,6 +581,8 @@ export default function ReceiptsPage() {
                         {activeFilter.type === 'category' && `Category: ${activeFilter.value}`}
                         {activeFilter.type === 'month' && `Month: ${activeFilter.value}`}
                         {activeFilter.type === 'merchant' && `Merchant: ${activeFilter.value}`}
+                        {activeFilter.type === 'tracking' && `Status: ${activeFilter.value}`}
+                        {activeFilter.type === 'transaction' && activeFilter.value}
                     </p>
                 </div>
             )}

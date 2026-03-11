@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
-import { Tag, Users, Pin, PinOff, RefreshCw } from 'lucide-react';
+import { Tag, Users, Pin, PinOff, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
+import { getTrackingStatus } from '../../utils/tracking';
 
 export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin }) {
     const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     const [isLongPress, setIsLongPress] = useState(false);
     const [longPressTimer, setLongPressTimer] = useState(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const trackingStatus = getTrackingStatus(receipt);
 
     const handleDragStart = (e) => {
         e.dataTransfer.setData('application/json', JSON.stringify({
@@ -212,6 +214,18 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                                 {receipt.groupName}
                             </span>
                         )}
+                        {trackingStatus === 'open' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                <Clock3 size={12} />
+                                Open
+                            </span>
+                        )}
+                        {trackingStatus === 'done' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                                <CheckCircle2 size={12} />
+                                Done
+                            </span>
+                        )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(receipt.date)}</p>
                 </div>
@@ -249,4 +263,3 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         </div>
     );
 }
-

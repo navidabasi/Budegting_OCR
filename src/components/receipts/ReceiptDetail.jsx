@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { Edit, Trash2, ArrowLeft, CheckCircle2, Clock3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import Button from '../common/Button';
@@ -8,6 +8,7 @@ import ReceiptForm from './ReceiptForm';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
+import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 
 export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const navigate = useNavigate();
@@ -15,6 +16,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const showToast = useAppStore((state) => state.showToast);
     const [isEditing, setIsEditing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isMarkingDone, setIsMarkingDone] = useState(false);
+
+    const trackingStatus = getTrackingStatus(receipt);
+    const showDoneAction = isTrackedReceipt(receipt);
 
     const handleUpdate = async (receiptData) => {
         try {
@@ -46,6 +51,28 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
         }
     };
 
+    const handleMarkAsDone = async () => {
+        setIsMarkingDone(true);
+
+        try {
+            await storageService.markReceiptAsDone(receipt.id);
+            onUpdate();
+            showToast(
+                receipt.recurringData?.isActive
+                    ? 'Recurring payment marked as done and advanced'
+                    : 'Receipt marked as done',
+                'success'
+            );
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
+        } catch (err) {
+            showToast(err.message || 'Failed to mark receipt as done', 'error');
+        } finally {
+            setIsMarkingDone(false);
+        }
+    };
+
 
     return (
         <div className="max-w-2xl mx-auto">
@@ -62,7 +89,21 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             <div className="card">
                 <div className="flex items-start justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{receipt.merchant}</h1>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{receipt.merchant}</h1>
+                            {trackingStatus === 'open' && (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                    <Clock3 size={12} />
+                                    Open
+                                </span>
+                            )}
+                            {trackingStatus === 'done' && (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                                    <CheckCircle2 size={12} />
+                                    Done
+                                </span>
+                            )}
+                        </div>
                         <p className="text-gray-500 dark:text-gray-300">{formatDate(receipt.date)}</p>
                     </div>
                     <div className="text-right">
@@ -167,6 +208,29 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                         Delete
                     </Button>
                 </div>
+
+                {showDoneAction && trackingStatus === 'open' && (
+                    <Button
+                        variant="secondary"
+                        onClick={handleMarkAsDone}
+                        disabled={isMarkingDone}
+                        className="w-full mt-3 flex items-center justify-center gap-2"
+                    >
+                        <CheckCircle2 size={18} />
+                        {isMarkingDone ? 'Marking...' : 'Mark as done'}
+                    </Button>
+                )}
+
+                {showDoneAction && trackingStatus === 'done' && (
+                    <Button
+                        variant="secondary"
+                        disabled={true}
+                        className="w-full mt-3 flex items-center justify-center gap-2"
+                    >
+                        <CheckCircle2 size={18} />
+                        Done
+                    </Button>
+                )}
             </div>
 
             {isEditing && (
@@ -205,4 +269,3 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
         </div>
     );
 }
-
