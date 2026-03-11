@@ -4,7 +4,7 @@
  */
 export default function PageLayout({ children, className = '' }) {
     return (
-        <div className={`pb-24 px-4 pt-6 safe-area-top ${className}`}>
+        <div className={`pb-24 px-4 pt-4 md:pt-0 safe-area-top ${className}`}>
             {children}
         </div>
     );

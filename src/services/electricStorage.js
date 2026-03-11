@@ -10,6 +10,7 @@ import {
     buildCompletedReceiptFromSource,
     buildDoneTrackingData,
     buildOpenTrackingData,
+    normalizeTrackingData,
 } from '../utils/tracking';
 
 // Configuration
@@ -440,6 +441,7 @@ export const electricStorage = {
     async createReceipt(receipt) {
         const now = new Date().toISOString();
         const id = crypto.randomUUID();
+        const normalizedTrackingData = normalizeTrackingData(receipt.trackingData);
 
         try {
             await initDatabase();
@@ -476,13 +478,13 @@ export const electricStorage = {
                 receipt.groupTags || [],
                 receipt.splitData ? JSON.stringify(receipt.splitData) : null,
                 receipt.recurringData ? JSON.stringify(receipt.recurringData) : null,
-                receipt.trackingData ? JSON.stringify(receipt.trackingData) : null,
+                normalizedTrackingData ? JSON.stringify(normalizedTrackingData) : null,
                 now,
                 now
             ]);
 
             // Push to remote in background
-            pushToRemote('receipts', 'insert', { id, ...receipt });
+            pushToRemote('receipts', 'insert', { id, ...receipt, trackingData: normalizedTrackingData });
         } catch (err) {
             console.error('[Storage] createReceipt PGlite failed, trying Supabase:', err);
             const supabaseService = (await import('./supabaseService.js')).supabaseService;
@@ -528,6 +530,9 @@ export const electricStorage = {
         for (const [key, dbField] of Object.entries(fieldMap)) {
             if (updates[key] !== undefined) {
                 let value = updates[key];
+                if (key === 'trackingData') {
+                    value = normalizeTrackingData(value);
+                }
                 if (['lineItems', 'splitData', 'recurringData', 'trackingData'].includes(key)) {
                     value = JSON.stringify(value);
                 }
@@ -575,11 +580,12 @@ export const electricStorage = {
             throw new Error('Receipt not found');
         }
 
-        if (!receipt.trackingData?.isTracked) {
+        const trackingData = normalizeTrackingData(receipt.trackingData);
+        if (!trackingData?.isTracked) {
             throw new Error('Receipt is not enabled for mark as done');
         }
 
-        if (receipt.trackingData.status === 'done') {
+        if (trackingData.status === 'done') {
             return receipt;
         }
 
@@ -595,14 +601,14 @@ export const electricStorage = {
                     ...receipt.recurringData,
                     nextDueDate: nextDate,
                 },
-                trackingData: buildOpenTrackingData(receipt.trackingData),
+                trackingData: buildOpenTrackingData(trackingData),
             });
 
             return await this.getReceipt(id);
         }
 
         await this.updateReceipt(id, {
-            trackingData: buildDoneTrackingData(receipt.trackingData, completedAt),
+            trackingData: buildDoneTrackingData(trackingData, completedAt),
         });
 
         return await this.getReceipt(id);
@@ -723,6 +729,7 @@ export const electricStorage = {
     },
 
     _mapReceipt(row) {
+        const rawTrackingData = typeof row.tracking_data === 'string' ? JSON.parse(row.tracking_data) : row.tracking_data;
         return {
             id: row.id,
             userId: row.user_id,
@@ -741,7 +748,7 @@ export const electricStorage = {
             groupTags: row.group_tags || [],
             splitData: typeof row.split_data === 'string' ? JSON.parse(row.split_data) : row.split_data,
             recurringData: typeof row.recurring_data === 'string' ? JSON.parse(row.recurring_data) : row.recurring_data,
-            trackingData: typeof row.tracking_data === 'string' ? JSON.parse(row.tracking_data) : row.tracking_data,
+            trackingData: normalizeTrackingData(rawTrackingData),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             synced: row._synced,
@@ -1396,7 +1403,11 @@ export const electricStorage = {
                 try {
                     // Check if this receipt needs updating
                     const shouldUpdate = await needsUpdate('receipts', receipt.id, receipt.updatedAt);
-                    
+
+                    if (!shouldUpdate) {
+                        continue;
+                    }
+
                     await db.query(`
                         INSERT INTO receipts (
                             id, user_id, merchant, date, total, currency, category, notes,

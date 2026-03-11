@@ -17,6 +17,15 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
     const [endDate, setEndDate] = useState(recurringData?.endDate || '');
     const [reminderDays, setReminderDays] = useState(recurringData?.reminderDays ?? 3);
 
+    useEffect(() => {
+        const active = !!recurringData?.isActive;
+        setIsRecurring(active);
+        setFrequency(recurringData?.frequency || 'monthly');
+        setNextDueDate(recurringData?.nextDueDate || '');
+        setEndDate(recurringData?.endDate || '');
+        setReminderDays(recurringData?.reminderDays ?? 3);
+    }, [recurringData]);
+
     // Calculate default next due date based on receipt date and frequency
     useEffect(() => {
         if (isRecurring && !nextDueDate && receiptDate) {

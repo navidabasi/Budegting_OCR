@@ -160,7 +160,7 @@ export default function HomePage() {
     };
 
     return (
-        <PageLayout className="pt-8">
+        <PageLayout className="pt-8 md:pt-0">
             <PageHeader
                 title="Dashboard"
                 subtitle="Overview of your expenses"

@@ -1,34 +1,60 @@
-export function isTrackedReceipt(receipt) {
-    return !!receipt?.trackingData?.isTracked;
-}
-
-export function getTrackingStatus(receipt) {
-    if (!isTrackedReceipt(receipt)) {
+export function normalizeTrackingData(trackingData) {
+    if (!trackingData || typeof trackingData !== 'object') {
         return null;
     }
 
-    return receipt.trackingData.status === 'done' ? 'done' : 'open';
+    const hasKnownStatus = trackingData.status === 'open' || trackingData.status === 'done';
+    const isTracked = trackingData.isTracked === undefined
+        ? hasKnownStatus
+        : Boolean(trackingData.isTracked);
+
+    if (!isTracked && !hasKnownStatus) {
+        return null;
+    }
+
+    return {
+        isTracked,
+        status: trackingData.status === 'done' ? 'done' : 'open',
+        completedAt: trackingData.completedAt || null,
+        sourceRecurringId: trackingData.sourceRecurringId || null,
+    };
+}
+
+export function isTrackedReceipt(receipt) {
+    return !!normalizeTrackingData(receipt?.trackingData)?.isTracked;
+}
+
+export function getTrackingStatus(receipt) {
+    const trackingData = normalizeTrackingData(receipt?.trackingData);
+    if (!trackingData?.isTracked) {
+        return null;
+    }
+
+    return trackingData.status === 'done' ? 'done' : 'open';
 }
 
 export function buildOpenTrackingData(existingTrackingData = null) {
+    const normalized = normalizeTrackingData(existingTrackingData);
     return {
         isTracked: true,
         status: 'open',
         completedAt: null,
-        sourceRecurringId: existingTrackingData?.sourceRecurringId || null,
+        sourceRecurringId: normalized?.sourceRecurringId || null,
     };
 }
 
 export function buildDoneTrackingData(existingTrackingData = null, completedAt = new Date().toISOString(), sourceRecurringId = null) {
+    const normalized = normalizeTrackingData(existingTrackingData);
     return {
         isTracked: true,
         status: 'done',
         completedAt,
-        sourceRecurringId: sourceRecurringId || existingTrackingData?.sourceRecurringId || null,
+        sourceRecurringId: sourceRecurringId || normalized?.sourceRecurringId || null,
     };
 }
 
 export function buildCompletedReceiptFromSource(receipt, completedAt = new Date().toISOString()) {
+    const sourceTrackingData = normalizeTrackingData(receipt.trackingData);
     return {
         userId: receipt.userId,
         merchant: receipt.merchant,
@@ -46,6 +72,6 @@ export function buildCompletedReceiptFromSource(receipt, completedAt = new Date(
         groupTags: receipt.groupTags || [],
         splitData: receipt.splitData || null,
         recurringData: null,
-        trackingData: buildDoneTrackingData(receipt.trackingData, completedAt, receipt.id),
+        trackingData: buildDoneTrackingData(sourceTrackingData, completedAt, receipt.id),
     };
 }

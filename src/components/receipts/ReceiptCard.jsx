@@ -4,15 +4,49 @@ import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users, Pin, PinOff, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
 import { getTrackingStatus } from '../../utils/tracking';
+import { storageService } from '../../services/storage';
+import { useAppStore } from '../../store/appStore';
 
-export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin }) {
+export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin, onMarkAsDone }) {
     const navigate = useNavigate();
+    const showToast = useAppStore((state) => state.showToast);
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
     const [isLongPress, setIsLongPress] = useState(false);
     const [longPressTimer, setLongPressTimer] = useState(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [isMarkingDone, setIsMarkingDone] = useState(false);
     const trackingStatus = getTrackingStatus(receipt);
+
+    const handleMarkAsDone = async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (isMarkingDone || trackingStatus !== 'open') {
+            return;
+        }
+
+        setIsMarkingDone(true);
+        try {
+            await storageService.markReceiptAsDone(receipt.id);
+            if (onMarkAsDone) {
+                await onMarkAsDone(receipt);
+            }
+            showToast(
+                receipt.recurringData?.isActive
+                    ? 'Recurring payment marked as done and advanced'
+                    : 'Receipt marked as done',
+                'success'
+            );
+            window.dispatchEvent(new CustomEvent('refreshReceipts'));
+            window.dispatchEvent(new CustomEvent('refreshGroups'));
+            window.dispatchEvent(new CustomEvent('refreshDashboard'));
+        } catch (err) {
+            showToast(err.message || 'Failed to mark receipt as done', 'error');
+        } finally {
+            setIsMarkingDone(false);
+        }
+    };
 
     const handleDragStart = (e) => {
         e.dataTransfer.setData('application/json', JSON.stringify({
@@ -259,6 +293,17 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                     <RefreshCw size={12} />
                     Recurring ({receipt.recurringData.frequency})
                 </p>
+            )}
+            {trackingStatus === 'open' && (
+                <button
+                    type="button"
+                    onClick={handleMarkAsDone}
+                    disabled={isMarkingDone}
+                    className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    <CheckCircle2 size={16} />
+                    {isMarkingDone ? 'Marking...' : 'Mark as done'}
+                </button>
             )}
         </div>
     );

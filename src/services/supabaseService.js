@@ -4,6 +4,7 @@ import {
     buildCompletedReceiptFromSource,
     buildDoneTrackingData,
     buildOpenTrackingData,
+    normalizeTrackingData,
 } from '../utils/tracking';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -301,6 +302,8 @@ export const supabaseService = {
                     supabaseUpdates[dbField] = updates[appField] && this.isValidUUID(updates[appField])
                         ? updates[appField]
                         : null;
+                } else if (appField === 'trackingData') {
+                    supabaseUpdates[dbField] = normalizeTrackingData(updates[appField]);
                 } else {
                     supabaseUpdates[dbField] = updates[appField];
                 }
@@ -342,11 +345,12 @@ export const supabaseService = {
             throw new Error('Receipt not found');
         }
 
-        if (!receipt.trackingData?.isTracked) {
+        const trackingData = normalizeTrackingData(receipt.trackingData);
+        if (!trackingData?.isTracked) {
             throw new Error('Receipt is not enabled for mark as done');
         }
 
-        if (receipt.trackingData.status === 'done') {
+        if (trackingData.status === 'done') {
             return receipt;
         }
 
@@ -362,14 +366,14 @@ export const supabaseService = {
                     ...receipt.recurringData,
                     nextDueDate: nextDate,
                 },
-                trackingData: buildOpenTrackingData(receipt.trackingData),
+                trackingData: buildOpenTrackingData(trackingData),
             });
 
             return await this.getReceiptById(id);
         }
 
         await this.updateReceipt(id, {
-            trackingData: buildDoneTrackingData(receipt.trackingData, completedAt),
+            trackingData: buildDoneTrackingData(trackingData, completedAt),
         });
 
         return await this.getReceiptById(id);
@@ -483,6 +487,7 @@ export const supabaseService = {
 
     // Transform Supabase receipt format to app format
     transformReceiptFromSupabase(supabaseReceipt) {
+        const normalizedTrackingData = normalizeTrackingData(supabaseReceipt.tracking_data || null);
         return {
             id: supabaseReceipt.id,
             userId: supabaseReceipt.user_id,
@@ -501,7 +506,7 @@ export const supabaseService = {
             groupTags: supabaseReceipt.group_tags || [],
             splitData: supabaseReceipt.split_data || null,
             recurringData: supabaseReceipt.recurring_data || null,
-            trackingData: supabaseReceipt.tracking_data || null,
+            trackingData: normalizedTrackingData,
             createdAt: supabaseReceipt.created_at,
             updatedAt: supabaseReceipt.updated_at
         };
@@ -521,6 +526,8 @@ export const supabaseService = {
             ? receipt.groupId
             : null;
 
+        const normalizedTrackingData = normalizeTrackingData(receipt.trackingData || null);
+
         return {
             user_id: receipt.userId,
             merchant: receipt.merchant,
@@ -538,7 +545,7 @@ export const supabaseService = {
             group_tags: receipt.groupTags || [],
             split_data: receipt.splitData || null,
             recurring_data: receipt.recurringData || null,
-            tracking_data: receipt.trackingData || null
+            tracking_data: normalizedTrackingData
         };
     },
 

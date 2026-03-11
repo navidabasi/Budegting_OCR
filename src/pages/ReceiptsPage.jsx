@@ -84,6 +84,11 @@ export default function ReceiptsPage() {
         }
     };
 
+    const handleMarkReceiptAsDone = async () => {
+        await reloadReceipts();
+        await reloadGroups();
+    };
+
     // Process groups with receipt counts
     useEffect(() => {
         if (!allGroups || receipts.length === 0) {
@@ -822,6 +827,7 @@ export default function ReceiptsPage() {
                                                         key={receipt.id}
                                                         receipt={receipt}
                                                         onTogglePin={handleToggleReceiptPin}
+                                                        onMarkAsDone={handleMarkReceiptAsDone}
                                                         onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
                                                             try {
                                                                 const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);
@@ -922,6 +928,7 @@ export default function ReceiptsPage() {
                             key={receipt.id}
                             receipt={receipt}
                             onTogglePin={handleToggleReceiptPin}
+                            onMarkAsDone={handleMarkReceiptAsDone}
                             onDropOnReceipt={async (draggedReceiptId, targetReceiptId) => {
                                 try {
                                     const draggedReceipt = receipts.find(r => r.id === draggedReceiptId);

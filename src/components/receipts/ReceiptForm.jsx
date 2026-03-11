@@ -11,7 +11,7 @@ import { storageService } from '../../services/storage';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
 import { useCategories } from '../../hooks/useCategories';
-import { buildOpenTrackingData } from '../../utils/tracking';
+import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -24,10 +24,11 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const [showSplitManager, setShowSplitManager] = useState(false);
-    const [splitData, setSplitData] = useState(null);
-    const [recurringData, setRecurringData] = useState(null);
-    const [trackingEnabled, setTrackingEnabled] = useState(!!initialData?.trackingData?.isTracked);
-    const [trackingData, setTrackingData] = useState(initialData?.trackingData || null);
+    const initialTrackingData = normalizeTrackingData(initialData?.trackingData || null);
+    const [splitData, setSplitData] = useState(initialData?.splitData || null);
+    const [recurringData, setRecurringData] = useState(initialData?.recurringData || null);
+    const [trackingEnabled, setTrackingEnabled] = useState(!!initialTrackingData?.isTracked);
+    const [trackingData, setTrackingData] = useState(initialTrackingData);
 
     const formatDateForInput = (dateString) => {
         if (!dateString) return new Date().toISOString().split('T')[0];
@@ -66,14 +67,11 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     });
 
     useEffect(() => {
-        if (initialData?.splitData) {
-            setSplitData(initialData.splitData);
-        }
-        if (initialData?.recurringData) {
-            setRecurringData(initialData.recurringData);
-        }
-        setTrackingEnabled(!!initialData?.trackingData?.isTracked);
-        setTrackingData(initialData?.trackingData || null);
+        setSplitData(initialData?.splitData || null);
+        setRecurringData(initialData?.recurringData || null);
+        const normalizedTrackingData = normalizeTrackingData(initialData?.trackingData || null);
+        setTrackingEnabled(!!normalizedTrackingData?.isTracked);
+        setTrackingData(normalizedTrackingData);
     }, [initialData]);
 
     useEffect(() => {
@@ -237,6 +235,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             }
         }
         
+        const normalizedTrackingData = normalizeTrackingData(trackingData);
         const receiptData = {
             merchant: data.merchant,
             date: data.date,
@@ -252,7 +251,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             splitData: splitData || null,
             recurringData: recurringData || null,
             trackingData: trackingEnabled
-                ? (trackingData?.isTracked ? { ...trackingData, isTracked: true } : buildOpenTrackingData())
+                ? (normalizedTrackingData?.isTracked ? { ...normalizedTrackingData, isTracked: true } : buildOpenTrackingData())
                 : null
         };
 
@@ -646,8 +645,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         checked={trackingEnabled}
                         onChange={(e) => {
                             const enabled = e.target.checked;
+                            const normalizedTrackingData = normalizeTrackingData(trackingData);
                             setTrackingEnabled(enabled);
-                            setTrackingData(enabled ? (trackingData?.isTracked ? trackingData : buildOpenTrackingData()) : null);
+                            setTrackingData(enabled ? (normalizedTrackingData?.isTracked ? normalizedTrackingData : buildOpenTrackingData()) : null);
                         }}
                         className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
