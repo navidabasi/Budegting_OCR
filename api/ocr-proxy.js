@@ -31,12 +31,27 @@ const allowedOrigins = (() => {
 })();
 
 const normalizeOrigin = (origin) => (origin || '').trim().replace(/\/$/, '');
+const normalizeHost = (host) => (host || '').trim().toLowerCase();
 
-const isOriginAllowed = (origin) => {
+const getOriginHost = (origin) => {
+    try {
+        return normalizeHost(new URL(origin).host);
+    } catch {
+        return '';
+    }
+};
+
+const isOriginAllowed = (origin, requestHost = '') => {
     if (!origin) return true;
 
     const normalized = normalizeOrigin(origin);
     if (allowedOrigins.has(normalized)) return true;
+
+    const originHost = getOriginHost(normalized);
+    const normalizedRequestHost = normalizeHost(requestHost);
+    if (originHost && normalizedRequestHost && originHost === normalizedRequestHost) {
+        return true;
+    }
 
     return (
         ALLOW_VERCEL_PREVIEWS &&
@@ -88,7 +103,7 @@ const isRateLimited = (clientId) => {
 
 export default async function handler(req, res) {
     const requestOrigin = normalizeOrigin(req.headers.origin);
-    if (!isOriginAllowed(requestOrigin)) {
+    if (!isOriginAllowed(requestOrigin, req.headers.host || '')) {
         return res.status(403).json({ error: 'Origin not allowed' });
     }
     applyCorsHeaders(res, requestOrigin);

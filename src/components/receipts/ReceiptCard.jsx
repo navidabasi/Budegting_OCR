@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
@@ -16,6 +16,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     const [longPressTimer, setLongPressTimer] = useState(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isMarkingDone, setIsMarkingDone] = useState(false);
+    const suppressClickRef = useRef(false);
+    const dragActivatedRef = useRef(false);
     const trackingStatus = getTrackingStatus(receipt);
 
     const handleMarkAsDone = async (event) => {
@@ -110,17 +112,27 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     // Requires a long-press (500ms hold) before drag activates to prevent
     // accidental group creation from normal scrolling or pull-to-refresh
     const handleTouchStart = (e) => {
+        if (e.target.closest('button, a, input, select, textarea, label')) {
+            return;
+        }
+
         const touch = e.touches[0];
+        const target = e.currentTarget;
         setTouchStart({
             x: touch.clientX,
             y: touch.clientY,
             time: Date.now()
         });
         setIsLongPress(false);
+        dragActivatedRef.current = false;
+        suppressClickRef.current = false;
 
         // Start long-press timer — drag only activates after 500ms hold
         const timer = setTimeout(() => {
             setIsLongPress(true);
+            dragActivatedRef.current = true;
+            setIsDragging(true);
+            target.style.opacity = '0.5';
         }, 500);
         setLongPressTimer(timer);
     };
@@ -132,15 +144,18 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         const deltaY = Math.abs(touch.clientY - touchStart.y);
 
         // Cancel long-press if finger moves before timer fires (user is scrolling)
-        if (deltaX > 10 || deltaY > 10) {
+        if (!isLongPress && (deltaX > 16 || deltaY > 16)) {
             if (longPressTimer) {
                 clearTimeout(longPressTimer);
                 setLongPressTimer(null);
             }
+            setTouchStart(null);
+            return;
         }
 
-        // Only start drag if long-press was achieved first
-        if (isLongPress && (deltaX > 10 || deltaY > 10)) {
+        if (isLongPress || dragActivatedRef.current) {
+            // Keep drag/drop responsive on Android while finger moves.
+            e.preventDefault();
             setIsDragging(true);
             e.currentTarget.style.opacity = '0.5';
         }
@@ -159,17 +174,13 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         const touch = e.changedTouches[0];
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
 
-        if (isDragging) {
+        if (dragActivatedRef.current) {
+            suppressClickRef.current = true;
             // Check if dropped on a group card (including nested groups and expanded group containers)
             const groupCard = elementBelow?.closest('[data-group-id]');
             if (groupCard) {
                 const groupId = groupCard.getAttribute('data-group-id');
-                // Check if it's an expanded container (has class with 'rounded-lg border-2')
-                const isExpandedContainer = groupCard.classList.contains('rounded-lg') && 
-                                           groupCard.classList.contains('border-2') &&
-                                           groupCard.classList.contains('border-dashed');
-                
-                // Only dispatch if it's a group card or expanded container
+
                 if (groupId) {
                     const event = new CustomEvent('receiptDrop', {
                         detail: {
@@ -196,6 +207,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
         }
         
         setIsDragging(false);
+        dragActivatedRef.current = false;
         setTouchStart(null);
         e.currentTarget.style.opacity = '1';
     };
@@ -213,6 +225,10 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={() => {
+                if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                }
                 // Only navigate if not dragging
                 if (!isDragging && !isDragOver) {
                     navigate(`/receipts/${receipt.id}`);

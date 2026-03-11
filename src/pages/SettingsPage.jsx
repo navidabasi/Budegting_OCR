@@ -345,17 +345,17 @@ export default function SettingsPage() {
         <div className="space-y-6">
             <SettingsCard
                 icon={Key}
-                title="OCR API Key (Optional)"
+                title="OCR API Key (Premium)"
             >
                 <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
                     <Input
                         label="API Key"
                         type="text"
-                        placeholder="Enter your OCR.Space API key (optional)"
+                        placeholder="Enter your premium OCR API key"
                         {...register('ocrApiKey')}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        OCR uses your personal key unless the server has a shared default key configured. Get a free key at{' '}
+                        OCR scanning requires your personal premium key. Get one at{' '}
                         <a
                             href="https://ocr.space/ocrapi"
                             target="_blank"
@@ -366,7 +366,10 @@ export default function SettingsPage() {
                         </a>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <strong>Note:</strong> Leave empty only if your deployment provides `OCR_SPACE_API_KEY`.
+                        <strong>Note:</strong> Without an API key, scan/upload OCR is disabled and users can still add receipts manually.
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        If scanning fails with <strong>Origin not allowed</strong>, set `APP_URL` or `ALLOWED_ORIGINS` in your deployment environment.
                     </p>
                     <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? 'Saving...' : 'Save API Key'}

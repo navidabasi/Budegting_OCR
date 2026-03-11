@@ -67,13 +67,13 @@ export default function RegisterPage() {
 
                     <div>
                         <Input
-                            label="OCR API Key (Optional)"
+                            label="OCR API Key (Premium)"
                             type="text"
-                            placeholder="Leave empty to use server default (if configured)"
+                            placeholder="Required for OCR scanning"
                             {...register('ocrApiKey')}
                         />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            If no server default key is configured, add your OCR.Space key here or in Settings.
+                            OCR scan/upload is available only with your premium OCR API key. You can add or change it later in Settings.
                         </p>
                     </div>
 

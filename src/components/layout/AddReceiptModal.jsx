@@ -14,15 +14,31 @@ export default function AddReceiptModal() {
     const showToast = useAppStore((state) => state.showToast);
     const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
     const [selectedFile, setSelectedFile] = useState(null);
-    const [hasOcrKey, setHasOcrKey] = useState(null); // null=loading, true/false
+    const [hasOcrKey, setHasOcrKey] = useState(null); // null=checking, true/false=resolved
     const fileInputRef = useRef(null);
 
-    // Check if OCR API key is configured
     useEffect(() => {
-        if (!addReceiptModalOpen || !currentUser?.userId) return;
+        if (!addReceiptModalOpen || !currentUser?.userId) {
+            setHasOcrKey(null);
+            return;
+        }
+
+        let isMounted = true;
+        setHasOcrKey(null);
+
         storageService.getOcrApiKey(currentUser.userId)
-            .then(key => setHasOcrKey(!!key))
-            .catch(() => setHasOcrKey(false));
+            .then((key) => {
+                if (!isMounted) return;
+                setHasOcrKey(Boolean((key || '').trim()));
+            })
+            .catch(() => {
+                if (!isMounted) return;
+                setHasOcrKey(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
     }, [addReceiptModalOpen, currentUser?.userId]);
 
     const handleClose = () => {
@@ -49,8 +65,37 @@ export default function AddReceiptModal() {
         }
     };
 
+    const showPremiumUpgradeError = () => {
+        showToast('OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.', 'error');
+    };
+
+    const handleStartCamera = () => {
+        if (hasOcrKey === false) {
+            showPremiumUpgradeError();
+            return;
+        }
+        if (hasOcrKey === null) return;
+        setMode('camera');
+    };
+
+    const handleStartUpload = () => {
+        if (hasOcrKey === false) {
+            showPremiumUpgradeError();
+            return;
+        }
+        if (hasOcrKey === null) return;
+        fileInputRef.current?.click();
+    };
+
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
+        if (hasOcrKey === false) {
+            showPremiumUpgradeError();
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+            return;
+        }
         if (file) {
             setSelectedFile(file);
             setMode('upload');
@@ -89,13 +134,8 @@ export default function AddReceiptModal() {
         );
     }
 
-    const ocrDisabled = hasOcrKey === false;
-    const ocrButtonClass = (disabled) =>
-        `w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-colors ${
-            disabled
-                ? 'border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
-                : 'border-gray-200 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900'
-        }`;
+    const ocrButtonClass = () =>
+        'w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-colors border-gray-200 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900';
 
     return (
         <Modal
@@ -105,9 +145,9 @@ export default function AddReceiptModal() {
         >
             <div className="space-y-4">
                 <button
-                    onClick={ocrDisabled ? undefined : () => setMode('camera')}
-                    disabled={ocrDisabled}
-                    className={ocrButtonClass(ocrDisabled)}
+                    onClick={handleStartCamera}
+                    className={ocrButtonClass()}
+                    disabled={hasOcrKey === null}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Camera size={24} className="primary-color" />
@@ -119,9 +159,9 @@ export default function AddReceiptModal() {
                 </button>
 
                 <button
-                    onClick={ocrDisabled ? undefined : () => fileInputRef.current?.click()}
-                    disabled={ocrDisabled}
-                    className={ocrButtonClass(ocrDisabled)}
+                    onClick={handleStartUpload}
+                    className={ocrButtonClass()}
+                    disabled={hasOcrKey === null}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Upload size={24} className="primary-color" />
@@ -132,12 +172,16 @@ export default function AddReceiptModal() {
                     </div>
                 </button>
 
-                {ocrDisabled && (
-                    <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
-                        <AlertCircle size={16} className="flex-shrink-0" />
-                        <span>Add your OCR API key in Settings to enable scanning.</span>
-                    </div>
-                )}
+                <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
+                    <AlertCircle size={16} className="flex-shrink-0" />
+                    <span>
+                        {hasOcrKey === null
+                            ? 'Checking OCR access...'
+                            : hasOcrKey
+                                ? 'OCR API key detected. Scanning is enabled.'
+                                : 'OCR scanning requires a premium API key. Add it in Settings to continue.'}
+                    </span>
+                </div>
 
                 <input
                     ref={fileInputRef}

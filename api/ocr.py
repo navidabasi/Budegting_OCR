@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 
 # YAML for template loading
 try:
@@ -76,13 +77,33 @@ ALLOWED_ORIGINS = get_allowed_origins()
 _templates_cache = None
 
 
-def is_origin_allowed(origin):
+def _normalize_host(value):
+    return (value or '').strip().lower()
+
+
+def _is_same_host_origin(origin, request_host):
+    if not origin or not request_host:
+        return False
+
+    try:
+        origin_host = _normalize_host(urlparse(origin).netloc)
+    except Exception:
+        return False
+
+    normalized_request_host = _normalize_host(request_host)
+    return bool(origin_host) and origin_host == normalized_request_host
+
+
+def is_origin_allowed(origin, request_host=None):
     """Check whether request origin is allowed to call this endpoint."""
     if not origin:
         return True
 
     normalized_origin = origin.strip().rstrip('/')
     if normalized_origin in ALLOWED_ORIGINS:
+        return True
+
+    if _is_same_host_origin(normalized_origin, request_host):
         return True
 
     if (
@@ -955,7 +976,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({'error': 'Origin not allowed'}).encode())
 
     def do_OPTIONS(self):
-        if not is_origin_allowed(self.headers.get('Origin')):
+        if not is_origin_allowed(self.headers.get('Origin'), self.headers.get('Host')):
             self._forbidden_origin()
             return
 
@@ -964,7 +985,7 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if not is_origin_allowed(self.headers.get('Origin')):
+        if not is_origin_allowed(self.headers.get('Origin'), self.headers.get('Host')):
             self._forbidden_origin()
             return
 
@@ -984,7 +1005,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            if not is_origin_allowed(self.headers.get('Origin')):
+            if not is_origin_allowed(self.headers.get('Origin'), self.headers.get('Host')):
                 self._forbidden_origin()
                 return
 
@@ -1053,7 +1074,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
         origin = self.headers.get('Origin')
-        if origin and is_origin_allowed(origin):
+        if origin and is_origin_allowed(origin, self.headers.get('Host')):
             self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Vary', 'Origin')
         self.end_headers()

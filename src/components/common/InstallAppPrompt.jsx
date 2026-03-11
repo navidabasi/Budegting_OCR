@@ -55,10 +55,10 @@ export default function InstallAppPrompt() {
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
 
-        if (detectedPlatform === 'ios' && shouldShow && !standalone) {
+        if ((detectedPlatform === 'ios' || detectedPlatform === 'android') && shouldShow && !standalone) {
             const timer = window.setTimeout(() => {
                 setShowPrompt(true);
-            }, 2000);
+            }, detectedPlatform === 'ios' ? 2000 : 3000);
 
             return () => {
                 window.clearTimeout(timer);
@@ -84,11 +84,14 @@ export default function InstallAppPrompt() {
         }
 
         if (platform === 'android') {
+            const hasInstallPrompt = !!deferredPrompt;
             return {
                 icon: Smartphone,
-                title: 'Install On Android',
-                body: 'Add "Where my money went?" to your Android home screen for faster access and offline use.',
-                ctaLabel: 'Install On Android',
+                title: hasInstallPrompt ? 'Install On Android' : 'Add To Home Screen',
+                body: hasInstallPrompt
+                    ? 'Add "Where my money went?" to your Android home screen for faster access and offline use.'
+                    : 'If the install button is not available, use Chrome menu > "Add to Home screen".',
+                ctaLabel: hasInstallPrompt ? 'Install On Android' : null,
             };
         }
 
@@ -102,10 +105,14 @@ export default function InstallAppPrompt() {
         }
 
         return null;
-    }, [platform]);
+    }, [platform, deferredPrompt]);
 
     const canShowPrompt = !isStandalone && promptContent && (
-        platform === 'ios' ? showPrompt : showPrompt && !!deferredPrompt
+        platform === 'ios'
+            ? showPrompt
+            : platform === 'android'
+                ? showPrompt
+                : showPrompt && !!deferredPrompt
     );
 
     const handleInstall = async () => {
@@ -158,6 +165,14 @@ export default function InstallAppPrompt() {
                                         </svg>
                                     </span></li>
                                     <li>Scroll down and tap "Add to Home Screen"</li>
+                                </ol>
+                            </div>
+                        ) : platform === 'android' && !deferredPrompt ? (
+                            <div className="mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                <p className="font-medium text-gray-900 dark:text-white mb-2">To install:</p>
+                                <ol className="list-decimal list-inside space-y-1">
+                                    <li>Tap the browser menu (top-right)</li>
+                                    <li>Tap "Add to Home screen"</li>
                                 </ol>
                             </div>
                         ) : (

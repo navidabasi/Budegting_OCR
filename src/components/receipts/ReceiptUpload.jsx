@@ -1,10 +1,152 @@
 import { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, Loader } from 'lucide-react';
+import { Camera, Upload, Loader } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { ocrApi } from '../../services/ocrApi';
 import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
+
+const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_OCR_IMAGE_DIMENSION = 2200;
+const MIN_OCR_IMAGE_DIMENSION = 900;
+const INITIAL_JPEG_QUALITY = 0.9;
+const MIN_JPEG_QUALITY = 0.55;
+const JPEG_QUALITY_STEP = 0.1;
+
+const formatBytes = (bytes) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+const canvasToBlob = (canvas, quality) =>
+    new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Unable to compress image'));
+                return;
+            }
+            resolve(blob);
+        }, 'image/jpeg', quality);
+    });
+
+const loadImageFromFile = (file) =>
+    new Promise((resolve, reject) => {
+        const image = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Unable to load image for OCR'));
+        };
+
+        image.src = objectUrl;
+    });
+
+const optimizeImageForOcr = async (file) => {
+    const originalSize = file.size;
+
+    if (!file.type.startsWith('image/')) {
+        return {
+            file,
+            originalSize,
+            optimizedSize: originalSize,
+            optimized: false
+        };
+    }
+
+    const image = await loadImageFromFile(file);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const maxSourceDimension = Math.max(sourceWidth, sourceHeight);
+    const scaleRatio = maxSourceDimension > MAX_OCR_IMAGE_DIMENSION
+        ? MAX_OCR_IMAGE_DIMENSION / maxSourceDimension
+        : 1;
+
+    let width = Math.max(1, Math.round(sourceWidth * scaleRatio));
+    let height = Math.max(1, Math.round(sourceHeight * scaleRatio));
+    let quality = INITIAL_JPEG_QUALITY;
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+        return {
+            file,
+            originalSize,
+            optimizedSize: originalSize,
+            optimized: false
+        };
+    }
+
+    let outputBlob = null;
+    let attempts = 0;
+
+    while (attempts < 12) {
+        canvas.width = width;
+        canvas.height = height;
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        outputBlob = await canvasToBlob(canvas, quality);
+        if (outputBlob.size <= MAX_OCR_IMAGE_BYTES) break;
+
+        if (quality > MIN_JPEG_QUALITY) {
+            quality = Math.max(MIN_JPEG_QUALITY, quality - JPEG_QUALITY_STEP);
+        } else {
+            const nextWidth = Math.round(width * 0.85);
+            const nextHeight = Math.round(height * 0.85);
+            if (Math.max(nextWidth, nextHeight) < MIN_OCR_IMAGE_DIMENSION) {
+                break;
+            }
+            width = nextWidth;
+            height = nextHeight;
+        }
+
+        attempts += 1;
+    }
+
+    if (!outputBlob) {
+        return {
+            file,
+            originalSize,
+            optimizedSize: originalSize,
+            optimized: false
+        };
+    }
+
+    const optimizedSize = outputBlob.size;
+    const didResize = width !== sourceWidth || height !== sourceHeight;
+    const didShrink = optimizedSize < originalSize;
+    const needsTypeChange = file.type !== 'image/jpeg';
+
+    if (!didResize && !didShrink && !needsTypeChange) {
+        return {
+            file,
+            originalSize,
+            optimizedSize: originalSize,
+            optimized: false
+        };
+    }
+
+    const fileBaseName = (file.name || 'receipt').replace(/\.[^/.]+$/, '');
+    const optimizedFile = new File([outputBlob], `${fileBaseName}.jpg`, {
+        type: 'image/jpeg',
+        lastModified: Date.now()
+    });
+
+    return {
+        file: optimizedFile,
+        originalSize,
+        optimizedSize,
+        optimized: true
+    };
+};
 
 export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initialFile = null, onSwitchToManual }) {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -15,6 +157,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
     const [imagePreview, setImagePreview] = useState(null);
     const [ocrResult, setOcrResult] = useState(null);
     const [error, setError] = useState(null);
+    const [optimizationInfo, setOptimizationInfo] = useState(null);
     const [initialFileProcessed, setInitialFileProcessed] = useState(false);
     const videoRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -80,7 +223,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         setError(null);
 
         try {
-            // API key is required - users must provide their own
+            // OCR scanning is premium-gated and requires a user API key
             let apiKey = null;
             try {
                 apiKey = await storageService.getOcrApiKey(currentUser.userId);
@@ -88,11 +231,29 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                 console.warn('[ReceiptUpload] Could not get API key:', apiKeyError);
             }
 
-            if (!apiKey) {
-                throw new Error('OCR API key is required. Please add your OCR.Space API key in Settings. Get a free key at ocr.space/ocrapi');
+            const normalizedApiKey = (apiKey || '').trim();
+            if (!normalizedApiKey) {
+                throw new Error('OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.');
             }
 
-            const result = await ocrApi.processReceipt(file, apiKey);
+            let fileToProcess = file;
+            try {
+                const optimized = await optimizeImageForOcr(file);
+                fileToProcess = optimized.file;
+                setOptimizationInfo(optimized);
+
+                if (optimized.optimized && optimized.optimizedSize < optimized.originalSize) {
+                    showToast(
+                        `Image optimized: ${formatBytes(optimized.originalSize)} -> ${formatBytes(optimized.optimizedSize)}`,
+                        'info'
+                    );
+                }
+            } catch (optimizationError) {
+                console.warn('[ReceiptUpload] Failed to optimize image, using original:', optimizationError);
+                setOptimizationInfo(null);
+            }
+
+            const result = await ocrApi.processReceipt(fileToProcess, normalizedApiKey);
             setOcrResult(result);
         } catch (err) {
             console.error('[ReceiptUpload] OCR processing error:', err);
@@ -127,6 +288,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         setImagePreview(null);
         setOcrResult(null);
         setError(null);
+        setOptimizationInfo(null);
         onClose();
     };
 
@@ -134,6 +296,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         setImagePreview(null);
         setOcrResult(null);
         setError(null);
+        setOptimizationInfo(null);
         if (mode === 'camera') {
             startCamera();
         } else {
@@ -266,6 +429,15 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                                 </p>
                             </div>
                         )}
+                        {optimizationInfo && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-xs text-blue-800">
+                                    {optimizationInfo.optimized
+                                        ? `Upload optimized for OCR: ${formatBytes(optimizationInfo.originalSize)} -> ${formatBytes(optimizationInfo.optimizedSize)}`
+                                        : `Upload size: ${formatBytes(optimizationInfo.originalSize)}`}
+                                </p>
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             {error && (
                                 <button
@@ -300,4 +472,3 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         </Modal>
     );
 }
-
