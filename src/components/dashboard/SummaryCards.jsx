@@ -2,7 +2,7 @@ import { TrendingUp, Calendar, TrendingDown, ArrowUpDown } from 'lucide-react';
 import SummaryCard from './SummaryCard';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
-import { getEffectiveAmount } from '../../utils/helpers';
+import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
 
 export default function SummaryCards({ receipts }) {
     const nav = useReceiptNavigation();
@@ -19,8 +19,7 @@ export default function SummaryCards({ receipts }) {
     const thisMonth = new Date().getMonth();
     const thisYear = new Date().getFullYear();
     const monthlyReceipts = receipts.filter(r => {
-        const date = new Date(r.date);
-        return date.getMonth() === thisMonth && date.getFullYear() === thisYear;
+        return isDateInMonthYear(r.date, thisMonth, thisYear);
     });
     const monthlyExpenses = monthlyReceipts
         .filter(r => (r.transactionType || 'expense') === 'expense')
@@ -79,4 +78,3 @@ export default function SummaryCards({ receipts }) {
         </div>
     );
 }
-

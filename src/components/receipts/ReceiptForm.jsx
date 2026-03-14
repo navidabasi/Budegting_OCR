@@ -6,7 +6,7 @@ import Button from '../common/Button';
 import SplitManager from './SplitManager';
 import RecurringManager from './RecurringManager';
 import { categoryService } from '../../services/categoryService';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, getDateKey } from '../../utils/helpers';
 import { storageService } from '../../services/storage';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
@@ -31,13 +31,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const [trackingData, setTrackingData] = useState(initialTrackingData);
 
     const formatDateForInput = (dateString) => {
-        if (!dateString) return new Date().toISOString().split('T')[0];
-        try {
-            const date = new Date(dateString);
-            return date.toISOString().split('T')[0];
-        } catch {
-            return new Date().toISOString().split('T')[0];
-        }
+        if (!dateString) return getDateKey(new Date());
+        return getDateKey(dateString) || getDateKey(new Date());
     };
 
     const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
@@ -54,7 +49,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             groupTags: initialData.groupTags || []
         } : {
             merchant: '',
-            date: new Date().toISOString().split('T')[0],
+            date: getDateKey(new Date()),
             total: '',
             category: '',
             notes: '',

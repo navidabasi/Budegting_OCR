@@ -52,6 +52,111 @@ export const parseDate = (dateString) => {
     }
 };
 
+/**
+ * Parse app date values safely.
+ * Important: date-only strings (YYYY-MM-DD) are parsed as local dates to avoid UTC month/day drift.
+ */
+export const parseAppDate = (value) => {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+        return isValid(value) ? value : null;
+    }
+
+    if (typeof value === 'string') {
+        const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnlyMatch) {
+            const year = parseInt(dateOnlyMatch[1], 10);
+            const month = parseInt(dateOnlyMatch[2], 10);
+            const day = parseInt(dateOnlyMatch[3], 10);
+            const localDate = new Date(year, month - 1, day);
+            return Number.isNaN(localDate.getTime()) ? null : localDate;
+        }
+
+        try {
+            const parsedIso = parseISO(value);
+            if (isValid(parsedIso)) {
+                return parsedIso;
+            }
+        } catch {
+            // Fall through to native Date parsing.
+        }
+    }
+
+    const fallback = new Date(value);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
+
+/**
+ * Build YYYY-MM key from a date value.
+ */
+export const getMonthKey = (value) => {
+    const date = parseAppDate(value);
+    if (!date) return '';
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Check if a date value belongs to a given month index/year.
+ * @param {string|Date} value
+ * @param {number} monthIndex - 0-11
+ * @param {number} year
+ */
+export const isDateInMonthYear = (value, monthIndex, year) => {
+    const date = parseAppDate(value);
+    if (!date) return false;
+    return date.getMonth() === monthIndex && date.getFullYear() === year;
+};
+
+/**
+ * Build local YYYY-MM-DD key from a date value.
+ */
+export const getDateKey = (value) => {
+    const date = parseAppDate(value);
+    if (!date) return '';
+    return format(date, 'yyyy-MM-dd');
+};
+
+/**
+ * Compare two date values descending (newest first).
+ */
+export const compareDateValuesDesc = (dateAValue, dateBValue) => {
+    const dateA = parseAppDate(dateAValue);
+    const dateB = parseAppDate(dateBValue);
+    const timeA = dateA ? dateA.getTime() : 0;
+    const timeB = dateB ? dateB.getTime() : 0;
+    return timeB - timeA;
+};
+
+export const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+export const getMonthName = (monthIndex) => {
+    if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+        return '';
+    }
+    return MONTH_NAMES[monthIndex];
+};
+
+export const formatMonthYearLabel = (monthIndex, year) => {
+    const monthName = getMonthName(monthIndex);
+    if (!monthName || !year) return '';
+    return `${monthName} ${year}`;
+};
+
+export const buildReturnToPath = (location) => {
+    if (!location || !location.pathname) return '/receipts';
+    return `${location.pathname}${location.search || ''}`;
+};
+
+export const resolveReceiptBackTarget = (receiptId, returnTo, fallback = '/receipts') => {
+    if (!returnTo) return fallback;
+    const receiptPath = `/receipts/${receiptId}`;
+    return returnTo === receiptPath ? fallback : returnTo;
+};
+
 export const generateId = () => {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
@@ -241,4 +346,3 @@ export const getEffectiveAmount = (receipt) => {
     const people = splitData.people || 1;
     return total / people;
 };
-

@@ -10,8 +10,8 @@ import {
     Tooltip,
     Legend
 } from 'chart.js';
-import { format, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
-import { formatCurrency, formatDate, getEffectiveAmount } from '../../utils/helpers';
+import { format, eachDayOfInterval, subDays } from 'date-fns';
+import { getDateKey, getEffectiveAmount } from '../../utils/helpers';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
@@ -49,9 +49,9 @@ export default function ExpenseChart({ receipts }) {
         if (selectedChartDate && selectedChartReceipts.length > 0) {
             const date = new Date(selectedChartDate);
             // Verify receipts still exist in current receipts list and match the date
-            const dateStr = format(date, 'yyyy-MM-dd');
+            const dateStr = getDateKey(date);
             const validReceipts = receipts.filter(receipt => {
-                const receiptDateStr = format(new Date(receipt.date), 'yyyy-MM-dd');
+                const receiptDateStr = getDateKey(receipt.date);
                 return receiptDateStr === dateStr && 
                        selectedChartReceipts.some(r => r.id === receipt.id);
             });
@@ -98,14 +98,15 @@ export default function ExpenseChart({ receipts }) {
     const dailyReceipts = {};
     
     last30Days.forEach(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
+        const dateStr = getDateKey(day);
         dailyExpenses[dateStr] = 0;
         dailyIncome[dateStr] = 0;
         dailyReceipts[dateStr] = [];
     });
 
     receipts.forEach(receipt => {
-        const dateStr = format(new Date(receipt.date), 'yyyy-MM-dd');
+        const dateStr = getDateKey(receipt.date);
+        if (!dateStr) return;
         if (dailyExpenses.hasOwnProperty(dateStr)) {
             // Use effective amount (user's share if split)
             const amount = getEffectiveAmount(receipt);
@@ -126,7 +127,7 @@ export default function ExpenseChart({ receipts }) {
     // Get indices of days with data (receipts)
     const daysWithDataIndices = last30Days
         .map((day, index) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
+            const dateStr = getDateKey(day);
             return dailyReceipts[dateStr]?.length > 0 ? index : null;
         })
         .filter(index => index !== null);
@@ -192,7 +193,7 @@ export default function ExpenseChart({ receipts }) {
 
     const selectDayByIndex = (index) => {
         const day = last30Days[index];
-        const dateStr = format(day, 'yyyy-MM-dd');
+        const dateStr = getDateKey(day);
         const dayReceipts = dailyReceipts[dateStr] || [];
 
         if (dayReceipts.length > 0) {
@@ -206,7 +207,7 @@ export default function ExpenseChart({ receipts }) {
         if (elements.length > 0) {
             const index = elements[0].index;
             const clickedDay = last30Days[index];
-            const dateStr = format(clickedDay, 'yyyy-MM-dd');
+            const dateStr = getDateKey(clickedDay);
             const dayReceipts = dailyReceipts[dateStr] || [];
             
             if (dayReceipts.length > 0) {
@@ -292,7 +293,7 @@ export default function ExpenseChart({ receipts }) {
             const pointIndex = Math.round((swipeCurrent / chartWidth) * (labels.length - 1));
             const clampedIndex = Math.max(0, Math.min(labels.length - 1, pointIndex));
             const clickedDay = last30Days[clampedIndex];
-            const dateStr = format(clickedDay, 'yyyy-MM-dd');
+            const dateStr = getDateKey(clickedDay);
             const dayReceipts = dailyReceipts[dateStr] || [];
             
             if (dayReceipts.length > 0) {
@@ -516,4 +517,3 @@ export default function ExpenseChart({ receipts }) {
         </div>
     );
 }
-

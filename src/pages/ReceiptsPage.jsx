@@ -19,6 +19,7 @@ import { useCategories } from '../hooks/useCategories';
 import { useCustomEvent } from '../hooks/useCustomEvent';
 import { useNavigate } from 'react-router-dom';
 import { getTrackingStatus } from '../utils/tracking';
+import { compareDateValuesDesc, formatMonthYearLabel, isDateInMonthYear, MONTH_NAMES, parseAppDate } from '../utils/helpers';
 
 export default function ReceiptsPage() {
     const currentUser = useAppStore((state) => state.currentUser);
@@ -235,16 +236,38 @@ export default function ReceiptsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, receipts, searchParams, selectedCategory, selectedMonth, selectedYear]);
 
+    // Keep local filter controls in sync with URL params to avoid stale background filters.
+    useEffect(() => {
+        const urlCategory = searchParams.get('category');
+        const urlMonth = searchParams.get('month');
+        const urlYear = searchParams.get('year');
+
+        setSelectedCategory(urlCategory ? decodeURIComponent(urlCategory) : '');
+        setSelectedMonth(urlMonth || '');
+        setSelectedYear(urlYear || '');
+    }, [searchParams]);
+
     // Get unique years from receipts
     const getAvailableYears = () => {
         const years = new Set();
         receipts.forEach(r => {
-            const date = new Date(r.date);
-            if (!isNaN(date.getTime())) {
+            const date = parseAppDate(r.date);
+            if (date) {
                 years.add(date.getFullYear());
             }
         });
         return Array.from(years).sort((a, b) => b - a);
+    };
+
+    const getMonthYearParts = (monthValue, yearValue) => {
+        return {
+            month: Number.parseInt(monthValue, 10) - 1,
+            year: Number.parseInt(yearValue, 10)
+        };
+    };
+
+    const filterReceiptsByMonthYear = (items, month, year) => {
+        return items.filter(r => isDateInMonthYear(r.date, month, year));
     };
 
     const applyFilters = () => {
@@ -268,17 +291,9 @@ export default function ReceiptsPage() {
 
             // Check if month/year is also specified (from CashFlow widget - current month)
             if (filterMonth && filterYear) {
-                const month = parseInt(filterMonth) - 1;
-                const year = parseInt(filterYear);
-                filtered = filtered.filter(r => {
-                    const date = new Date(r.date);
-                    return date.getMonth() === month && date.getFullYear() === year;
-                });
-                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'];
-                nextActiveFilter = { type: 'transaction', value: `${typeLabel} - ${monthNames[month]} ${year}` };
-                setSelectedMonth(filterMonth);
-                setSelectedYear(filterYear);
+                const { month, year } = getMonthYearParts(filterMonth, filterYear);
+                filtered = filterReceiptsByMonthYear(filtered, month, year);
+                nextActiveFilter = { type: 'transaction', value: `${typeLabel} - ${formatMonthYearLabel(month, year)}` };
             } else {
                 // Type only - all time (from Total Income/Total Expenses KPI)
                 nextActiveFilter = { type: 'transaction', value: `All ${typeLabel}` };
@@ -288,19 +303,10 @@ export default function ReceiptsPage() {
         else if (filterType === 'category' && filterCategory) {
             filtered = filtered.filter(r => r.category === decodeURIComponent(filterCategory));
             nextActiveFilter = { type: 'category', value: decodeURIComponent(filterCategory) };
-            setSelectedCategory(decodeURIComponent(filterCategory));
         } else if (filterType === 'month' && filterMonth && filterYear) {
-            const month = parseInt(filterMonth) - 1;
-            const year = parseInt(filterYear);
-            filtered = filtered.filter(r => {
-                const date = new Date(r.date);
-                return date.getMonth() === month && date.getFullYear() === year;
-            });
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'];
-            nextActiveFilter = { type: 'month', value: `${monthNames[month]} ${year}` };
-            setSelectedMonth(filterMonth);
-            setSelectedYear(filterYear);
+            const { month, year } = getMonthYearParts(filterMonth, filterYear);
+            filtered = filterReceiptsByMonthYear(filtered, month, year);
+            nextActiveFilter = { type: 'month', value: formatMonthYearLabel(month, year) };
         } else if (filterType === 'merchant' && searchParams.get('merchant')) {
             const merchant = decodeURIComponent(searchParams.get('merchant'));
             filtered = filtered.filter(r => r.merchant === merchant);
@@ -316,16 +322,10 @@ export default function ReceiptsPage() {
         }
 
         if (selectedMonth && selectedYear) {
-            const month = parseInt(selectedMonth) - 1;
-            const year = parseInt(selectedYear);
-            filtered = filtered.filter(r => {
-                const date = new Date(r.date);
-                return date.getMonth() === month && date.getFullYear() === year;
-            });
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'];
+            const { month, year } = getMonthYearParts(selectedMonth, selectedYear);
+            filtered = filterReceiptsByMonthYear(filtered, month, year);
             if (!nextActiveFilter || nextActiveFilter.type !== 'month') {
-                nextActiveFilter = { type: 'month', value: `${monthNames[month]} ${year}` };
+                nextActiveFilter = { type: 'month', value: formatMonthYearLabel(month, year) };
             }
         }
 
@@ -424,19 +424,24 @@ export default function ReceiptsPage() {
     const handleMonthChange = (month) => {
         setSelectedMonth(month);
         const nextParams = new URLSearchParams(searchParams);
+        const nextYear = nextParams.get('year') || selectedYear;
 
-        if (month && selectedYear) {
-            nextParams.set('filter', 'month');
+        if (month) {
             nextParams.set('month', month);
-            nextParams.set('year', selectedYear);
         } else {
-            if (nextParams.get('filter') === 'month') {
-                nextParams.delete('filter');
-            }
             nextParams.delete('month');
-            if (!selectedYear) {
-                nextParams.delete('year');
-            }
+        }
+
+        if (nextYear) {
+            nextParams.set('year', nextYear);
+        } else {
+            nextParams.delete('year');
+        }
+
+        if (month && nextYear) {
+            nextParams.set('filter', 'month');
+        } else if (nextParams.get('filter') === 'month') {
+            nextParams.delete('filter');
         }
 
         setSearchParams(nextParams);
@@ -445,19 +450,24 @@ export default function ReceiptsPage() {
     const handleYearChange = (year) => {
         setSelectedYear(year);
         const nextParams = new URLSearchParams(searchParams);
+        const nextMonth = nextParams.get('month') || selectedMonth;
 
-        if (year && selectedMonth) {
-            nextParams.set('filter', 'month');
-            nextParams.set('month', selectedMonth);
+        if (year) {
             nextParams.set('year', year);
         } else {
-            if (nextParams.get('filter') === 'month') {
-                nextParams.delete('filter');
-            }
             nextParams.delete('year');
-            if (!selectedMonth) {
-                nextParams.delete('month');
-            }
+        }
+
+        if (nextMonth) {
+            nextParams.set('month', nextMonth);
+        } else {
+            nextParams.delete('month');
+        }
+
+        if (year && nextMonth) {
+            nextParams.set('filter', 'month');
+        } else if (nextParams.get('filter') === 'month') {
+            nextParams.delete('filter');
         }
 
         setSearchParams(nextParams);
@@ -479,8 +489,6 @@ export default function ReceiptsPage() {
         return <LoadingSpinner className="pb-20" />;
     }
 
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
     const availableYears = getAvailableYears();
 
     return (
@@ -543,7 +551,7 @@ export default function ReceiptsPage() {
                                 className="input text-sm py-2"
                             >
                                 <option value="">All Months</option>
-                                {monthNames.map((month, index) => (
+                                {MONTH_NAMES.map((month, index) => (
                                     <option key={index} value={String(index + 1)}>{month}</option>
                                 ))}
                             </select>
@@ -820,7 +828,7 @@ export default function ReceiptsPage() {
                                                     .sort((a, b) => {
                                                         if (a.isPinned && !b.isPinned) return -1;
                                                         if (!a.isPinned && b.isPinned) return 1;
-                                                        return new Date(b.date) - new Date(a.date);
+                                                        return compareDateValuesDesc(a.date, b.date);
                                                     })
                                                     .map(receipt => (
                                                     <ReceiptCard
@@ -921,7 +929,7 @@ export default function ReceiptsPage() {
                             // Sort: pinned first, then by date
                             if (a.isPinned && !b.isPinned) return -1;
                             if (!a.isPinned && b.isPinned) return 1;
-                            return new Date(b.date) - new Date(a.date);
+                            return compareDateValuesDesc(a.date, b.date);
                         })
                         .map(receipt => (
                         <ReceiptCard

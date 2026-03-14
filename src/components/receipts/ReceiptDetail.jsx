@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Edit, Trash2, ArrowLeft, CheckCircle2, Clock3 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { formatDate, formatCurrency } from '../../utils/helpers';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { formatDate, formatCurrency, resolveReceiptBackTarget } from '../../utils/helpers';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
@@ -12,6 +12,7 @@ import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 
 export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const navigate = useNavigate();
+    const location = useLocation();
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const [isEditing, setIsEditing] = useState(false);
@@ -20,6 +21,8 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
     const trackingStatus = getTrackingStatus(receipt);
     const showDoneAction = isTrackedReceipt(receipt);
+    const returnTo = location.state?.returnTo || '/receipts';
+    const backTarget = resolveReceiptBackTarget(receipt.id, returnTo);
 
     const handleUpdate = async (receiptData) => {
         try {
@@ -44,7 +47,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
-            navigate('/receipts');
+            navigate(backTarget);
             onDelete();
         } catch (err) {
             showToast('Failed to delete receipt', 'error');
@@ -75,10 +78,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
 
     return (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto pb-8">
             <div className="mb-4">
                 <button
-                    onClick={() => navigate('/receipts')}
+                    onClick={() => navigate(backTarget)}
                     className="flex items-center gap-2 text-gray-600 dark:text-white hover:text-gray-900 dark:hover:text-gray-200"
                 >
                     <ArrowLeft size={20} />

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { formatDate } from '../../utils/helpers';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { buildReturnToPath, formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users, Pin, PinOff, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
 import { getTrackingStatus } from '../../utils/tracking';
@@ -9,6 +9,7 @@ import { useAppStore } from '../../store/appStore';
 
 export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin, onMarkAsDone }) {
     const navigate = useNavigate();
+    const location = useLocation();
     const showToast = useAppStore((state) => state.showToast);
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
@@ -231,7 +232,11 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 }
                 // Only navigate if not dragging
                 if (!isDragging && !isDragOver) {
-                    navigate(`/receipts/${receipt.id}`);
+                    navigate(`/receipts/${receipt.id}`, {
+                        state: {
+                            returnTo: buildReturnToPath(location)
+                        }
+                    });
                 }
             }}
             className={`interactive-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isNested ? 'nested-receipt' : ''}`}

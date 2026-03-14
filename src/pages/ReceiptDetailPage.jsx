@@ -6,6 +6,7 @@ import ReceiptDetail from '../components/receipts/ReceiptDetail';
 import PageLayout from '../components/common/PageLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
+import { parseAppDate, resolveReceiptBackTarget } from '../utils/helpers';
 
 export default function ReceiptDetailPage() {
     const { id } = useParams();
@@ -14,6 +15,8 @@ export default function ReceiptDetailPage() {
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const initialReceipt = location.state?.initialReceipt?.id === id ? location.state.initialReceipt : null;
+    const returnTo = location.state?.returnTo || '/receipts';
+    const backTarget = resolveReceiptBackTarget(id, returnTo);
     const [receipt, setReceipt] = useState(initialReceipt);
     const [loading, setLoading] = useState(!initialReceipt);
     const [loadError, setLoadError] = useState(null);
@@ -27,8 +30,8 @@ export default function ReceiptDetailPage() {
         setLoadError(null);
 
         const getFallbackMonthYear = () => {
-            const candidate = initialReceipt?.date ? new Date(initialReceipt.date) : new Date();
-            if (Number.isNaN(candidate.getTime())) {
+            const candidate = initialReceipt?.date ? parseAppDate(initialReceipt.date) : new Date();
+            if (!candidate) {
                 const now = new Date();
                 return {
                     month: now.getMonth() + 1,
@@ -45,7 +48,7 @@ export default function ReceiptDetailPage() {
         const loadReceipt = async () => {
             if (!id) {
                 showToast('Invalid receipt link. Returning to receipts.', 'warning');
-                navigate('/receipts', { replace: true });
+                navigate(backTarget, { replace: true });
                 return;
             }
 
@@ -103,7 +106,7 @@ export default function ReceiptDetailPage() {
         return () => {
             active = false;
         };
-    }, [id, initialReceipt, navigate, reloadKey, showToast, currentUser?.userId]);
+    }, [id, initialReceipt, navigate, reloadKey, showToast, currentUser?.userId, backTarget]);
 
     if (loading) {
         return <LoadingSpinner className="pb-20" />;
@@ -111,7 +114,7 @@ export default function ReceiptDetailPage() {
 
     if (!receipt) {
         return (
-            <PageLayout>
+            <PageLayout className="pt-6 md:pt-4 pb-32">
                 <EmptyState
                     message={loadError ? 'Unable to load receipt details' : 'Receipt not found'}
                     action={
@@ -123,7 +126,7 @@ export default function ReceiptDetailPage() {
                                 Retry
                             </button>
                             <button
-                                onClick={() => navigate('/receipts')}
+                                onClick={() => navigate(backTarget)}
                                 className="btn btn-secondary"
                             >
                                 Back to Receipts
@@ -140,7 +143,7 @@ export default function ReceiptDetailPage() {
     };
 
     return (
-        <PageLayout>
+        <PageLayout className="pt-6 md:pt-4 pb-32">
             <ReceiptDetail
                 receipt={receipt}
                 onUpdate={() => setReloadKey((prev) => prev + 1)}

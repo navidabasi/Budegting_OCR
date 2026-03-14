@@ -1,4 +1,4 @@
-import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
+import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 
@@ -10,8 +10,7 @@ export default function TopExpenses({ receipts }) {
     const thisYear = new Date().getFullYear();
 
     const monthlyExpenses = receipts.filter(r => {
-        const date = new Date(r.date);
-        const isThisMonth = date.getMonth() === thisMonth && date.getFullYear() === thisYear;
+        const isThisMonth = isDateInMonthYear(r.date, thisMonth, thisYear);
         const isExpense = (r.transactionType || 'expense') === 'expense';
         return isThisMonth && isExpense;
     });

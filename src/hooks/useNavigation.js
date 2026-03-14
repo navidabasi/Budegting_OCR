@@ -1,5 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCallback } from 'react';
+import { buildReturnToPath } from '../utils/helpers';
 
 /**
  * Custom hook for receipt-related navigation
@@ -7,6 +8,7 @@ import { useCallback } from 'react';
  */
 export function useReceiptNavigation() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     return {
         toReceipts: useCallback(() => navigate('/receipts'), [navigate]),
@@ -20,8 +22,13 @@ export function useReceiptNavigation() {
             navigate(`/receipts?filter=month&month=${month}&year=${year}`);
         }, [navigate]),
         toReceiptDetail: useCallback((receiptId, state = undefined) => {
-            navigate(`/receipts/${receiptId}`, state ? { state } : undefined);
-        }, [navigate]),
+            const returnTo = buildReturnToPath(location);
+            const nextState = {
+                ...(state || {}),
+                returnTo: state?.returnTo || returnTo
+            };
+            navigate(`/receipts/${receiptId}`, { state: nextState });
+        }, [navigate, location.pathname, location.search]),
         // Navigate to all income receipts (all time)
         toAllIncome: useCallback(() => {
             navigate('/receipts?type=income');

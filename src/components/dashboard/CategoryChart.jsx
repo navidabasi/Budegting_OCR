@@ -6,15 +6,14 @@ import {
     Tooltip,
     Legend
 } from 'chart.js';
-import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
+import { formatCurrency, getEffectiveAmount, getMonthKey, parseAppDate } from '../../utils/helpers';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function CategoryChart({ receipts }) {
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
     const [isDarkMode, setIsDarkMode] = useState(false);
-    const currentDate = new Date();
-    const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonthKey = getMonthKey(new Date());
     const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
 
     // Detect dark mode
@@ -39,12 +38,12 @@ export default function CategoryChart({ receipts }) {
                 return;
             }
 
-            const date = new Date(receipt.date);
-            if (isNaN(date.getTime())) {
+            const date = parseAppDate(receipt.date);
+            if (!date) {
                 return;
             }
 
-            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const key = getMonthKey(date);
             if (!monthMap.has(key)) {
                 monthMap.set(key, {
                     key,
@@ -89,48 +88,54 @@ export default function CategoryChart({ receipts }) {
             if ((receipt.transactionType || 'expense') !== 'expense') {
                 return false;
             }
-            const date = new Date(receipt.date);
-            if (isNaN(date.getTime())) {
+            const date = parseAppDate(receipt.date);
+            if (!date) {
                 return false;
             }
-            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            return key === selectedMonthKey;
+            return getMonthKey(date) === selectedMonthKey;
         });
     }, [receipts, selectedMonthKey]);
 
     const categoryTotals = {};
     monthReceipts.forEach(receipt => {
         const amount = getEffectiveAmount(receipt);
-
-        // Check if any line items have their own categories
-        const lineItems = receipt.lineItems || [];
-        const itemsWithCategory = lineItems.filter(item => item.category);
+        const lineItems = Array.isArray(receipt.lineItems) ? receipt.lineItems : [];
+        const itemsWithCategory = lineItems.filter(item => item?.category);
 
         if (itemsWithCategory.length > 0) {
-            // Calculate total of items with categories
-            const categorizedTotal = itemsWithCategory.reduce(
-                (sum, item) => sum + (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1), 0
-            );
-            // Remainder goes to receipt-level category
-            const rawTotal = parseFloat(receipt.total) || 0;
-            const remainder = rawTotal - categorizedTotal;
-            // Scale factor to match effective amount (handles splits)
-            const scale = rawTotal > 0 ? amount / rawTotal : 0;
+            const categorizedTotal = itemsWithCategory.reduce((sum, item) => {
+                const itemPrice = parseFloat(item.price) || 0;
+                const itemQuantity = parseFloat(item.quantity) || 1;
+                return sum + (itemPrice * itemQuantity);
+            }, 0);
 
-            itemsWithCategory.forEach(item => {
-                const cat = item.category;
-                const itemAmount = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1) * scale;
-                categoryTotals[cat] = (categoryTotals[cat] || 0) + itemAmount;
-            });
+            if (categorizedTotal > 0) {
+                // Keep item-level split proportional to effective amount (e.g. shared receipts).
+                const rawTotal = parseFloat(receipt.total) || 0;
+                const denominator = rawTotal > 0 ? Math.max(rawTotal, categorizedTotal) : categorizedTotal;
+                const scale = amount / denominator;
+                const remainder = rawTotal > categorizedTotal ? (rawTotal - categorizedTotal) : 0;
 
-            if (remainder > 0) {
-                const cat = receipt.category || 'Other';
-                categoryTotals[cat] = (categoryTotals[cat] || 0) + remainder * scale;
+                itemsWithCategory.forEach(item => {
+                    const itemPrice = parseFloat(item.price) || 0;
+                    const itemQuantity = parseFloat(item.quantity) || 1;
+                    const itemAmount = itemPrice * itemQuantity * scale;
+                    const category = item.category;
+                    categoryTotals[category] = (categoryTotals[category] || 0) + itemAmount;
+                });
+
+                if (remainder > 0) {
+                    const fallbackCategory = receipt.category || 'Other';
+                    categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + (remainder * scale);
+                }
+            } else {
+                const fallbackCategory = receipt.category || 'Other';
+                categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + amount;
             }
         } else {
-            // No item-level categories — use receipt-level category
-            const category = receipt.category || 'Other';
-            categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+            // If no categorized items exist, still count the receipt via receipt-level category.
+            const fallbackCategory = receipt.category || 'Other';
+            categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + amount;
         }
     });
 
