@@ -234,7 +234,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 if (!isDragging && !isDragOver) {
                     navigate(`/receipts/${receipt.id}`, {
                         state: {
-                            returnTo: buildReturnToPath(location)
+                            returnTo: buildReturnToPath(location),
+                            initialReceipt: receipt
                         }
                     });
                 }

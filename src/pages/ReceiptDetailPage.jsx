@@ -14,7 +14,10 @@ export default function ReceiptDetailPage() {
     const navigate = useNavigate();
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
-    const initialReceipt = location.state?.initialReceipt?.id === id ? location.state.initialReceipt : null;
+    const incomingReceipt = location.state?.initialReceipt || null;
+    const initialReceipt = incomingReceipt && String(incomingReceipt.id) === String(id)
+        ? incomingReceipt
+        : null;
     const returnTo = location.state?.returnTo || '/receipts';
     const backTarget = resolveReceiptBackTarget(id, returnTo);
     const [receipt, setReceipt] = useState(initialReceipt);
