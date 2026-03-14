@@ -96,11 +96,16 @@ export default function CategoryChart({ receipts }) {
         });
     }, [receipts, selectedMonthKey]);
 
+    const normalizeCategory = (value) => {
+        if (typeof value !== 'string') return '';
+        return value.trim();
+    };
+
     const categoryTotals = {};
     monthReceipts.forEach(receipt => {
         const amount = getEffectiveAmount(receipt);
         const lineItems = Array.isArray(receipt.lineItems) ? receipt.lineItems : [];
-        const itemsWithCategory = lineItems.filter(item => item?.category);
+        const itemsWithCategory = lineItems.filter(item => normalizeCategory(item?.category));
 
         if (itemsWithCategory.length > 0) {
             const categorizedTotal = itemsWithCategory.reduce((sum, item) => {
@@ -110,7 +115,7 @@ export default function CategoryChart({ receipts }) {
             }, 0);
 
             if (categorizedTotal > 0) {
-                // Keep item-level split proportional to effective amount (e.g. shared receipts).
+                // Item categories are the source of truth when present.
                 const rawTotal = parseFloat(receipt.total) || 0;
                 const denominator = rawTotal > 0 ? Math.max(rawTotal, categorizedTotal) : categorizedTotal;
                 const scale = amount / denominator;
@@ -120,21 +125,22 @@ export default function CategoryChart({ receipts }) {
                     const itemPrice = parseFloat(item.price) || 0;
                     const itemQuantity = parseFloat(item.quantity) || 1;
                     const itemAmount = itemPrice * itemQuantity * scale;
-                    const category = item.category;
+                    const category = normalizeCategory(item.category) || 'Other';
                     categoryTotals[category] = (categoryTotals[category] || 0) + itemAmount;
                 });
 
                 if (remainder > 0) {
-                    const fallbackCategory = receipt.category || 'Other';
-                    categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + (remainder * scale);
+                    categoryTotals.Other = (categoryTotals.Other || 0) + (remainder * scale);
                 }
             } else {
-                const fallbackCategory = receipt.category || 'Other';
+                const receiptCategory = normalizeCategory(receipt.category);
+                const fallbackCategory = receiptCategory || 'Other';
                 categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + amount;
             }
         } else {
             // If no categorized items exist, still count the receipt via receipt-level category.
-            const fallbackCategory = receipt.category || 'Other';
+            const receiptCategory = normalizeCategory(receipt.category);
+            const fallbackCategory = receiptCategory || 'Other';
             categoryTotals[fallbackCategory] = (categoryTotals[fallbackCategory] || 0) + amount;
         }
     });

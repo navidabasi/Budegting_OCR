@@ -208,6 +208,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         return itemsTotal;
     };
 
+    const categorizedLineItems = lineItems.filter(item =>
+        item?.name?.trim() &&
+        String(item?.price ?? '').trim() &&
+        item?.category?.trim()
+    );
+    const hasCategorizedLineItems = categorizedLineItems.length > 0;
+
     const onSubmit = (data) => {
         // Always use watched values for group to ensure we get the latest state
         const currentGroupId = watch('groupId') || null;
@@ -231,12 +238,15 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         }
         
         const normalizedTrackingData = normalizeTrackingData(trackingData);
+        const lockedCategoryValue = watch('category') || initialData?.category || categoryService.getDefaultCategory();
         const receiptData = {
             merchant: data.merchant,
             date: data.date,
             total: parseFloat(data.total) || calculateTotal(),
             currency: data.currency || defaultCurrency,
-            category: data.category || categoryService.getDefaultCategory(),
+            category: hasCategorizedLineItems
+                ? lockedCategoryValue
+                : (data.category || categoryService.getDefaultCategory()),
             lineItems: lineItems.filter(item => item.name && item.price),
             notes: data.notes || '',
             transactionType: data.transactionType || 'expense',
@@ -430,7 +440,8 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </label>
                 <select
                     {...register('category')}
-                    className="input input-line-item"
+                    className={`input input-line-item ${hasCategorizedLineItems ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 cursor-not-allowed' : ''}`}
+                    disabled={hasCategorizedLineItems}
                 >
                     <option value="">Select category</option>
                     {categories.map(cat => (
@@ -439,6 +450,12 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         </option>
                     ))}
                 </select>
+                {hasCategorizedLineItems && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                        {categorizedLineItems.length} line item{categorizedLineItems.length > 1 ? 's' : ''} already have categor{categorizedLineItems.length > 1 ? 'ies' : 'y'}.
+                        Item categories will be used for category analytics.
+                    </p>
+                )}
             </div>
 
             <div className="input-wrapper">
