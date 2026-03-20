@@ -1,12 +1,14 @@
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import { getEffectiveAmount } from '../../utils/helpers';
+import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
 
 export default function TopMerchants({ receipts }) {
     const nav = useReceiptNavigation();
+    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
     const merchantTotals = {};
 
-    receipts.forEach(receipt => {
+    financialReceipts.forEach(receipt => {
         const merchant = receipt.merchant || 'Unknown';
         // Use effective amount (user's share if split)
         merchantTotals[merchant] = (merchantTotals[merchant] || 0) + getEffectiveAmount(receipt);
@@ -43,7 +45,7 @@ export default function TopMerchants({ receipts }) {
                         </div>
                         <div className="font-semibold text-gray-900 dark:text-white">
                             <CurrencyTotalDisplay 
-                                receipts={receipts.filter(r => (r.merchant || 'Unknown') === merchant)} 
+                                receipts={financialReceipts.filter(r => (r.merchant || 'Unknown') === merchant)} 
                                 amount={total} 
                             />
                         </div>
@@ -53,4 +55,3 @@ export default function TopMerchants({ receipts }) {
         </div>
     );
 }
-

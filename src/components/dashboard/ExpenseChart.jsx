@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
@@ -16,6 +16,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
+import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
 
 ChartJS.register(
     CategoryScale,
@@ -43,6 +44,10 @@ export default function ExpenseChart({ receipts }) {
     const [navIndex, setNavIndex] = useState(null);
     const [showMobileNav, setShowMobileNav] = useState(false);
     const [navTimeout, setNavTimeout] = useState(null);
+    const financialReceipts = useMemo(
+        () => receipts.filter(shouldIncludeInFinancialTotals),
+        [receipts]
+    );
 
     // Restore state from store on mount and when receipts change
     useEffect(() => {
@@ -50,7 +55,7 @@ export default function ExpenseChart({ receipts }) {
             const date = new Date(selectedChartDate);
             // Verify receipts still exist in current receipts list and match the date
             const dateStr = getDateKey(date);
-            const validReceipts = receipts.filter(receipt => {
+            const validReceipts = financialReceipts.filter(receipt => {
                 const receiptDateStr = getDateKey(receipt.date);
                 return receiptDateStr === dateStr && 
                        selectedChartReceipts.some(r => r.id === receipt.id);
@@ -71,7 +76,7 @@ export default function ExpenseChart({ receipts }) {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [receipts]); // Update when receipts change
+    }, [financialReceipts]); // Update when receipts change
 
     // Detect touch device
     useEffect(() => {
@@ -104,7 +109,7 @@ export default function ExpenseChart({ receipts }) {
         dailyReceipts[dateStr] = [];
     });
 
-    receipts.forEach(receipt => {
+    financialReceipts.forEach(receipt => {
         const dateStr = getDateKey(receipt.date);
         if (!dateStr) return;
         if (dailyExpenses.hasOwnProperty(dateStr)) {

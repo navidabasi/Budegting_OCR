@@ -7,6 +7,7 @@ import {
     Legend
 } from 'chart.js';
 import { formatCurrency, getEffectiveAmount, getMonthKey, parseAppDate } from '../../utils/helpers';
+import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -15,6 +16,10 @@ export default function CategoryChart({ receipts }) {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const currentMonthKey = getMonthKey(new Date());
     const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
+    const financialReceipts = useMemo(
+        () => receipts.filter(shouldIncludeInFinancialTotals),
+        [receipts]
+    );
 
     // Detect dark mode
     useEffect(() => {
@@ -33,7 +38,7 @@ export default function CategoryChart({ receipts }) {
     const monthOptions = useMemo(() => {
         const monthMap = new Map();
 
-        receipts.forEach(receipt => {
+        financialReceipts.forEach(receipt => {
             if ((receipt.transactionType || 'expense') !== 'expense') {
                 return;
             }
@@ -58,7 +63,7 @@ export default function CategoryChart({ receipts }) {
             if (a.year !== b.year) return b.year - a.year;
             return b.month - a.month;
         });
-    }, [receipts]);
+    }, [financialReceipts]);
 
     useEffect(() => {
         if (monthOptions.length === 0) {
@@ -84,7 +89,7 @@ export default function CategoryChart({ receipts }) {
             return [];
         }
 
-        return receipts.filter(receipt => {
+        return financialReceipts.filter(receipt => {
             if ((receipt.transactionType || 'expense') !== 'expense') {
                 return false;
             }
@@ -94,7 +99,7 @@ export default function CategoryChart({ receipts }) {
             }
             return getMonthKey(date) === selectedMonthKey;
         });
-    }, [receipts, selectedMonthKey]);
+    }, [financialReceipts, selectedMonthKey]);
 
     const normalizeCategory = (value) => {
         if (typeof value !== 'string') return '';

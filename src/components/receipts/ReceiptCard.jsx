@@ -7,6 +7,16 @@ import { getTrackingStatus } from '../../utils/tracking';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
 
+const RECEIPT_TAG_MAX_LENGTH = 18;
+
+const truncateReceiptTagLabel = (label) => {
+    const safeLabel = String(label || '').trim();
+    if (safeLabel.length <= RECEIPT_TAG_MAX_LENGTH) {
+        return safeLabel;
+    }
+    return `${safeLabel.slice(0, Math.max(RECEIPT_TAG_MAX_LENGTH - 3, 1))}...`;
+};
+
 export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin, onMarkAsDone }) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -20,6 +30,69 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     const suppressClickRef = useRef(false);
     const dragActivatedRef = useRef(false);
     const trackingStatus = getTrackingStatus(receipt);
+    const receiptTags = [];
+
+    if (receipt.groupName) {
+        receiptTags.push({
+            key: 'group',
+            label: truncateReceiptTagLabel(receipt.groupName),
+            title: receipt.groupName,
+            icon: Tag,
+            className: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+        });
+    }
+
+    if (receipt.category) {
+        receiptTags.push({
+            key: 'category',
+            label: truncateReceiptTagLabel(receipt.category),
+            title: receipt.category,
+            icon: null,
+            className: 'dark:bg-primary-800 dark:text-primary-200 primary-bg primary-color'
+        });
+    }
+
+    if (receipt.splitData) {
+        const splitLabel = `Split (${receipt.splitData.people})`;
+        receiptTags.push({
+            key: 'split',
+            label: truncateReceiptTagLabel(splitLabel),
+            title: `Split between ${receipt.splitData.people} people`,
+            icon: Users,
+            className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+        });
+    }
+
+    if (receipt.recurringData?.isActive) {
+        const recurringLabel = `Recurring (${receipt.recurringData.frequency})`;
+        receiptTags.push({
+            key: 'recurring',
+            label: truncateReceiptTagLabel(recurringLabel),
+            title: recurringLabel,
+            icon: RefreshCw,
+            className: 'bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+        });
+    }
+
+    if (trackingStatus === 'open') {
+        receiptTags.push({
+            key: 'tracking-open',
+            label: 'Open',
+            title: 'Open',
+            icon: Clock3,
+            className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+        });
+    }
+
+    if (trackingStatus === 'done') {
+        receiptTags.push({
+            key: 'tracking-done',
+            label: 'Done',
+            title: 'Done',
+            icon: CheckCircle2,
+            className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+        });
+    }
 
     const handleMarkAsDone = async (event) => {
         event.preventDefault();
@@ -248,9 +321,9 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 marginLeft: isNested ? '0.5rem' : undefined
             }}
         >
-                <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-start justify-between gap-3 mb-1">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2">
                         {onTogglePin && (
                             <button
                                 onClick={(e) => {
@@ -263,57 +336,41 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                                 {receipt.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                             </button>
                         )}
-                        <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{receipt.merchant}</h3>
-                        {receipt.groupName && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                                <Tag size={12} />
-                                {receipt.groupName}
-                            </span>
-                        )}
-                        {trackingStatus === 'open' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                <Clock3 size={12} />
-                                Open
-                            </span>
-                        )}
-                        {trackingStatus === 'done' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
-                                <CheckCircle2 size={12} />
-                                Done
-                            </span>
-                        )}
+                        <h3 className="font-semibold text-lg leading-tight text-gray-900 dark:text-gray-100 break-words">
+                            {receipt.merchant}
+                        </h3>
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(receipt.date)}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                     <div className={`font-bold text-xl ${receipt.transactionType === 'income' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}`}>
                         <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
                     </div>
-                    {receipt.category && (
-                        <span className="inline-block mt-1 px-2 py-1 text-xs rounded dark:bg-primary-800 dark:text-primary-200 primary-bg primary-color">
-                            {receipt.category}
-                        </span>
-                    )}
                 </div>
             </div>
+            {receiptTags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {receiptTags.map((tag) => {
+                        const Icon = tag.icon;
+                        return (
+                            <span
+                                key={tag.key}
+                                title={tag.title}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded ${tag.className}`}
+                            >
+                                {Icon && <Icon size={12} className="flex-shrink-0" />}
+                                <span>{tag.label}</span>
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
             {receipt.notes && (
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-1">{receipt.notes}</p>
             )}
             {receipt.lineItems && receipt.lineItems.length > 0 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     {receipt.lineItems.length} item{receipt.lineItems.length !== 1 ? 's' : ''}
-                </p>
-            )}
-            {receipt.splitData && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1">
-                    <Users size={12} />
-                    Split between {receipt.splitData.people} person{receipt.splitData.people !== 1 ? 's' : ''}
-                </p>
-            )}
-            {receipt.recurringData?.isActive && (
-                <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 flex items-center gap-1">
-                    <RefreshCw size={12} />
-                    Recurring ({receipt.recurringData.frequency})
                 </p>
             )}
             {trackingStatus === 'open' && (

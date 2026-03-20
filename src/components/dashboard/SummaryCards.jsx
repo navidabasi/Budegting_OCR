@@ -3,13 +3,15 @@ import SummaryCard from './SummaryCard';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
+import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
 
 export default function SummaryCards({ receipts }) {
     const nav = useReceiptNavigation();
+    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
     // Separate income and expenses
-    const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');
-    const income = receipts.filter(r => r.transactionType === 'income');
+    const expenses = financialReceipts.filter(r => (r.transactionType || 'expense') === 'expense');
+    const income = financialReceipts.filter(r => r.transactionType === 'income');
 
     // Use effective amount (user's share if split)
     const totalExpenses = expenses.reduce((sum, r) => sum + getEffectiveAmount(r), 0);
@@ -18,7 +20,7 @@ export default function SummaryCards({ receipts }) {
 
     const thisMonth = new Date().getMonth();
     const thisYear = new Date().getFullYear();
-    const monthlyReceipts = receipts.filter(r => {
+    const monthlyReceipts = financialReceipts.filter(r => {
         return isDateInMonthYear(r.date, thisMonth, thisYear);
     });
     const monthlyExpenses = monthlyReceipts
@@ -57,7 +59,7 @@ export default function SummaryCards({ receipts }) {
             <SummaryCard
                 label="Net"
                 amount={net}
-                receipts={receipts}
+                receipts={financialReceipts}
                 icon={ArrowUpDown}
                 iconBg="bg-blue-100"
                 iconColor="text-blue-600"

@@ -1,9 +1,11 @@
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
 
 export default function CashFlow({ receipts }) {
     const navigate = useNavigate();
+    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
     const handleIncomeClick = () => {
         // Navigate to receipts page with all-time income filter
@@ -15,8 +17,8 @@ export default function CashFlow({ receipts }) {
         navigate('/receipts?type=expense');
     };
     // Separate income and expenses
-    const expenses = receipts.filter(r => (r.transactionType || 'expense') === 'expense');
-    const income = receipts.filter(r => r.transactionType === 'income');
+    const expenses = financialReceipts.filter(r => (r.transactionType || 'expense') === 'expense');
+    const income = financialReceipts.filter(r => r.transactionType === 'income');
 
     // Calculate totals using effective amount (user's share if split)
     const totalExpenses = expenses.reduce((sum, r) => sum + getEffectiveAmount(r), 0);
@@ -33,7 +35,7 @@ export default function CashFlow({ receipts }) {
     const net = totalIncome - totalExpenses;
 
     // Get default currency from first receipt or fallback to EUR
-    const defaultCurrency = receipts.length > 0 ? (receipts[0].currency || 'EUR') : 'EUR';
+    const defaultCurrency = financialReceipts.length > 0 ? (financialReceipts[0].currency || 'EUR') : 'EUR';
 
     return (
         <div className="card">
