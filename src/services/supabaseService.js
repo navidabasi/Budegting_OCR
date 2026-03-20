@@ -471,6 +471,7 @@ export const supabaseService = {
                 user_id: authenticatedUserId, // Always use auth.uid() for RLS
                 veryfi_api_key: apiKey, // Still using old column name for backward compatibility
                 default_currency: settings.defaultCurrency,
+                language_code: settings.languageCode || null,
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'user_id'
@@ -511,7 +512,8 @@ export const supabaseService = {
         return {
             ocrApiKey: data.veryfi_api_key, // Return as ocrApiKey for new code
             veryfiApiKey: data.veryfi_api_key, // Keep legacy name for backward compatibility
-            defaultCurrency: data.default_currency || 'EUR'
+            defaultCurrency: data.default_currency || 'EUR',
+            languageCode: data.language_code || null,
         };
     },
 

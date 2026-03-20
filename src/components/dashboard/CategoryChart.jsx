@@ -8,10 +8,12 @@ import {
 } from 'chart.js';
 import { formatCurrency, getEffectiveAmount, getMonthKey, parseAppDate } from '../../utils/helpers';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function CategoryChart({ receipts }) {
+    const { t, localizeCategory, languageCode } = useTranslation();
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
     const [isDarkMode, setIsDarkMode] = useState(false);
     const currentMonthKey = getMonthKey(new Date());
@@ -54,7 +56,7 @@ export default function CategoryChart({ receipts }) {
                     key,
                     year: date.getFullYear(),
                     month: date.getMonth(),
-                    label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                    label: date.toLocaleDateString(languageCode || 'en-US', { month: 'long', year: 'numeric' }),
                 });
             }
         });
@@ -178,7 +180,7 @@ export default function CategoryChart({ receipts }) {
     };
 
     const data = {
-        labels: categories,
+        labels: categories.map((category) => localizeCategory(category)),
         datasets: [
             {
                 data: totals,
@@ -228,9 +230,7 @@ export default function CategoryChart({ receipts }) {
             legend: {
                 position: 'left',
                 onClick: (e, legendItem) => {
-                    // Find the category by label text
-                    const labelText = legendItem.text;
-                    const category = allCategories.find(cat => cat === labelText);
+                    const category = allCategories[legendItem.index];
                     if (category) {
                         handleCategoryToggle(category);
                     }
@@ -256,7 +256,7 @@ export default function CategoryChart({ receipts }) {
                             const percentage = total > 0 ? ((categoryTotal / total) * 100).toFixed(1) : 0;
 
                             return {
-                                text: category,
+                                text: localizeCategory(category),
                                 fillStyle: isHidden ? '#d1d5db' : getCategoryColor(category),
                                 hidden: false, // Always show in legend
                                 index: categoryIndexMap[category],
@@ -276,7 +276,7 @@ export default function CategoryChart({ receipts }) {
                         const value = context.parsed || 0;
                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                         const percentage = ((value / total) * 100).toFixed(1);
-                        return `${label}: $${value.toFixed(2)} (${percentage}%)`;
+                        return `${label}: ${formatCurrency(value)} (${percentage}%)`;
                     }
                 }
             }
@@ -286,7 +286,7 @@ export default function CategoryChart({ receipts }) {
     if (categories.length === 0) {
         return (
             <div className="card h-80 flex items-center justify-center">
-                <p className="text-gray-500 dark:text-gray-300">No expense data for selected month</p>
+                <p className="text-gray-500 dark:text-gray-300">{t('dashboard.categoryChart.noData')}</p>
             </div>
         );
     }
@@ -295,7 +295,7 @@ export default function CategoryChart({ receipts }) {
         <div className="card h-80 w-full overflow-hidden flex flex-col relative">
             <div className="flex items-start justify-between mb-2">
                 <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold dark:text-white">Expenses by Category</h3>
+                    <h3 className="text-base sm:text-lg font-semibold dark:text-white">{t('dashboard.categoryChart.title')}</h3>
                     {monthOptions.length > 0 && (
                         <select
                             value={selectedMonthKey}

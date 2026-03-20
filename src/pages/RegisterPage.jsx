@@ -9,13 +9,30 @@ import AuthLayout from '../components/common/AuthLayout';
 import Divider from '../components/common/Divider';
 import GoogleButton from '../components/common/GoogleButton';
 import Card from '../components/common/Card';
+import { useTranslation } from '../languages/useTranslation';
 
 export default function RegisterPage() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const showToast = useAppStore((state) => state.showToast);
     const { register, handleSubmit, formState: { errors } } = useForm();
     const [loading, setLoading] = useState(false);
+
+    const localizeAuthError = (message) => {
+        if (!message) return t('errors.generic');
+        const normalized = String(message).toLowerCase();
+        if (normalized.includes('email and password are required')) return t('errors.requiredEmailPassword');
+        if (normalized.includes('invalid email format')) return t('errors.invalidEmail');
+        if (normalized.includes('password must be at least')) return t('errors.passwordMin');
+        if (normalized.includes('invalid email or password') || normalized.includes('invalid login credentials')) {
+            return t('errors.loginInvalid');
+        }
+        if (normalized.includes('already exists') || normalized.includes('already registered')) return t('errors.userExists');
+        if (normalized.includes('authentication is not configured')) return t('errors.authNotConfigured');
+        if (normalized.includes('not authenticated')) return t('errors.notAuthenticated');
+        return message;
+    };
 
     const onSubmit = async (data) => {
         setLoading(true);
@@ -23,10 +40,10 @@ export default function RegisterPage() {
             const ocrApiKey = data.ocrApiKey?.trim() || null;
             const user = await authService.register(data.email, data.password, ocrApiKey);
             setCurrentUser(user);
-            showToast('Registration successful', 'success');
+            showToast(t('auth.register.success'), 'success');
             navigate('/');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(localizeAuthError(err.message), 'error');
         } finally {
             setLoading(false);
         }
@@ -34,32 +51,32 @@ export default function RegisterPage() {
 
     return (
         <AuthLayout
-            title="Create Account"
-            subtitle="Sign up to start managing your receipts"
+            title={t('auth.register.title')}
+            subtitle={t('auth.register.subtitle')}
         >
             <Card>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                     <Input
-                        label="Email"
+                        label={t('common.labels.email')}
                         type="email"
                         {...register('email', {
-                            required: 'Email is required',
+                            required: t('errors.requiredEmailPassword'),
                             pattern: {
                                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                message: 'Invalid email format'
+                                message: t('errors.invalidEmail')
                             }
                         })}
                         error={errors.email?.message}
                     />
 
                     <Input
-                        label="Password"
+                        label={t('common.labels.password')}
                         type="password"
                         {...register('password', {
-                            required: 'Password is required',
+                            required: t('errors.requiredEmailPassword'),
                             minLength: {
                                 value: 6,
-                                message: 'Password must be at least 6 characters'
+                                message: t('errors.passwordMin')
                             }
                         })}
                         error={errors.password?.message}
@@ -67,13 +84,13 @@ export default function RegisterPage() {
 
                     <div>
                         <Input
-                            label="OCR API Key (Premium)"
+                            label={t('auth.register.apiKeyLabel')}
                             type="text"
-                            placeholder="Required for OCR scanning"
+                            placeholder={t('auth.register.apiKeyPlaceholder')}
                             {...register('ocrApiKey')}
                         />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            OCR scan/upload is available only with your premium OCR API key. You can add or change it later in Settings.
+                            {t('auth.register.apiKeyHint')}
                         </p>
                     </div>
 
@@ -83,7 +100,7 @@ export default function RegisterPage() {
                         className="w-full"
                         disabled={loading}
                     >
-                        {loading ? 'Creating account...' : 'Create Account'}
+                        {loading ? t('auth.register.creatingAccount') : t('auth.register.createAccount')}
                     </Button>
                 </form>
 
@@ -96,21 +113,21 @@ export default function RegisterPage() {
                                 setLoading(true);
                                 await authService.signUpWithGoogle();
                             } catch (err) {
-                                showToast(err.message || 'Failed to sign up with Google', 'error');
+                                showToast(err.message || t('auth.callback.unableSignUp'), 'error');
                                 setLoading(false);
                             }
                         }}
                         disabled={loading}
                     >
-                        Sign up with Google
+                        {t('auth.register.googleSignUp')}
                     </GoogleButton>
                 </div>
 
                 <div className="mt-6 text-center">
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Already have an account?{' '}
+                        {t('auth.register.haveAccount')}{' '}
                         <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-                            Sign in
+                            {t('auth.register.signIn')}
                         </Link>
                     </p>
                 </div>

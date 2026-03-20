@@ -6,6 +6,7 @@ import { Tag, Users, Pin, PinOff, RefreshCw, CheckCircle2, Clock3 } from 'lucide
 import { getTrackingStatus } from '../../utils/tracking';
 import { storageService } from '../../services/storage';
 import { useAppStore } from '../../store/appStore';
+import { useTranslation } from '../../languages/useTranslation';
 
 const RECEIPT_TAG_MAX_LENGTH = 18;
 
@@ -18,6 +19,7 @@ const truncateReceiptTagLabel = (label) => {
 };
 
 export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false, nestedGroupColor = null, onTogglePin, onMarkAsDone }) {
+    const { t, localizeCategory } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const showToast = useAppStore((state) => state.showToast);
@@ -43,28 +45,32 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     }
 
     if (receipt.category) {
+        const localizedCategory = localizeCategory(receipt.category);
         receiptTags.push({
             key: 'category',
-            label: truncateReceiptTagLabel(receipt.category),
-            title: receipt.category,
+            label: truncateReceiptTagLabel(localizedCategory),
+            title: localizedCategory,
             icon: null,
             className: 'dark:bg-primary-800 dark:text-primary-200 primary-bg primary-color'
         });
     }
 
     if (receipt.splitData) {
-        const splitLabel = `Split (${receipt.splitData.people})`;
+        const splitLabel = t('receipts.card.splitTag', { people: receipt.splitData.people });
         receiptTags.push({
             key: 'split',
             label: truncateReceiptTagLabel(splitLabel),
-            title: `Split between ${receipt.splitData.people} people`,
+            title: t('receipts.card.splitBetween', { people: receipt.splitData.people }),
             icon: Users,
             className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
         });
     }
 
     if (receipt.recurringData?.isActive) {
-        const recurringLabel = `Recurring (${receipt.recurringData.frequency})`;
+        const recurringFrequency = t(`receipts.recurring.${receipt.recurringData.frequency || 'monthly'}`);
+        const recurringLabel = t('receipts.card.recurringWithFrequency', {
+            frequency: recurringFrequency,
+        });
         receiptTags.push({
             key: 'recurring',
             label: truncateReceiptTagLabel(recurringLabel),
@@ -77,8 +83,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     if (trackingStatus === 'open') {
         receiptTags.push({
             key: 'tracking-open',
-            label: 'Open',
-            title: 'Open',
+            label: t('receipts.card.openTag'),
+            title: t('receipts.card.openTag'),
             icon: Clock3,
             className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
         });
@@ -87,8 +93,8 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     if (trackingStatus === 'done') {
         receiptTags.push({
             key: 'tracking-done',
-            label: 'Done',
-            title: 'Done',
+            label: t('receipts.card.doneTag'),
+            title: t('receipts.card.doneTag'),
             icon: CheckCircle2,
             className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
         });
@@ -110,15 +116,15 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
             }
             showToast(
                 receipt.recurringData?.isActive
-                    ? 'Recurring payment marked as done and advanced'
-                    : 'Receipt marked as done',
+                    ? t('receipts.tracking.markRecurringSuccess')
+                    : t('receipts.tracking.markSuccess'),
                 'success'
             );
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
-            showToast(err.message || 'Failed to mark receipt as done', 'error');
+            showToast(err.message || t('receipts.tracking.markFailed'), 'error');
         } finally {
             setIsMarkingDone(false);
         }
@@ -331,7 +337,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                                     onTogglePin(receipt.id, receipt.isPinned);
                                 }}
                                 className={`p-1 rounded transition-colors ${receipt.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
-                                title={receipt.isPinned ? 'Unpin receipt' : 'Pin receipt'}
+                                title={receipt.isPinned ? t('receipts.card.unpinTitle') : t('receipts.card.pinTitle')}
                             >
                                 {receipt.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                             </button>
@@ -370,7 +376,10 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
             )}
             {receipt.lineItems && receipt.lineItems.length > 0 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {receipt.lineItems.length} item{receipt.lineItems.length !== 1 ? 's' : ''}
+                    {t('receipts.card.lineItemsCount', {
+                        count: receipt.lineItems.length,
+                        suffix: receipt.lineItems.length !== 1 ? 's' : '',
+                    })}
                 </p>
             )}
             {trackingStatus === 'open' && (
@@ -381,7 +390,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                     className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     <CheckCircle2 size={16} />
-                    {isMarkingDone ? 'Marking...' : 'Mark as done'}
+                    {isMarkingDone ? t('receipts.card.marking') : t('receipts.card.markAsDone')}
                 </button>
             )}
         </div>

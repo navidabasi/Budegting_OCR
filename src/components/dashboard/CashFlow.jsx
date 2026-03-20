@@ -2,8 +2,10 @@ import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function CashFlow({ receipts }) {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
@@ -39,7 +41,7 @@ export default function CashFlow({ receipts }) {
 
     return (
         <div className="card">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">Cash Flow</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('dashboard.cashFlow.title')}</h3>
 
             <div className="space-y-4">
                 {/* Income Bar */}
@@ -50,7 +52,7 @@ export default function CashFlow({ receipts }) {
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <TrendingUp size={18} className="text-green-600 dark:text-green-400" />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Income</span>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('dashboard.cashFlow.income')}</span>
                         </div>
                         <span className="text-sm font-bold text-green-600 dark:text-green-400">
                             {formatCurrency(totalIncome, defaultCurrency)}
@@ -78,7 +80,7 @@ export default function CashFlow({ receipts }) {
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <TrendingDown size={18} className="text-red-600 dark:text-red-400" />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Expenses</span>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('dashboard.cashFlow.expenses')}</span>
                         </div>
                         <span className="text-sm font-bold text-red-600 dark:text-red-400">
                             {formatCurrency(totalExpenses, defaultCurrency)}
@@ -101,7 +103,7 @@ export default function CashFlow({ receipts }) {
                 {/* Net Summary */}
                 <div className={`mt-4 p-3 rounded-lg ${net >= 0 ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'}`}>
                     <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Net Balance</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('dashboard.cashFlow.netBalance')}</span>
                         <span className={`text-lg font-bold ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                             {net >= 0 ? '+' : ''}{formatCurrency(net, defaultCurrency)}
                         </span>

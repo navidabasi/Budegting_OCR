@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
+import { tForLanguage } from '../languages';
 
 /**
  * Custom hook for fetching and managing groups
@@ -9,6 +10,7 @@ import { electricStorage } from '../services/electricStorage';
  */
 export function useGroups() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const languageCode = useAppStore((state) => state.languageCode);
     const showToast = useAppStore((state) => state.showToast);
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export function useGroups() {
         } catch (err) {
             console.error('Failed to load groups:', err);
             if (err.message?.includes('Local cache unavailable while offline') && !offlineWarningShownRef.current) {
-                showToast('Offline group data is unavailable until local cache is restored. Reconnect and sync once.', 'warning');
+                showToast(tForLanguage(languageCode, 'errors.offlineGroupsUnavailable'), 'warning');
                 offlineWarningShownRef.current = true;
             }
 
@@ -53,7 +55,7 @@ export function useGroups() {
             setLoading(false);
             loadingRef.current = false;
         }
-    }, [currentUser, showToast]);
+    }, [currentUser, showToast, languageCode]);
 
     useEffect(() => {
         loadGroups();

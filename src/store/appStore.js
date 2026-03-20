@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { getLanguageDirection, normalizeLanguageCode } from '../languages';
 
 export const useAppStore = create(
     persist(
@@ -16,6 +17,7 @@ export const useAppStore = create(
             toast: null,
             darkMode: false,
             darkModeManual: null, // null = use system, true/false = manual override
+            languageCode: '',
             storageHealth: {
                 hasLocalCache: true,
                 initFailed: false,
@@ -68,6 +70,21 @@ export const useAppStore = create(
             showToast: (message, type = 'info') => {
                 set({ toast: { message, type, id: Date.now() } });
                 setTimeout(() => set({ toast: null }), 3000);
+            },
+
+            applyLanguageToDocument: (languageCode) => {
+                if (typeof document === 'undefined') return;
+
+                const normalized = normalizeLanguageCode(languageCode);
+                const direction = getLanguageDirection(normalized);
+                document.documentElement.setAttribute('lang', normalized);
+                document.documentElement.setAttribute('dir', direction);
+            },
+
+            setLanguageCode: (languageCode) => {
+                const normalized = normalizeLanguageCode(languageCode);
+                set({ languageCode: normalized });
+                get().applyLanguageToDocument(normalized);
             },
 
             setStorageHealth: (health) => set((state) => ({
@@ -157,7 +174,8 @@ export const useAppStore = create(
                 currentUser: state.currentUser,
                 isAuthenticated: state.isAuthenticated,
                 darkMode: state.darkMode,
-                darkModeManual: state.darkModeManual
+                darkModeManual: state.darkModeManual,
+                languageCode: state.languageCode
             })
         }
     )

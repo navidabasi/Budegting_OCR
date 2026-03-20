@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { electricStorage } from '../services/electricStorage';
+import { tForLanguage } from '../languages';
 
 /**
  * Custom hook for fetching and managing receipts
@@ -9,6 +10,7 @@ import { electricStorage } from '../services/electricStorage';
  */
 export function useReceipts() {
     const currentUser = useAppStore((state) => state.currentUser);
+    const languageCode = useAppStore((state) => state.languageCode);
     const showToast = useAppStore((state) => state.showToast);
     const [receipts, setReceipts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export function useReceipts() {
             console.error('Failed to load receipts:', err);
 
             if (err.message?.includes('Local cache unavailable while offline') && !offlineWarningShownRef.current) {
-                showToast('Offline data is unavailable until local cache is restored. Reconnect and sync once.', 'warning');
+                showToast(tForLanguage(languageCode, 'errors.offlineReceiptsUnavailable'), 'warning');
                 offlineWarningShownRef.current = true;
             }
 
@@ -55,7 +57,7 @@ export function useReceipts() {
             setLoading(false);
             loadingRef.current = false;
         }
-    }, [currentUser, showToast]);
+    }, [currentUser, showToast, languageCode]);
 
     useEffect(() => {
         loadReceipts();

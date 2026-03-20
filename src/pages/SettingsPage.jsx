@@ -6,12 +6,16 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
-import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe } from 'lucide-react';
+import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
+import { useTranslation } from '../languages/useTranslation';
 
 export default function SettingsPage() {
+    const { t } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const logout = useAppStore((state) => state.logout);
     const showToast = useAppStore((state) => state.showToast);
+    const setLanguageCode = useAppStore((state) => state.setLanguageCode);
     const darkMode = useAppStore((state) => state.darkMode);
     const darkModeManual = useAppStore((state) => state.darkModeManual);
     const toggleDarkMode = useAppStore((state) => state.toggleDarkMode);
@@ -27,6 +31,7 @@ export default function SettingsPage() {
     const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [loading, setLoading] = useState(false);
     const [loadingCurrency, setLoadingCurrency] = useState(false);
+    const [loadingLanguage, setLoadingLanguage] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [clearingDemo, setClearingDemo] = useState(false);
     const [demoReceiptCount, setDemoReceiptCount] = useState(0);
@@ -42,6 +47,7 @@ export default function SettingsPage() {
     const [editingCategory, setEditingCategory] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryColor, setNewCategoryColor] = useState('#00573f');
+    const [selectedLanguage, setSelectedLanguage] = useState(detectDeviceLanguage());
 
     useEffect(() => {
         loadSettings();
@@ -84,6 +90,8 @@ export default function SettingsPage() {
             const currency = await storageService.getDefaultCurrency(currentUser.userId);
             setDefaultCurrency(currency);
             resetCurrency({ defaultCurrency: currency });
+            const language = normalizeLanguageCode(settings?.languageCode || '', '');
+            setSelectedLanguage(language || detectDeviceLanguage());
         } catch (err) {
             console.error('Failed to load settings:', err);
         }
@@ -105,12 +113,12 @@ export default function SettingsPage() {
 
     const onSaveApiKey = async (data) => {
         if (!currentUser) {
-            showToast('User not logged in', 'error');
+            showToast(t('settings.toasts.userNotLoggedIn'), 'error');
             return;
         }
 
         if (!currentUser.userId) {
-            showToast('Invalid user ID', 'error');
+            showToast(t('settings.toasts.invalidUserId'), 'error');
             console.error('currentUser:', currentUser);
             return;
         }
@@ -123,11 +131,11 @@ export default function SettingsPage() {
             await storageService.setOcrApiKey(userId, apiKeyValue);
             setApiKey(apiKeyValue);
             setValue('ocrApiKey', apiKeyValue);
-            showToast('API key saved successfully', 'success');
+            showToast(t('settings.ocr.saveSuccess'), 'success');
         } catch (err) {
             console.error('Error saving API key:', err);
             console.error('currentUser:', currentUser);
-            showToast(`Failed to save API key: ${err.message || 'Unknown error'}`, 'error');
+            showToast(t('settings.ocr.saveFailed', { message: err.message || 'Unknown error' }), 'error');
         } finally {
             setLoading(false);
         }
@@ -142,12 +150,33 @@ export default function SettingsPage() {
             await storageService.setDefaultCurrency(currentUser.userId, currency);
             setDefaultCurrency(currency);
             resetCurrency({ defaultCurrency: currency });
-            showToast('Default currency saved successfully', 'success');
+            showToast(t('settings.currency.saveSuccess'), 'success');
         } catch (err) {
             console.error('Failed to save currency:', err);
-            showToast('Failed to save currency', 'error');
+            showToast(t('settings.currency.saveFailed'), 'error');
         } finally {
             setLoadingCurrency(false);
+        }
+    };
+
+    const onSaveLanguage = async () => {
+        if (!currentUser) {
+            showToast(t('settings.toasts.userNotLoggedIn'), 'error');
+            return;
+        }
+
+        setLoadingLanguage(true);
+        const normalizedLanguage = normalizeLanguageCode(selectedLanguage);
+
+        try {
+            await storageService.setLanguage(currentUser.userId, normalizedLanguage);
+            setLanguageCode(normalizedLanguage);
+            showToast(t('settings.language.saveSuccess'), 'success');
+        } catch (err) {
+            console.error('Failed to save language:', err);
+            showToast(t('settings.language.saveFailed'), 'error');
+        } finally {
+            setLoadingLanguage(false);
         }
     };
 
@@ -175,9 +204,9 @@ export default function SettingsPage() {
             const result = await storageService.seedDemoData(currentUser.userId);
 
             if (result.alreadyExists) {
-                showToast('Demo data already loaded', 'info');
+                showToast(t('settings.demo.alreadyLoaded'), 'info');
             } else {
-                showToast(`Loaded ${result.importedCount} demo receipts`, 'success');
+                showToast(t('settings.demo.loadedSuccess', { count: result.importedCount }), 'success');
             }
 
             await loadDemoReceiptCount();
@@ -185,7 +214,7 @@ export default function SettingsPage() {
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
         } catch (err) {
-            showToast('Failed to load demo data', 'error');
+            showToast(t('settings.demo.loadFailed'), 'error');
         } finally {
             setLoadingDemo(false);
         }
@@ -198,7 +227,7 @@ export default function SettingsPage() {
         setShowClearDemoConfirm(false);
         try {
             const clearedCount = await storageService.clearDemoData(currentUser.userId);
-            showToast('Demo data cleared', 'success');
+            showToast(t('settings.demo.clearSuccess'), 'success');
             if (clearedCount > 0) {
                 window.dispatchEvent(new CustomEvent('refreshDashboard'));
                 window.dispatchEvent(new CustomEvent('refreshReceipts'));
@@ -206,7 +235,7 @@ export default function SettingsPage() {
             }
             await loadDemoReceiptCount();
         } catch (err) {
-            showToast('Failed to clear demo data', 'error');
+            showToast(t('settings.demo.clearFailed'), 'error');
         } finally {
             setClearingDemo(false);
         }
@@ -215,7 +244,7 @@ export default function SettingsPage() {
     const handleSync = async () => {
         console.log('[Settings] Sync clicked, currentUser:', currentUser);
         if (!currentUser) {
-            showToast('Please log in to sync', 'error');
+            showToast(t('settings.cloud.loginRequired'), 'error');
             return;
         }
 
@@ -225,8 +254,8 @@ export default function SettingsPage() {
         // Add a global timeout for the entire sync operation (30 seconds)
         const syncTimeout = setTimeout(() => {
             console.error('[Settings] Sync operation timed out after 30 seconds');
-            showToast('Sync timed out. Please try again.', 'error');
-            setSyncStatus({ type: 'error', message: 'Sync timed out' });
+            showToast(t('settings.cloud.timedOut'), 'error');
+            setSyncStatus({ type: 'error', message: t('settings.cloud.timedOut') });
             setSyncing(false);
         }, 30000);
 
@@ -242,19 +271,29 @@ export default function SettingsPage() {
             const totalChanged = (result.updated || 0) + (result.uploaded || 0);
 
             if (result.conflicts && result.conflicts.length > 0) {
-                message = `Synced: ${result.updated || 0} updated, ${result.uploaded || 0} uploaded. ${result.conflicts.length} conflict(s) merged.`;
+                message = t('settings.cloud.syncedWithConflicts', {
+                    updated: result.updated || 0,
+                    uploaded: result.uploaded || 0,
+                    conflicts: result.conflicts.length,
+                });
                 statusType = 'warning';
             } else if (result.errors && result.errors.length > 0) {
                 const firstError = result.errors[0];
                 const errorMsg = firstError.error || firstError.message || 'Unknown error';
-                message = `${result.errors.length} error(s): ${errorMsg}`;
+                message = t('settings.cloud.errorsSummary', {
+                    count: result.errors.length,
+                    message: errorMsg,
+                });
                 statusType = 'error';
                 console.error('[Settings] Sync errors:', result.errors);
             } else if (totalChanged > 0) {
-                message = `Synced: ${result.updated || 0} updated from cloud, ${result.uploaded || 0} uploaded`;
+                message = t('settings.cloud.syncedSummary', {
+                    updated: result.updated || 0,
+                    uploaded: result.uploaded || 0,
+                });
                 statusType = 'success';
             } else {
-                message = `Already up to date (checked ${result.downloaded || 0} items)`;
+                message = t('settings.cloud.upToDate', { count: result.downloaded || 0 });
                 statusType = 'success';
             }
 
@@ -271,8 +310,8 @@ export default function SettingsPage() {
         } catch (err) {
             clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync error:', err);
-            showToast(`Failed to sync: ${err.message || 'Unknown error'}`, 'error');
-            setSyncStatus({ type: 'error', message: 'Sync failed' });
+            showToast(t('settings.cloud.syncFailed', { message: err.message || 'Unknown error' }), 'error');
+            setSyncStatus({ type: 'error', message: t('settings.cloud.syncFailed', { message: err.message || 'Unknown error' }) });
         } finally {
             setSyncing(false);
         }
@@ -281,7 +320,7 @@ export default function SettingsPage() {
     const handleClearAndResync = async () => {
         console.log('[Settings] Clear & Resync clicked');
         if (!currentUser) {
-            showToast('Please log in to sync', 'error');
+            showToast(t('settings.cloud.loginRequired'), 'error');
             return;
         }
         setSyncing(true);
@@ -295,11 +334,11 @@ export default function SettingsPage() {
 
             if (result.errors && result.errors.length > 0) {
                 console.error('[Settings] Clear and resync errors:', result.errors);
-                showToast('Resync completed with some errors', 'warning');
-                setSyncStatus({ type: 'warning', message: `Resynced with ${result.errors.length} error(s). Pulled ${result.pulled} items.` });
+                showToast(t('settings.cloud.resyncWarning'), 'warning');
+                setSyncStatus({ type: 'warning', message: t('settings.cloud.resyncWarning') });
             } else {
-                showToast('Data cleared and resynced successfully', 'success');
-                setSyncStatus({ type: 'success', message: `Local data cleared and ${result.pulled} items downloaded from cloud` });
+                showToast(t('settings.cloud.resyncSuccess'), 'success');
+                setSyncStatus({ type: 'success', message: t('settings.cloud.resyncSuccess') });
             }
 
             // Refresh the UI
@@ -309,8 +348,8 @@ export default function SettingsPage() {
             await loadDemoReceiptCount();
         } catch (err) {
             console.error('[Settings] Clear and resync error:', err);
-            showToast(`Failed to resync: ${err.message || 'Unknown error'}`, 'error');
-            setSyncStatus({ type: 'error', message: 'Clear and resync failed' });
+            showToast(t('settings.cloud.resyncFailed', { message: err.message || 'Unknown error' }), 'error');
+            setSyncStatus({ type: 'error', message: t('settings.cloud.resyncFailed', { message: err.message || 'Unknown error' }) });
         } finally {
             setSyncing(false);
         }
@@ -345,17 +384,17 @@ export default function SettingsPage() {
         <div className="space-y-6">
             <SettingsCard
                 icon={Key}
-                title="OCR API Key (Premium)"
+                title={t('settings.ocr.title')}
             >
                 <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
                     <Input
-                        label="API Key"
+                        label={t('settings.ocr.apiKeyLabel')}
                         type="text"
-                        placeholder="Enter your premium OCR API key"
+                        placeholder={t('settings.ocr.placeholder')}
                         {...register('ocrApiKey')}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        OCR scanning requires your personal premium key. Get one at{' '}
+                        {t('settings.ocr.hint')}{' '}
                         <a
                             href="https://ocr.space/ocrapi"
                             target="_blank"
@@ -366,25 +405,25 @@ export default function SettingsPage() {
                         </a>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <strong>Note:</strong> Without an API key, scan/upload OCR is disabled and users can still add receipts manually.
+                        {t('settings.ocr.note')}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        If scanning fails with <strong>Origin not allowed</strong>, set `APP_URL` or `ALLOWED_ORIGINS` in your deployment environment.
+                        {t('settings.ocr.originHint')}
                     </p>
                     <Button type="submit" variant="primary" disabled={loading}>
-                        {loading ? 'Saving...' : 'Save API Key'}
+                        {loading ? t('settings.ocr.saving') : t('settings.ocr.save')}
                     </Button>
                 </form>
             </SettingsCard>
 
             <SettingsCard
                 icon={DollarSign}
-                title="Default Currency"
+                title={t('settings.currency.title')}
             >
                 <form onSubmit={handleSubmitCurrency(onSaveCurrency)} className="space-y-4">
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Currency
+                            {t('common.labels.currency')}
                         </label>
                         <Controller
                             name="defaultCurrency"
@@ -405,26 +444,62 @@ export default function SettingsPage() {
                         />
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        This currency will be used as default for all new transactions. You can change the currency for individual transactions.
+                        {t('settings.currency.hint')}
                     </p>
                     <Button type="submit" variant="primary" disabled={loadingCurrency}>
-                        {loadingCurrency ? 'Saving...' : 'Save Currency'}
+                        {loadingCurrency ? t('settings.currency.saving') : t('settings.currency.save')}
                     </Button>
                 </form>
             </SettingsCard>
 
             <SettingsCard
+                icon={Globe}
+                title={t('settings.language.title')}
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {t('settings.language.label')}
+                        </label>
+                        <select
+                            value={selectedLanguage}
+                            onChange={(e) => {
+                                const language = normalizeLanguageCode(e.target.value);
+                                setSelectedLanguage(language);
+                                setLanguageCode(language);
+                            }}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        >
+                            {LANGUAGE_OPTIONS.map((option) => (
+                                <option key={option.code} value={option.code}>
+                                    {option.label} ({option.nativeLabel})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t('settings.language.hint')}
+                    </p>
+                    <Button type="button" variant="primary" onClick={onSaveLanguage} disabled={loadingLanguage}>
+                        {loadingLanguage ? t('common.states.saving') : t('common.actions.save')}
+                    </Button>
+                </div>
+            </SettingsCard>
+
+            <SettingsCard
                 icon={darkMode ? Moon : Sun}
-                title="Appearance"
+                title={t('settings.appearance.title')}
             >
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</p>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.appearance.darkMode')}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                 {darkModeManual === null
-                                    ? `Following system (${getSystemDarkMode() ? 'Dark' : 'Light'})`
-                                    : darkMode ? 'Manually set to Dark' : 'Manually set to Light'
+                                    ? t('settings.appearance.followingSystem', {
+                                        mode: getSystemDarkMode() ? t('settings.appearance.systemDark') : t('settings.appearance.systemLight'),
+                                    })
+                                    : darkMode ? t('settings.appearance.manualDark') : t('settings.appearance.manualLight')
                                 }
                             </p>
                         </div>
@@ -446,7 +521,7 @@ export default function SettingsPage() {
                             onClick={resetToSystemDarkMode}
                             className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
                         >
-                            Reset to system preference
+                            {t('settings.appearance.resetSystem')}
                         </button>
                     )}
                 </div>
@@ -454,10 +529,10 @@ export default function SettingsPage() {
 
             <SettingsCard
                 icon={Cloud}
-                title="Cloud Sync"
+                title={t('settings.cloud.title')}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Sync your data with the cloud to access it from multiple devices
+                    {t('settings.cloud.description')}
                 </p>
                 <div className="space-y-3">
                     <Button
@@ -467,10 +542,10 @@ export default function SettingsPage() {
                         className="w-full flex items-center justify-center gap-2"
                     >
                         <Cloud size={18} />
-                        {syncing ? 'Syncing...' : 'Sync'}
+                        {syncing ? t('settings.cloud.syncing') : t('settings.cloud.syncButton')}
                     </Button>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Syncs both directions automatically. Deleted items on other devices will be removed locally.
+                        {t('settings.cloud.syncHint')}
                     </p>
                     <Button
                         variant="secondary"
@@ -479,10 +554,10 @@ export default function SettingsPage() {
                         className="w-full flex items-center justify-center gap-2"
                     >
                         <Database size={18} />
-                        Clear & Resync
+                        {t('settings.cloud.clearResyncButton')}
                     </Button>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Clears all local data and downloads fresh from cloud. Use if sync is not working correctly.
+                        {t('settings.cloud.clearResyncHint')}
                     </p>
                     {syncStatus && (
                         <p className={`text-xs mt-2 ${syncStatus.type === 'success' ? 'text-green-600 dark:text-green-400' :
@@ -497,15 +572,18 @@ export default function SettingsPage() {
 
             <SettingsCard
                 icon={Database}
-                title="Demo Data"
+                title={t('settings.demo.title')}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Load sample receipts to test the app. Demo receipts sync across your devices and can be removed with Clear Demo Data.
+                    {t('settings.demo.description')}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
                     {demoReceiptCount > 0
-                        ? `${demoReceiptCount} demo receipt${demoReceiptCount !== 1 ? 's are' : ' is'} currently loaded.`
-                        : 'No demo receipts are currently loaded.'}
+                        ? t('settings.demo.loadedCount', {
+                            count: demoReceiptCount,
+                            suffix: demoReceiptCount !== 1 ? 's' : '',
+                        })
+                        : t('settings.demo.empty')}
                 </p>
                 <div className="flex gap-2">
                     <Button
@@ -514,7 +592,7 @@ export default function SettingsPage() {
                         disabled={loadingDemo || clearingDemo || demoReceiptCount > 0}
                         className="flex-1"
                     >
-                        {loadingDemo ? 'Loading...' : 'Load Demo Data'}
+                        {loadingDemo ? t('settings.demo.loading') : t('settings.demo.loadButton')}
                     </Button>
                     <Button
                         variant="secondary"
@@ -522,17 +600,17 @@ export default function SettingsPage() {
                         disabled={loadingDemo || clearingDemo || demoReceiptCount === 0}
                         className="flex-1"
                     >
-                        {clearingDemo ? 'Clearing...' : 'Clear Demo Data'}
+                        {clearingDemo ? t('settings.demo.clearing') : t('settings.demo.clearButton')}
                     </Button>
                 </div>
             </SettingsCard>
 
             <SettingsCard
                 icon={Tag}
-                title="Custom Categories"
+                title={t('settings.categories.title')}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Create custom categories that sync across all your devices
+                    {t('settings.categories.description')}
                 </p>
 
                 <div className="space-y-3 mb-4">
@@ -570,7 +648,7 @@ export default function SettingsPage() {
                     <div className="flex gap-2 mb-2 items-start">
                         <div className="flex-1">
                             <Input
-                                placeholder="Category name"
+                                placeholder={t('settings.categories.namePlaceholder')}
                                 value={newCategoryName}
                                 onChange={(e) => setNewCategoryName(e.target.value)}
                             />
@@ -589,7 +667,7 @@ export default function SettingsPage() {
                                     variant="primary"
                                     onClick={async () => {
                                         if (!newCategoryName.trim()) {
-                                            showToast('Category name is required', 'error');
+                                            showToast(t('settings.categories.required'), 'error');
                                             return;
                                         }
                                         try {
@@ -601,14 +679,14 @@ export default function SettingsPage() {
                                             setEditingCategory(null);
                                             setNewCategoryName('');
                                             setNewCategoryColor('#00573f');
-                                            showToast('Category updated', 'success');
+                                            showToast(t('settings.categories.updateSuccess'), 'success');
                                         } catch (err) {
-                                            showToast(`Failed to update: ${err.message}`, 'error');
+                                            showToast(t('settings.categories.updateFailed', { message: err.message }), 'error');
                                         }
                                     }}
                                     className="flex-1"
                                 >
-                                    Update
+                                    {t('common.actions.update')}
                                 </Button>
                                 <Button
                                     variant="secondary"
@@ -618,7 +696,7 @@ export default function SettingsPage() {
                                         setNewCategoryColor('#00573f');
                                     }}
                                 >
-                                    Cancel
+                                    {t('common.actions.cancel')}
                                 </Button>
                             </>
                         ) : (
@@ -626,7 +704,7 @@ export default function SettingsPage() {
                                 variant="primary"
                                 onClick={async () => {
                                     if (!newCategoryName.trim()) {
-                                        showToast('Category name is required', 'error');
+                                        showToast(t('settings.categories.required'), 'error');
                                         return;
                                     }
                                     if (!currentUser) return;
@@ -638,15 +716,15 @@ export default function SettingsPage() {
                                         await loadCustomCategories();
                                         setNewCategoryName('');
                                         setNewCategoryColor('#00573f');
-                                        showToast('Category created', 'success');
+                                        showToast(t('settings.categories.createSuccess'), 'success');
                                     } catch (err) {
-                                        showToast(`Failed to create: ${err.message}`, 'error');
+                                        showToast(t('settings.categories.createFailed', { message: err.message }), 'error');
                                     }
                                 }}
                                 className="w-full flex items-center justify-center gap-2"
                             >
                                 <Plus size={18} />
-                                Add Category
+                                {t('settings.categories.addCategory')}
                             </Button>
                         )}
                     </div>
@@ -655,14 +733,14 @@ export default function SettingsPage() {
 
             <SettingsCard
                 icon={LogOut}
-                title="Account"
+                title={t('settings.account.title')}
                 iconColor="text-red-600 dark:text-red-400"
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Signed in as: <span className="font-medium">{currentUser?.email}</span>
+                    {t('settings.account.signedInAs', { email: currentUser?.email || '' })}
                 </p>
                 <Button variant="danger" onClick={() => setShowLogoutConfirm(true)} className="w-full">
-                    Logout
+                    {t('settings.account.logout')}
                 </Button>
             </SettingsCard>
 
@@ -671,20 +749,20 @@ export default function SettingsPage() {
                 isOpen={showLoadDemoConfirm}
                 onClose={() => setShowLoadDemoConfirm(false)}
                 onConfirm={handleLoadDemoData}
-                title="Load Demo Data"
-                message="This will add sample receipts to your account and sync them to your other devices. Continue?"
-                confirmText="Load"
-                cancelText="Cancel"
+                title={t('settings.demo.loadTitle')}
+                message={t('settings.demo.loadMessage')}
+                confirmText={t('settings.demo.loadConfirm')}
+                cancelText={t('common.actions.cancel')}
             />
 
             <ConfirmationModal
                 isOpen={showClearDemoConfirm}
                 onClose={() => setShowClearDemoConfirm(false)}
                 onConfirm={handleClearDemoData}
-                title="Clear Demo Data"
-                message="This will remove all demo receipts from this device and synced devices after sync. Continue?"
-                confirmText="Clear"
-                cancelText="Cancel"
+                title={t('settings.demo.clearTitle')}
+                message={t('settings.demo.clearMessage')}
+                confirmText={t('settings.demo.clearConfirm')}
+                cancelText={t('common.actions.cancel')}
                 danger={true}
             />
 
@@ -692,10 +770,10 @@ export default function SettingsPage() {
                 isOpen={showClearResyncConfirm}
                 onClose={() => setShowClearResyncConfirm(false)}
                 onConfirm={handleClearAndResync}
-                title="Clear & Resync"
-                message="This will delete all local data and download everything fresh from the cloud. Any unsynced local changes will be lost. Continue?"
-                confirmText="Clear & Resync"
-                cancelText="Cancel"
+                title={t('settings.cloud.clearResyncTitle')}
+                message={t('settings.cloud.clearResyncMessage')}
+                confirmText={t('settings.cloud.clearResyncConfirm')}
+                cancelText={t('common.actions.cancel')}
                 danger={true}
             />
 
@@ -703,10 +781,10 @@ export default function SettingsPage() {
                 isOpen={showLogoutConfirm}
                 onClose={() => setShowLogoutConfirm(false)}
                 onConfirm={handleLogout}
-                title="Logout"
-                message="Are you sure you want to logout?"
-                confirmText="Logout"
-                cancelText="Cancel"
+                title={t('settings.account.logoutTitle')}
+                message={t('settings.account.logoutMessage')}
+                confirmText={t('settings.account.logout')}
+                cancelText={t('common.actions.cancel')}
                 danger={true}
             />
 
@@ -721,15 +799,15 @@ export default function SettingsPage() {
                     try {
                         await storageService.deleteUserCategory(categoryToDelete.id);
                         await loadCustomCategories();
-                        showToast('Category deleted', 'success');
+                        showToast(t('settings.categories.deleteSuccess'), 'success');
                     } catch (err) {
-                        showToast(`Failed to delete: ${err.message}`, 'error');
+                        showToast(t('settings.categories.deleteFailed', { message: err.message }), 'error');
                     }
                 }}
-                title="Delete Category"
-                message={`Delete category "${categoryToDelete?.name}"?`}
-                confirmText="Delete"
-                cancelText="Cancel"
+                title={t('settings.categories.deleteTitle')}
+                message={t('settings.categories.deleteMessage', { name: categoryToDelete?.name || '' })}
+                confirmText={t('common.actions.delete')}
+                cancelText={t('common.actions.cancel')}
                 danger={true}
             />
         </div>

@@ -10,26 +10,49 @@ import AuthLayout from '../components/common/AuthLayout';
 import Divider from '../components/common/Divider';
 import GoogleButton from '../components/common/GoogleButton';
 import Card from '../components/common/Card';
+import { useTranslation } from '../languages/useTranslation';
 
 export default function LoginPage() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const showToast = useAppStore((state) => state.showToast);
     const { register, handleSubmit, formState: { errors } } = useForm();
     const [loading, setLoading] = useState(false);
 
+    const localizeAuthError = (message) => {
+        if (!message) return t('errors.generic');
+        const normalized = String(message).toLowerCase();
+        if (normalized.includes('email and password are required')) return t('errors.requiredEmailPassword');
+        if (normalized.includes('invalid email format')) return t('errors.invalidEmail');
+        if (normalized.includes('password must be at least')) return t('errors.passwordMin');
+        if (normalized.includes('invalid email or password') || normalized.includes('invalid login credentials')) {
+            return t('errors.loginInvalid');
+        }
+        if (normalized.includes('already exists') || normalized.includes('already registered')) return t('errors.userExists');
+        if (normalized.includes('authentication is not configured')) return t('errors.authNotConfigured');
+        if (normalized.includes('not authenticated')) return t('errors.notAuthenticated');
+        return message;
+    };
+
     const onSubmit = async (data) => {
         setLoading(true);
         try {
             const user = await authService.login(data.email, data.password);
             setCurrentUser(user);
-            showToast('Login successful', 'success');
+            showToast(t('auth.login.success'), 'success');
             
             // Force sync from cloud on login
             try {
                 const result = await storageService.syncAllFromCloud(user.userId);
                 if (result.synced > 0) {
-                    showToast(`Synced ${result.synced} item${result.synced > 1 ? 's' : ''} from cloud`, 'success');
+                    showToast(
+                        t('auth.login.syncFromCloud', {
+                            count: result.synced,
+                            suffix: result.synced > 1 ? 's' : '',
+                        }),
+                        'success'
+                    );
                 }
             } catch (syncError) {
                 console.error('Failed to sync from cloud on login:', syncError);
@@ -38,7 +61,7 @@ export default function LoginPage() {
             
             navigate('/');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(localizeAuthError(err.message), 'error');
         } finally {
             setLoading(false);
         }
@@ -46,28 +69,28 @@ export default function LoginPage() {
 
     return (
         <AuthLayout
-            title="Receipt Manager"
-            subtitle="Sign in to your account"
+            title={t('auth.login.title')}
+            subtitle={t('auth.login.subtitle')}
         >
             <Card>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                     <Input
-                        label="Email"
+                        label={t('common.labels.email')}
                         type="email"
                         {...register('email', {
-                            required: 'Email is required',
+                            required: t('errors.requiredEmailPassword'),
                             pattern: {
                                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                message: 'Invalid email format'
+                                message: t('errors.invalidEmail')
                             }
                         })}
                         error={errors.email?.message}
                     />
 
                     <Input
-                        label="Password"
+                        label={t('common.labels.password')}
                         type="password"
-                        {...register('password', { required: 'Password is required' })}
+                        {...register('password', { required: t('errors.requiredEmailPassword') })}
                         error={errors.password?.message}
                     />
 
@@ -77,7 +100,7 @@ export default function LoginPage() {
                         className="w-full"
                         disabled={loading}
                     >
-                        {loading ? 'Signing in...' : 'Sign In'}
+                        {loading ? t('auth.login.signingIn') : t('auth.login.signIn')}
                     </Button>
                 </form>
 
@@ -90,21 +113,21 @@ export default function LoginPage() {
                                 setLoading(true);
                                 await authService.signInWithGoogle({ intent: 'signin' });
                             } catch (err) {
-                                showToast(err.message || 'Failed to sign in with Google', 'error');
+                                showToast(err.message || t('auth.callback.unableSignIn'), 'error');
                                 setLoading(false);
                             }
                         }}
                         disabled={loading}
                     >
-                        Sign in with Google
+                        {t('auth.login.googleSignIn')}
                     </GoogleButton>
                 </div>
 
                 <div className="mt-6 text-center">
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Don't have an account?{' '}
+                        {t('auth.login.noAccount')}{' '}
                         <Link to="/register" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-                            Sign up
+                            {t('auth.login.signUp')}
                         </Link>
                     </p>
                 </div>

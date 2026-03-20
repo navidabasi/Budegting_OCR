@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { storageService } from '../services/storage';
@@ -19,9 +19,13 @@ import { useCategories } from '../hooks/useCategories';
 import { useCustomEvent } from '../hooks/useCustomEvent';
 import { useNavigate } from 'react-router-dom';
 import { getTrackingStatus } from '../utils/tracking';
-import { compareDateValuesDesc, formatMonthYearLabel, isDateInMonthYear, MONTH_NAMES, parseAppDate } from '../utils/helpers';
+import { compareDateValuesDesc, isDateInMonthYear, parseAppDate } from '../utils/helpers';
+import { useTranslation } from '../languages/useTranslation';
+
+const RECEIPTS_PAGE_SIZE = 20;
 
 export default function ReceiptsPage() {
+    const { t, localizeCategory, languageCode } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const navigate = useNavigate();
@@ -47,17 +51,22 @@ export default function ReceiptsPage() {
     const [expandedGroups, setExpandedGroups] = useState(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [groupToDelete, setGroupToDelete] = useState(null);
+    const [visibleCount, setVisibleCount] = useState(RECEIPTS_PAGE_SIZE);
+    const loadMoreRef = useRef(null);
 
     const loading = receiptsLoading || groupsLoading;
+    const defaultGroupPrefix = t('receipts.groups.defaultPrefix');
 
     // Helper function to get next available group number
     const getNextAvailableGroupNumber = async () => {
         const allGroupsList = await storageService.getAllGroups(currentUser.userId);
 
         // Extract numbers from group names that match "Group N" pattern
+        const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const localizedPattern = new RegExp(`^${escapeRegex(defaultGroupPrefix)}\\s+(\\d+)$`, 'i');
         const usedNumbers = new Set();
         allGroupsList.forEach(group => {
-            const match = group.name.match(/^Group (\d+)$/);
+            const match = group.name.match(localizedPattern) || group.name.match(/^Group (\d+)$/i);
             if (match) {
                 usedNumbers.add(parseInt(match[1], 10));
             }
@@ -79,9 +88,18 @@ export default function ReceiptsPage() {
                 isPinned: !currentPinned
             });
             await reloadReceipts();
-            showToast(currentPinned ? 'Receipt unpinned' : 'Receipt pinned', 'success');
+            showToast(
+                currentPinned ? t('receipts.toasts.unpinReceipt') : t('receipts.toasts.pinReceipt'),
+                'success'
+            );
         } catch (err) {
-            showToast(`Failed to ${currentPinned ? 'unpin' : 'pin'} receipt: ${err.message}`, 'error');
+            showToast(
+                t('receipts.toasts.pinFailed', {
+                    action: currentPinned ? t('receipts.toasts.unpinAction') : t('receipts.toasts.pinAction'),
+                    message: err.message,
+                }),
+                'error'
+            );
         }
     };
 
@@ -158,14 +176,14 @@ export default function ReceiptsPage() {
 
             try {
                 const receipt = receipts.find(r => r.id === receiptId);
-                if (receipt && receipt.groupId) {
-                    const currentGroupId = String(receipt.groupId);
-                    const targetGroupId = String(group.supabaseId || group.id);
-                    if (currentGroupId === targetGroupId) {
-                        showToast('Receipt is already in this group', 'info');
-                        return;
+                    if (receipt && receipt.groupId) {
+                        const currentGroupId = String(receipt.groupId);
+                        const targetGroupId = String(group.supabaseId || group.id);
+                        if (currentGroupId === targetGroupId) {
+                            showToast(t('receipts.groups.alreadyInGroup'), 'info');
+                            return;
+                        }
                     }
-                }
 
                 const groupIdToUse = group.supabaseId || group.id;
                 await storageService.updateReceipt(receiptId, {
@@ -175,10 +193,10 @@ export default function ReceiptsPage() {
 
                 await reloadReceipts();
                 await reloadGroups();
-                showToast(`Receipt added to ${group.name}`, 'success');
+                showToast(t('receipts.groups.receiptAddedToGroup', { groupName: group.name }), 'success');
             } catch (err) {
                 console.error('Failed to assign receipt to group:', err);
-                showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                showToast(t('receipts.groups.failedAssign', { message: err.message }), 'error');
             }
         };
 
@@ -193,7 +211,7 @@ export default function ReceiptsPage() {
                 if (!draggedReceipt || !targetReceipt) return;
 
                 // Create group with default name
-                const groupName = `Group ${new Date().toLocaleDateString()}`;
+                const groupName = `${defaultGroupPrefix} ${new Date().toLocaleDateString(languageCode || 'en-US')}`;
                 const groupId = await storageService.createGroup(currentUser.userId, {
                     name: groupName,
                     color: '#3b82f6',
@@ -216,10 +234,10 @@ export default function ReceiptsPage() {
 
                 await reloadReceipts();
                 await reloadGroups();
-                showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                showToast(t('receipts.groups.groupCreatedWithTwo', { groupName }), 'success');
             } catch (err) {
                 console.error('Failed to create group from receipts:', err);
-                showToast(`Failed to create group: ${err.message}`, 'error');
+                showToast(t('receipts.groups.failedCreate', { message: err.message }), 'error');
             }
         };
 
@@ -247,6 +265,36 @@ export default function ReceiptsPage() {
         setSelectedYear(urlYear || '');
     }, [searchParams]);
 
+    const searchParamKey = searchParams.toString();
+    const ungroupedReceiptCount = filteredReceipts.reduce((count, receipt) => (
+        receipt.groupId ? count : count + 1
+    ), 0);
+    const hasMoreUngroupedReceipts = visibleCount < ungroupedReceiptCount;
+
+    useEffect(() => {
+        setVisibleCount(RECEIPTS_PAGE_SIZE);
+    }, [searchQuery, searchParamKey, selectedCategory, selectedMonth, selectedYear, receipts.length]);
+
+    useEffect(() => {
+        if (!hasMoreUngroupedReceipts) return;
+        if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
+        const anchor = loadMoreRef.current;
+        if (!anchor) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    setVisibleCount((current) => Math.min(current + RECEIPTS_PAGE_SIZE, ungroupedReceiptCount));
+                });
+            },
+            { rootMargin: '240px 0px' }
+        );
+
+        observer.observe(anchor);
+        return () => observer.disconnect();
+    }, [hasMoreUngroupedReceipts, ungroupedReceiptCount]);
+
     // Get unique years from receipts
     const getAvailableYears = () => {
         const years = new Set();
@@ -265,6 +313,25 @@ export default function ReceiptsPage() {
             year: Number.parseInt(yearValue, 10)
         };
     };
+
+    const formatLocalizedMonthYear = (month, year) => {
+        try {
+            return new Intl.DateTimeFormat(languageCode || 'en', {
+                month: 'long',
+                year: 'numeric',
+            }).format(new Date(year, month, 1));
+        } catch (error) {
+            return new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        }
+    };
+
+    const localizedMonthNames = Array.from({ length: 12 }, (_, index) => {
+        try {
+            return new Intl.DateTimeFormat(languageCode || 'en', { month: 'long' }).format(new Date(2020, index, 1));
+        } catch (error) {
+            return new Date(2020, index, 1).toLocaleDateString('en-US', { month: 'long' });
+        }
+    });
 
     const filterReceiptsByMonthYear = (items, month, year) => {
         return items.filter(r => isDateInMonthYear(r.date, month, year));
@@ -287,16 +354,18 @@ export default function ReceiptsPage() {
                 return rType === transactionType;
             });
 
-            const typeLabel = transactionType.charAt(0).toUpperCase() + transactionType.slice(1);
+            const typeLabel = transactionType === 'income'
+                ? t('receipts.detail.income')
+                : t('receipts.detail.expense');
 
             // Check if month/year is also specified (from CashFlow widget - current month)
             if (filterMonth && filterYear) {
                 const { month, year } = getMonthYearParts(filterMonth, filterYear);
                 filtered = filterReceiptsByMonthYear(filtered, month, year);
-                nextActiveFilter = { type: 'transaction', value: `${typeLabel} - ${formatMonthYearLabel(month, year)}` };
+                nextActiveFilter = { type: 'transaction', value: `${typeLabel} - ${formatLocalizedMonthYear(month, year)}` };
             } else {
                 // Type only - all time (from Total Income/Total Expenses KPI)
-                nextActiveFilter = { type: 'transaction', value: `All ${typeLabel}` };
+                nextActiveFilter = { type: 'transaction', value: t('receipts.filters.allTypeLabel', { type: typeLabel }) };
             }
         }
         // Apply URL-based filters (from widget clicks)
@@ -306,7 +375,7 @@ export default function ReceiptsPage() {
         } else if (filterType === 'month' && filterMonth && filterYear) {
             const { month, year } = getMonthYearParts(filterMonth, filterYear);
             filtered = filterReceiptsByMonthYear(filtered, month, year);
-            nextActiveFilter = { type: 'month', value: formatMonthYearLabel(month, year) };
+            nextActiveFilter = { type: 'month', value: formatLocalizedMonthYear(month, year) };
         } else if (filterType === 'merchant' && searchParams.get('merchant')) {
             const merchant = decodeURIComponent(searchParams.get('merchant'));
             filtered = filtered.filter(r => r.merchant === merchant);
@@ -325,7 +394,7 @@ export default function ReceiptsPage() {
             const { month, year } = getMonthYearParts(selectedMonth, selectedYear);
             filtered = filterReceiptsByMonthYear(filtered, month, year);
             if (!nextActiveFilter || nextActiveFilter.type !== 'month') {
-                nextActiveFilter = { type: 'month', value: formatMonthYearLabel(month, year) };
+                nextActiveFilter = { type: 'month', value: formatLocalizedMonthYear(month, year) };
             }
         }
 
@@ -338,9 +407,9 @@ export default function ReceiptsPage() {
 
             if (!nextActiveFilter) {
                 const trackingLabels = {
-                    tracked: 'Tracked items',
-                    open: 'Open tracked items',
-                    done: 'Done tracked items',
+                    tracked: t('receipts.filters.trackedItems'),
+                    open: t('receipts.filters.openTrackedItems'),
+                    done: t('receipts.filters.doneTrackedItems'),
                 };
                 nextActiveFilter = {
                     type: 'tracking',
@@ -490,11 +559,19 @@ export default function ReceiptsPage() {
     }
 
     const availableYears = getAvailableYears();
+    const sortedUngroupedReceipts = filteredReceipts
+        .filter(receipt => !receipt.groupId)
+        .sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return compareDateValuesDesc(a.date, b.date);
+        });
+    const visibleUngroupedReceipts = sortedUngroupedReceipts.slice(0, visibleCount);
 
     return (
         <PageLayout>
             <PageHeader
-                title={(showFilters || activeFilter) ? '' : 'Receipts'}
+                title={(showFilters || activeFilter) ? '' : t('receipts.page.title')}
                 actions={
                     <>
                         <ActionButton
@@ -502,14 +579,14 @@ export default function ReceiptsPage() {
                             onClick={() => setShowCreateGroup(true)}
                             variant="primary"
                         >
-                            New Group
+                            {t('receipts.page.newGroup')}
                         </ActionButton>
                         <ActionButton
                             icon={Filter}
                             onClick={() => setShowFilters(!showFilters)}
                             variant="secondary"
                         >
-                            Filters
+                            {t('receipts.page.filters')}
                         </ActionButton>
                         {activeFilter && (
                             <ActionButton
@@ -517,7 +594,7 @@ export default function ReceiptsPage() {
                                 onClick={clearFilters}
                                 variant="secondary"
                             >
-                                Clear
+                                {t('receipts.page.clearFilters')}
                             </ActionButton>
                         )}
                     </>
@@ -529,57 +606,57 @@ export default function ReceiptsPage() {
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">{t('receipts.filters.category')}</label>
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => handleCategoryChange(e.target.value)}
                                 className="input text-sm py-2"
                             >
-                                <option value="">All Categories</option>
+                                <option value="">{t('receipts.filters.allCategories')}</option>
                                 {categories.map(cat => (
                                     <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
-                                        {typeof cat === 'string' ? cat : cat.name}
+                                        {localizeCategory(typeof cat === 'string' ? cat : cat.name)}
                                     </option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Month</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">{t('receipts.filters.month')}</label>
                             <select
                                 value={selectedMonth}
                                 onChange={(e) => handleMonthChange(e.target.value)}
                                 className="input text-sm py-2"
                             >
-                                <option value="">All Months</option>
-                                {MONTH_NAMES.map((month, index) => (
+                                <option value="">{t('receipts.filters.allMonths')}</option>
+                                {localizedMonthNames.map((month, index) => (
                                     <option key={index} value={String(index + 1)}>{month}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">{t('receipts.filters.year')}</label>
                             <select
                                 value={selectedYear}
                                 onChange={(e) => handleYearChange(e.target.value)}
                                 className="input text-sm py-2"
                             >
-                                <option value="">All Years</option>
+                                <option value="">{t('receipts.filters.allYears')}</option>
                                 {availableYears.map(year => (
                                     <option key={year} value={String(year)}>{year}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">{t('receipts.filters.paymentStatus')}</label>
                             <select
                                 value={searchParams.get('tracking') || ''}
                                 onChange={(e) => handleTrackingChange(e.target.value)}
                                 className="input text-sm py-2"
                             >
-                                <option value="">All Receipts</option>
-                                <option value="tracked">Tracked only</option>
-                                <option value="open">Open only</option>
-                                <option value="done">Done only</option>
+                                <option value="">{t('receipts.filters.allReceipts')}</option>
+                                <option value="tracked">{t('receipts.filters.trackedOnly')}</option>
+                                <option value="open">{t('receipts.filters.openOnly')}</option>
+                                <option value="done">{t('receipts.filters.doneOnly')}</option>
                             </select>
                         </div>
                     </div>
@@ -589,25 +666,24 @@ export default function ReceiptsPage() {
             {activeFilter && (
                 <div className="mb-4 px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg">
                     <p className="text-sm text-primary-800">
-                        <span className="font-medium">Active Filter:</span>{' '}
-                        {activeFilter.type === 'transaction' && `Transaction: ${activeFilter.value}`}
-                        {activeFilter.type === 'category' && `Category: ${activeFilter.value}`}
-                        {activeFilter.type === 'month' && `Month: ${activeFilter.value}`}
-                        {activeFilter.type === 'merchant' && `Merchant: ${activeFilter.value}`}
-                        {activeFilter.type === 'tracking' && `Status: ${activeFilter.value}`}
-                        {activeFilter.type === 'transaction' && activeFilter.value}
+                        <span className="font-medium">{t('receipts.page.activeFilter')}</span>{' '}
+                        {activeFilter.type === 'transaction' && `${t('receipts.page.transactionLabel')}: ${activeFilter.value}`}
+                        {activeFilter.type === 'category' && `${t('receipts.filters.category')}: ${localizeCategory(activeFilter.value)}`}
+                        {activeFilter.type === 'month' && `${t('receipts.filters.month')}: ${activeFilter.value}`}
+                        {activeFilter.type === 'merchant' && `${t('receipts.page.merchantLabel')}: ${activeFilter.value}`}
+                        {activeFilter.type === 'tracking' && `${t('receipts.page.statusLabel')}: ${activeFilter.value}`}
                     </p>
                 </div>
             )}
 
             <div className="relative mt-4 mb-6">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Search className="receipts-search-icon absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
                     type="text"
-                    placeholder="Search receipts or items..."
+                    placeholder={t('receipts.page.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="input pl-10"
+                    className="receipts-search-input input pl-10"
                 />
             </div>
 
@@ -620,7 +696,7 @@ export default function ReceiptsPage() {
                             className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-300"
                         >
                             {showGroupsSection ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                            Groups
+                            {t('receipts.page.groups')}
                         </button>
                     </div>
                     {showGroupsSection && (
@@ -678,9 +754,15 @@ export default function ReceiptsPage() {
                                                         isPinned: !group.isPinned
                                                     });
                                                     await reloadGroups();
-                                                    showToast(group.isPinned ? 'Group unpinned' : 'Group pinned', 'success');
+                                                    showToast(group.isPinned ? t('receipts.groups.unpinGroup') : t('receipts.groups.pinGroup'), 'success');
                                                 } catch (err) {
-                                                    showToast(`Failed to ${group.isPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
+                                                    showToast(
+                                                        t('receipts.toasts.pinFailed', {
+                                                            action: group.isPinned ? t('receipts.toasts.unpinAction') : t('receipts.toasts.pinAction'),
+                                                            message: err.message,
+                                                        }),
+                                                        'error'
+                                                    );
                                                 }
                                             }}
                                             onDragOver={(e) => {
@@ -714,7 +796,7 @@ export default function ReceiptsPage() {
                                                         const currentGroupId = String(receipt.groupId);
                                                         const targetGroupId = String(group.supabaseId || group.id);
                                                         if (currentGroupId === targetGroupId) {
-                                                            showToast('Receipt is already in this group', 'info');
+                                                            showToast(t('receipts.groups.alreadyInGroup'), 'info');
                                                             return;
                                                         }
                                                     }
@@ -728,10 +810,10 @@ export default function ReceiptsPage() {
 
                                                     await reloadReceipts();
                                                     await reloadGroups();
-                                                    showToast(`Receipt added to ${group.name}`, 'success');
+                                                    showToast(t('receipts.groups.receiptAddedToGroup', { groupName: group.name }), 'success');
                                                 } catch (err) {
                                                     console.error('Failed to assign receipt to group:', err);
-                                                    showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                                                    showToast(t('receipts.groups.failedAssign', { message: err.message }), 'error');
                                                 }
                                             }}
                                         />
@@ -802,7 +884,7 @@ export default function ReceiptsPage() {
                                                     const currentGroupId = String(receipt.groupId);
                                                     const targetGroupId = String(groupIdToUse);
                                                     if (currentGroupId === targetGroupId) {
-                                                        showToast('Receipt is already in this group', 'info');
+                                                        showToast(t('receipts.groups.alreadyInGroup'), 'info');
                                                         return;
                                                     }
                                                 }
@@ -814,10 +896,10 @@ export default function ReceiptsPage() {
 
                                                 await reloadReceipts();
                                                 await reloadGroups();
-                                                showToast(`Receipt added to ${group.name}`, 'success');
+                                                showToast(t('receipts.groups.receiptAddedToGroup', { groupName: group.name }), 'success');
                                             } catch (err) {
                                                 console.error('Failed to assign receipt to group:', err);
-                                                showToast(`Failed to assign receipt: ${err.message}`, 'error');
+                                                showToast(t('receipts.groups.failedAssign', { message: err.message }), 'error');
                                             }
                                         }}
                                     >
@@ -851,7 +933,12 @@ export default function ReceiptsPage() {
                                                                         groupName: targetReceipt.groupName
                                                                     });
                                                                     await reloadReceipts();
-                                                                    showToast(`Receipt added to ${targetReceipt.groupName || 'group'}`, 'success');
+                                                                    showToast(
+                                                                        t('receipts.groups.receiptAddedToGroup', {
+                                                                            groupName: targetReceipt.groupName || t('receipts.groups.ungrouped'),
+                                                                        }),
+                                                                        'success'
+                                                                    );
                                                                     return;
                                                                 }
 
@@ -862,13 +949,18 @@ export default function ReceiptsPage() {
                                                                         groupName: draggedReceipt.groupName
                                                                     });
                                                                     await reloadReceipts();
-                                                                    showToast(`Receipt added to ${draggedReceipt.groupName || 'group'}`, 'success');
+                                                                    showToast(
+                                                                        t('receipts.groups.receiptAddedToGroup', {
+                                                                            groupName: draggedReceipt.groupName || t('receipts.groups.ungrouped'),
+                                                                        }),
+                                                                        'success'
+                                                                    );
                                                                     return;
                                                                 }
 
                                                                 // Both receipts are ungrouped - create a new group
                                                                 const nextNumber = await getNextAvailableGroupNumber();
-                                                                const groupName = `Group ${nextNumber}`;
+                                                                const groupName = `${defaultGroupPrefix} ${nextNumber}`;
 
                                                                 const newGroupId = await storageService.createGroup(currentUser.userId, {
                                                                     name: groupName,
@@ -892,10 +984,10 @@ export default function ReceiptsPage() {
 
                                                                 await reloadReceipts();
                                                                 await reloadGroups();
-                                                                showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                                                showToast(t('receipts.groups.groupCreatedWithTwo', { groupName }), 'success');
                                                             } catch (err) {
                                                                 console.error('Failed to create group from receipts:', err);
-                                                                showToast(`Failed to create group: ${err.message}`, 'error');
+                                                                showToast(t('receipts.groups.failedCreate', { message: err.message }), 'error');
                                                             }
                                                         }}
                                                     />
@@ -912,26 +1004,19 @@ export default function ReceiptsPage() {
 
             {filteredReceipts.length === 0 ? (
                 <EmptyState
-                    message={searchQuery ? 'No receipts found matching your search' : 'No receipts yet'}
+                    message={searchQuery ? t('receipts.page.noSearchMatches') : t('receipts.page.noReceipts')}
                     action={
                         !searchQuery && (
                             <p className="text-sm text-gray-400">
-                                Tap the + button to add your first receipt
+                                {t('receipts.page.addFirstHint')}
                             </p>
                         )
                     }
                 />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredReceipts
-                        .filter(receipt => !receipt.groupId)
-                        .sort((a, b) => {
-                            // Sort: pinned first, then by date
-                            if (a.isPinned && !b.isPinned) return -1;
-                            if (!a.isPinned && b.isPinned) return 1;
-                            return compareDateValuesDesc(a.date, b.date);
-                        })
-                        .map(receipt => (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {visibleUngroupedReceipts.map(receipt => (
                         <ReceiptCard
                             key={receipt.id}
                             receipt={receipt}
@@ -947,7 +1032,7 @@ export default function ReceiptsPage() {
                                     // Check if both receipts are already in the same group
                                     if (draggedReceipt.groupId && targetReceipt.groupId &&
                                         String(draggedReceipt.groupId) === String(targetReceipt.groupId)) {
-                                        showToast('Both receipts are already in the same group', 'info');
+                                        showToast(t('receipts.groups.alreadyInGroup'), 'info');
                                         return;
                                     }
 
@@ -958,7 +1043,12 @@ export default function ReceiptsPage() {
                                             groupName: targetReceipt.groupName
                                         });
                                         await reloadReceipts();
-                                        showToast(`Receipt added to ${targetReceipt.groupName || 'group'}`, 'success');
+                                        showToast(
+                                            t('receipts.groups.receiptAddedToGroup', {
+                                                groupName: targetReceipt.groupName || t('receipts.groups.ungrouped'),
+                                            }),
+                                            'success'
+                                        );
                                         return;
                                     }
 
@@ -969,13 +1059,18 @@ export default function ReceiptsPage() {
                                             groupName: draggedReceipt.groupName
                                         });
                                         await reloadReceipts();
-                                        showToast(`Receipt added to ${draggedReceipt.groupName || 'group'}`, 'success');
+                                        showToast(
+                                            t('receipts.groups.receiptAddedToGroup', {
+                                                groupName: draggedReceipt.groupName || t('receipts.groups.ungrouped'),
+                                            }),
+                                            'success'
+                                        );
                                         return;
                                     }
 
                                     // Both receipts are ungrouped - create a new group
                                     const nextNumber = await getNextAvailableGroupNumber();
-                                    const groupName = `Group ${nextNumber}`;
+                                    const groupName = `${defaultGroupPrefix} ${nextNumber}`;
 
                                     const newGroupId = await storageService.createGroup(currentUser.userId, {
                                         name: groupName,
@@ -999,15 +1094,38 @@ export default function ReceiptsPage() {
 
                                     await reloadReceipts();
                                     await reloadGroups();
-                                    showToast(`Group "${groupName}" created with 2 receipts`, 'success');
+                                    showToast(t('receipts.groups.groupCreatedWithTwo', { groupName }), 'success');
                                 } catch (err) {
                                     console.error('Failed to create group from receipts:', err);
-                                    showToast(`Failed to create group: ${err.message}`, 'error');
+                                    showToast(t('receipts.groups.failedCreate', { message: err.message }), 'error');
                                 }
                             }}
                         />
                     ))}
-                </div>
+                    </div>
+
+                    {sortedUngroupedReceipts.length > 0 && (
+                        <div className="mt-6 mb-2">
+                            <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">
+                                {t('common.pagination.showingOf', {
+                                    visible: visibleUngroupedReceipts.length,
+                                    total: sortedUngroupedReceipts.length,
+                                })}
+                            </p>
+                            {hasMoreUngroupedReceipts && (
+                                <div ref={loadMoreRef} className="flex items-center justify-center">
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setVisibleCount((current) => Math.min(current + RECEIPTS_PAGE_SIZE, sortedUngroupedReceipts.length))}
+                                        className="text-sm"
+                                    >
+                                        {t('common.pagination.loadMoreCount', { count: RECEIPTS_PAGE_SIZE })}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Create Group Modal */}
@@ -1015,7 +1133,7 @@ export default function ReceiptsPage() {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold dark:text-white">Create Group</h4>
+                            <h4 className="font-semibold dark:text-white">{t('receipts.groups.createGroup')}</h4>
                             <button
                                 onClick={() => {
                                     setShowCreateGroup(false);
@@ -1030,14 +1148,14 @@ export default function ReceiptsPage() {
                         </div>
                         <div className="space-y-3">
                             <Input
-                                label="Group Name"
+                                label={t('receipts.groups.groupName')}
                                 value={newGroupName}
                                 onChange={(e) => setNewGroupName(e.target.value)}
-                                placeholder="e.g., Vacation 2024"
+                                placeholder={t('receipts.groups.groupNamePlaceholder')}
                             />
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
-                                    Group Color
+                                    {t('receipts.groups.groupColor')}
                                 </label>
                                 <div className="flex flex-wrap gap-2 mb-3">
                                     {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#6b7280', '#6366f1'].map((color) => (
@@ -1078,7 +1196,7 @@ export default function ReceiptsPage() {
                                     className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
                                 />
                                 <label htmlFor="pinGroup" className="text-sm text-gray-700 dark:text-gray-300">
-                                    Pin this group to the top
+                                    {t('receipts.groups.pinTop')}
                                 </label>
                             </div>
                             <div className="flex gap-2">
@@ -1086,7 +1204,7 @@ export default function ReceiptsPage() {
                                     variant="primary"
                                     onClick={async () => {
                                         if (!newGroupName.trim()) {
-                                            showToast('Group name is required', 'error');
+                                            showToast(t('receipts.groups.nameRequired'), 'error');
                                             return;
                                         }
                                         if (!currentUser) return;
@@ -1101,17 +1219,17 @@ export default function ReceiptsPage() {
                                             setNewGroupName('');
                                             setNewGroupColor('#3b82f6');
                                             setNewGroupPinned(false);
-                                            showToast('Group created', 'success');
+                                            showToast(t('receipts.groups.createSuccess'), 'success');
                                             // Dispatch events to refresh components
                                             window.dispatchEvent(new CustomEvent('refreshGroups'));
                                             window.dispatchEvent(new CustomEvent('refreshReceipts'));
                                         } catch (err) {
-                                            showToast(`Failed to create group: ${err.message}`, 'error');
+                                            showToast(t('receipts.groups.failedCreate', { message: err.message }), 'error');
                                         }
                                     }}
                                     className="flex-1"
                                 >
-                                    Create
+                                    {t('common.actions.create')}
                                 </Button>
                                 <Button
                                     variant="secondary"
@@ -1122,7 +1240,7 @@ export default function ReceiptsPage() {
                                         setNewGroupPinned(false);
                                     }}
                                 >
-                                    Cancel
+                                    {t('common.actions.cancel')}
                                 </Button>
                             </div>
                         </div>
@@ -1135,7 +1253,7 @@ export default function ReceiptsPage() {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold dark:text-white">Edit Group</h4>
+                            <h4 className="font-semibold dark:text-white">{t('receipts.groups.editGroup')}</h4>
                             <button
                                 onClick={() => {
                                     setEditingGroup(null);
@@ -1150,13 +1268,13 @@ export default function ReceiptsPage() {
                         </div>
                         <div className="space-y-3">
                             <Input
-                                label="Group Name"
+                                label={t('receipts.groups.groupName')}
                                 value={newGroupName}
                                 onChange={(e) => setNewGroupName(e.target.value)}
                             />
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
-                                    Group Color
+                                    {t('receipts.groups.groupColor')}
                                 </label>
                                 <div className="flex flex-wrap gap-2 mb-3">
                                     {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#6b7280', '#6366f1'].map((color) => (
@@ -1197,7 +1315,7 @@ export default function ReceiptsPage() {
                                     className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
                                 />
                                 <label htmlFor="pinGroupEdit" className="text-sm text-gray-700 dark:text-gray-300">
-                                    Pin this group to the top
+                                    {t('receipts.groups.pinTop')}
                                 </label>
                             </div>
                             <div className="flex gap-2">
@@ -1233,14 +1351,14 @@ export default function ReceiptsPage() {
                                             setNewGroupName('');
                                             setNewGroupColor('#3b82f6');
                                             setNewGroupPinned(false);
-                                            showToast('Group updated', 'success');
+                                            showToast(t('receipts.groups.updateSuccess'), 'success');
                                         } catch (err) {
-                                            showToast(`Failed to update group: ${err.message}`, 'error');
+                                            showToast(t('receipts.groups.failedUpdate', { message: err.message }), 'error');
                                         }
                                     }}
                                     className="flex-1"
                                 >
-                                    Update
+                                    {t('common.actions.update')}
                                 </Button>
                                 <Button
                                     variant="secondary"
@@ -1251,7 +1369,7 @@ export default function ReceiptsPage() {
                                         setNewGroupPinned(false);
                                     }}
                                 >
-                                    Cancel
+                                    {t('common.actions.cancel')}
                                 </Button>
                             </div>
                         </div>
@@ -1264,7 +1382,7 @@ export default function ReceiptsPage() {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="card max-w-md w-full">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold dark:text-white">Delete Group</h4>
+                            <h4 className="font-semibold dark:text-white">{t('receipts.groups.deleteGroup')}</h4>
                             <button
                                 onClick={() => {
                                     setShowDeleteConfirm(false);
@@ -1276,7 +1394,7 @@ export default function ReceiptsPage() {
                             </button>
                         </div>
                         <p className="text-gray-700 dark:text-gray-300 mb-6">
-                            Delete this group? Receipts will be ungrouped.
+                            {t('receipts.groups.deleteMessage')}
                         </p>
                         <div className="flex gap-2">
                             <Button
@@ -1287,7 +1405,7 @@ export default function ReceiptsPage() {
                                 }}
                                 className="flex-1"
                             >
-                                Cancel
+                                {t('common.actions.cancel')}
                             </Button>
                             <Button
                                 variant="primary"
@@ -1297,16 +1415,16 @@ export default function ReceiptsPage() {
                                         await storageService.deleteGroup(groupToDelete.id);
                                         await reloadReceipts();
                                         await reloadGroups();
-                                        showToast('Group deleted', 'success');
+                                        showToast(t('receipts.groups.deleteSuccess'), 'success');
                                         setShowDeleteConfirm(false);
                                         setGroupToDelete(null);
                                     } catch (err) {
-                                        showToast(`Failed to delete group: ${err.message}`, 'error');
+                                        showToast(t('receipts.groups.failedDelete', { message: err.message }), 'error');
                                     }
                                 }}
                                 className="flex-1 bg-red-600 hover:bg-red-700"
                             >
-                                Delete
+                                {t('common.actions.delete')}
                             </Button>
                         </div>
                     </div>
@@ -1318,6 +1436,7 @@ export default function ReceiptsPage() {
 
 // Group Card Component - matches ReceiptCard format
 function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver = false, isExpanded = false, onDragOver, onDragLeave, onDrop, filteredReceiptCount }) {
+    const { t } = useTranslation();
     const groupColor = group.color || '#3b82f6';
     const fadedColor = groupColor + '15'; // 15% opacity
     const groupId = group.supabaseId || group.id;
@@ -1351,35 +1470,38 @@ function GroupCard({ group, onClick, onEdit, onDelete, onTogglePin, isDragOver =
                             }}
                         >
                             <Tag size={12} style={{ color: group.color || '#3b82f6' }} />
-                            Group
+                            {t('receipts.groups.groupTag')}
                         </span>
                         {group.isPinned && (
-                            <Pin size={14} className="text-gray-400" title="Pinned" />
+                            <Pin size={14} className="text-gray-400" title={t('receipts.page.pinned')} />
                         )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0)} receipt{(filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0)) !== 1 ? 's' : ''}
+                        {t('receipts.groups.receiptCount', {
+                            count: filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0),
+                            suffix: (filteredReceiptCount !== undefined ? filteredReceiptCount : (group.receiptCount || 0)) !== 1 ? 's' : '',
+                        })}
                     </p>
                 </div>
                 <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
                         onClick={onTogglePin}
                         className={`p-1.5 rounded ${group.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-                        title={group.isPinned ? 'Unpin group' : 'Pin group'}
+                        title={group.isPinned ? t('receipts.groups.unpinGroup') : t('receipts.groups.pinGroup')}
                     >
                         {group.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                     </button>
                     <button
                         onClick={onEdit}
                         className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
-                        title="Edit group"
+                        title={t('receipts.groups.editGroupTitle')}
                     >
                         <Edit2 size={16} />
                     </button>
                     <button
                         onClick={onDelete}
                         className="p-1.5 text-red-500 hover:text-red-700 rounded"
-                        title="Delete group"
+                        title={t('receipts.groups.deleteGroupTitle')}
                     >
                         <Trash2 size={16} />
                     </button>

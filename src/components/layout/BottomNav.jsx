@@ -1,8 +1,10 @@
 import { Home, Receipt, Plus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function BottomNav() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
@@ -41,7 +43,7 @@ export default function BottomNav() {
                     }}
                 >
                     <Home size={24} />
-                    <span className="text-xs mt-1">Home</span>
+                    <span className="text-xs mt-1">{t('navigation.home')}</span>
                 </button>
 
                 {/* Center spacer for notch (72px wide) */}
@@ -58,7 +60,7 @@ export default function BottomNav() {
                     }}
                 >
                     <Receipt size={24} />
-                    <span className="text-xs mt-1">Receipts</span>
+                    <span className="text-xs mt-1">{t('navigation.receipts')}</span>
                 </button>
             </div>
 
@@ -67,7 +69,7 @@ export default function BottomNav() {
                 <button
                     onClick={() => setAddReceiptModalOpen(true)}
                     className="flex items-center justify-center w-14 h-14 rounded-full bg-white shadow-lg hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation"
-                    aria-label="Add receipt"
+                    aria-label={t('navigation.addReceipt')}
                 >
                     <Plus size={28} className="text-primary-600" />
                 </button>
@@ -75,4 +77,3 @@ export default function BottomNav() {
         </nav>
     );
 }
-

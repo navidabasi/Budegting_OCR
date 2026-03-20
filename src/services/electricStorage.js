@@ -218,11 +218,18 @@ async function createSchema() {
             user_id UUID UNIQUE NOT NULL,
             ocr_api_key TEXT,
             default_currency TEXT DEFAULT 'EUR',
+            language_code TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
         );
     `);
+
+    try {
+        await db.exec(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS language_code TEXT;`);
+    } catch (e) {
+        // Column might already exist
+    }
 
     // User layouts table
     await db.exec(`
@@ -1051,6 +1058,7 @@ export const electricStorage = {
                     userId: row.user_id,
                     ocrApiKey: row.ocr_api_key,
                     defaultCurrency: row.default_currency,
+                    languageCode: row.language_code || null,
                 };
             }
             // Local empty - try Supabase as fallback (for API key sync across devices)
@@ -1098,21 +1106,35 @@ export const electricStorage = {
 
             const now = new Date().toISOString();
             const id = crypto.randomUUID();
+            const normalizedSettings = {
+                ocrApiKey: settings?.ocrApiKey ?? null,
+                defaultCurrency: settings?.defaultCurrency ?? 'EUR',
+                languageCode: settings?.languageCode ?? null,
+            };
 
             await db.query(`
-                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (user_id) DO UPDATE SET
                     ocr_api_key = $3,
                     default_currency = $4,
-                    updated_at = $6
-            `, [id, userId, settings.ocrApiKey, settings.defaultCurrency, now, now]);
+                    language_code = $5,
+                    updated_at = $7
+            `, [
+                id,
+                userId,
+                normalizedSettings.ocrApiKey,
+                normalizedSettings.defaultCurrency,
+                normalizedSettings.languageCode,
+                now,
+                now,
+            ]);
 
             // Push settings directly to Supabase (not via pushToRemote, as it doesn't support settings)
             (async () => {
                 try {
                     const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                    await supabaseService.saveSettings(userId, settings);
+                    await supabaseService.saveSettings(userId, normalizedSettings);
                     console.log('[Storage] Settings synced to Supabase');
                 } catch (e) {
                     console.error('[Storage] Failed to sync settings to Supabase:', e);
@@ -1565,11 +1587,12 @@ export const electricStorage = {
                 const id = crypto.randomUUID();
 
                 await db.query(`
-                    INSERT INTO settings (id, user_id, ocr_api_key, default_currency, created_at, updated_at, _synced)
-                    VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+                    INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
                     ON CONFLICT (user_id) DO UPDATE SET
                         ocr_api_key = EXCLUDED.ocr_api_key,
                         default_currency = EXCLUDED.default_currency,
+                        language_code = EXCLUDED.language_code,
                         updated_at = EXCLUDED.updated_at,
                         _synced = TRUE
                 `, [
@@ -1577,6 +1600,7 @@ export const electricStorage = {
                     userId,
                     settings.ocrApiKey,
                     settings.defaultCurrency || 'EUR',
+                    settings.languageCode || null,
                     now,
                     now
                 ]);

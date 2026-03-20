@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS settings (
     user_id UUID NOT NULL UNIQUE,
     veryfi_api_key TEXT,  -- Stores OCR.Space API key (legacy column name)
     default_currency TEXT DEFAULT 'EUR',
+    language_code TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -31,6 +32,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name = 'settings' AND column_name = 'default_currency') THEN
         ALTER TABLE settings ADD COLUMN default_currency TEXT DEFAULT 'EUR';
+    END IF;
+
+    -- Add language_code if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'settings' AND column_name = 'language_code') THEN
+        ALTER TABLE settings ADD COLUMN language_code TEXT;
     END IF;
 END $$;
 

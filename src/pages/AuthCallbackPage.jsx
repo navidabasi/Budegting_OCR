@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
+import { useTranslation } from '../languages/useTranslation';
 
 export default function AuthCallbackPage() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const showToast = useAppStore((state) => state.showToast);
-    const [status, setStatus] = useState('Completing Google authentication...');
+    const [status, setStatus] = useState(t('auth.callback.completing'));
 
     useEffect(() => {
         let isMounted = true;
@@ -19,7 +21,7 @@ export default function AuthCallbackPage() {
             if (message) {
                 showToast(message, 'error');
             }
-            setStatus(`Google ${intent === 'signup' ? 'sign up' : 'sign in'} failed. Redirecting...`);
+            setStatus(intent === 'signup' ? t('auth.callback.failedRedirectSignUp') : t('auth.callback.failedRedirectSignIn'));
             setTimeout(() => navigate(targetAuthRoute, { replace: true }), 1800);
         };
 
@@ -28,14 +30,14 @@ export default function AuthCallbackPage() {
                 const { supabase } = await import('../services/supabaseService');
 
                 if (!supabase) {
-                    redirectToLogin('Authentication is not configured.');
+                    redirectToLogin(t('auth.callback.notConfigured'));
                     return;
                 }
 
                 const errorParam = url.searchParams.get('error');
 
                 if (errorParam) {
-                    redirectToLogin(`Google ${intent === 'signup' ? 'sign up' : 'sign in'} was cancelled or failed. Please try again.`);
+                    redirectToLogin(intent === 'signup' ? t('auth.callback.canceledOrFailedSignUp') : t('auth.callback.canceledOrFailedSignIn'));
                     return;
                 }
 
@@ -49,11 +51,11 @@ export default function AuthCallbackPage() {
                 if (!activeSession?.user) {
                     const code = url.searchParams.get('code');
                     if (code) {
-                        setStatus(`Finalizing Google ${intent === 'signup' ? 'sign up' : 'sign in'}...`);
+                        setStatus(intent === 'signup' ? t('auth.callback.finalizingSignUp') : t('auth.callback.finalizingSignIn'));
                         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
                         if (error) {
                             console.error('OAuth code exchange failed:', error);
-                            redirectToLogin(`Unable to complete Google ${intent === 'signup' ? 'sign up' : 'sign in'}. Please try again.`);
+                            redirectToLogin(intent === 'signup' ? t('auth.callback.unableSignUp') : t('auth.callback.unableSignIn'));
                             return;
                         }
                         activeSession = data?.session;
@@ -61,7 +63,7 @@ export default function AuthCallbackPage() {
                 }
 
                 if (!activeSession?.user) {
-                    redirectToLogin('No active session found. Please sign in again.');
+                    redirectToLogin(t('auth.callback.noSession'));
                     return;
                 }
 
@@ -71,13 +73,13 @@ export default function AuthCallbackPage() {
                     email: activeSession.user.email
                 });
                 showToast(
-                    intent === 'signup' ? 'Successfully signed up with Google' : 'Successfully signed in with Google',
+                    intent === 'signup' ? t('auth.callback.successSignUp') : t('auth.callback.successSignIn'),
                     'success'
                 );
                 navigate('/', { replace: true });
             } catch (err) {
                 console.error('Auth callback error:', err);
-                redirectToLogin(`Unable to complete Google ${intent === 'signup' ? 'sign up' : 'sign in'} right now.`);
+                redirectToLogin(intent === 'signup' ? t('auth.callback.unableSignUp') : t('auth.callback.unableSignIn'));
             }
         };
 

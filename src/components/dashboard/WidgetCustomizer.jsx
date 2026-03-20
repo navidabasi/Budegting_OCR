@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { X, GripVertical } from 'lucide-react';
 import Button from '../common/Button';
-import { getAllWidgets, getDefaultLayout } from './WidgetRegistry';
+import { getAllWidgets, getDefaultLayout, WIDGET_TYPES } from './WidgetRegistry';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function WidgetCustomizer({ isOpen, onClose, currentLayout, onSave }) {
+    const { t } = useTranslation();
     const [widgets, setWidgets] = useState([]);
     const [enabled, setEnabled] = useState(new Set());
     const [draggedWidget, setDraggedWidget] = useState(null);
@@ -113,11 +115,53 @@ export default function WidgetCustomizer({ isOpen, onClose, currentLayout, onSav
 
     if (!isOpen) return null;
 
+    const getWidgetName = (widgetId) => {
+        switch (widgetId) {
+            case WIDGET_TYPES.SUMMARY_CARDS:
+                return t('dashboard.widgetNames.summaryCards');
+            case WIDGET_TYPES.CATEGORY_CHART:
+                return t('dashboard.widgetNames.categoryChart');
+            case WIDGET_TYPES.EXPENSE_CHART:
+                return t('dashboard.widgetNames.expenseChart');
+            case WIDGET_TYPES.TOP_MERCHANTS:
+                return t('dashboard.widgetNames.topMerchants');
+            case WIDGET_TYPES.TOP_EXPENSES:
+                return t('dashboard.widgetNames.topExpenses');
+            case WIDGET_TYPES.CASH_FLOW:
+                return t('dashboard.widgetNames.cashFlow');
+            case WIDGET_TYPES.RECURRING_PAYMENTS:
+                return t('dashboard.widgetNames.recurringPayments');
+            default:
+                return widgetId;
+        }
+    };
+
+    const getWidgetDescription = (widgetId) => {
+        switch (widgetId) {
+            case WIDGET_TYPES.SUMMARY_CARDS:
+                return t('dashboard.widgetDescriptions.summaryCards');
+            case WIDGET_TYPES.CATEGORY_CHART:
+                return t('dashboard.widgetDescriptions.categoryChart');
+            case WIDGET_TYPES.EXPENSE_CHART:
+                return t('dashboard.widgetDescriptions.expenseChart');
+            case WIDGET_TYPES.TOP_MERCHANTS:
+                return t('dashboard.widgetDescriptions.topMerchants');
+            case WIDGET_TYPES.TOP_EXPENSES:
+                return t('dashboard.widgetDescriptions.topExpenses');
+            case WIDGET_TYPES.CASH_FLOW:
+                return t('dashboard.widgetDescriptions.cashFlow');
+            case WIDGET_TYPES.RECURRING_PAYMENTS:
+                return t('dashboard.widgetDescriptions.recurringPayments');
+            default:
+                return '';
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold dark:text-white">Customize Dashboard</h3>
+                    <h3 className="text-xl font-semibold dark:text-white">{t('dashboard.widgetCustomizer.title')}</h3>
                     <button
                         onClick={onClose}
                         className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
@@ -127,7 +171,7 @@ export default function WidgetCustomizer({ isOpen, onClose, currentLayout, onSav
                 </div>
 
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                    Drag widgets to reorder them. Toggle widgets on/off to show or hide them on your dashboard.
+                    {t('dashboard.widgetCustomizer.subtitle')}
                 </p>
 
                 <div className="space-y-2 mb-6">
@@ -152,8 +196,8 @@ export default function WidgetCustomizer({ isOpen, onClose, currentLayout, onSav
                                     <GripVertical size={20} />
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className="font-medium text-gray-900 dark:text-white">{widget.name}</h4>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{widget.description}</p>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">{getWidgetName(widget.id)}</h4>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{getWidgetDescription(widget.id)}</p>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input
@@ -175,14 +219,14 @@ export default function WidgetCustomizer({ isOpen, onClose, currentLayout, onSav
                         onClick={onClose}
                         className="flex-1"
                     >
-                        Cancel
+                        {t('common.actions.cancel')}
                     </Button>
                     <Button
                         variant="primary"
                         onClick={handleSave}
                         className="flex-1"
                     >
-                        Save Layout
+                        {t('dashboard.widgetCustomizer.saveLayout')}
                     </Button>
                 </div>
             </div>

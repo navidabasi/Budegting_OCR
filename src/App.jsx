@@ -11,6 +11,7 @@ function ScrollToTop() {
 import { useAppStore } from './store/appStore';
 import { authService } from './services/authService';
 import { electricStorage } from './services/electricStorage';
+import { storageService } from './services/storage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
@@ -23,6 +24,8 @@ import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
 import InstallAppPrompt from './components/common/InstallAppPrompt';
+import { detectDeviceLanguage, normalizeLanguageCode } from './languages';
+import { useTranslation } from './languages/useTranslation';
 
 function ProtectedRoute({ children }) {
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
@@ -35,6 +38,7 @@ function PublicRoute({ children }) {
 }
 
 function App() {
+    const { t } = useTranslation();
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
     const setCurrentUser = useAppStore((state) => state.setCurrentUser);
     const currentUser = useAppStore((state) => state.currentUser);
@@ -45,6 +49,8 @@ function App() {
     const initializeDarkMode = useAppStore((state) => state.initializeDarkMode);
     const darkModeManual = useAppStore((state) => state.darkModeManual);
     const applyDarkMode = useAppStore((state) => state.applyDarkMode);
+    const languageCode = useAppStore((state) => state.languageCode);
+    const setLanguageCode = useAppStore((state) => state.setLanguageCode);
     const electricInitialized = useRef(false);
     const syncInProgressRef = useRef(false);
     const storageWarningShownRef = useRef(false);
@@ -55,7 +61,7 @@ function App() {
         if (!currentUser?.userId || isRecoveringStorage) return;
 
         if (!navigator.onLine) {
-            showToastRef.current('You are offline. Reconnect, then tap Refresh.', 'warning');
+            showToastRef.current(t('app.offlineWarning'), 'warning');
             return;
         }
 
@@ -67,16 +73,16 @@ function App() {
 
             if (health.hasLocalCache) {
                 storageWarningShownRef.current = false;
-                showToastRef.current('Offline cache restored.', 'success');
+                showToastRef.current(t('app.cacheRestored'), 'success');
                 window.dispatchEvent(new CustomEvent('refreshDashboard'));
                 window.dispatchEvent(new CustomEvent('refreshReceipts'));
                 window.dispatchEvent(new CustomEvent('refreshGroups'));
             } else {
-                showToastRef.current('Still in cloud-only mode. Please try Refresh again in a few seconds.', 'warning');
+                showToastRef.current(t('app.cloudOnlyWarning'), 'warning');
             }
         } catch (error) {
             console.error('[App] Manual storage refresh failed:', error);
-            showToastRef.current('Unable to refresh local cache right now.', 'error');
+            showToastRef.current(t('app.refreshFailed'), 'error');
         } finally {
             setIsRecoveringStorage(false);
         }
@@ -103,10 +109,7 @@ function App() {
                     const storageHealth = electricStorage.getStorageHealth();
                     setStorageHealth(storageHealth);
                     if (!storageHealth.hasLocalCache && !storageWarningShownRef.current) {
-                        showToastRef.current(
-                            'Offline mode is limited because local cache is unavailable. Reconnect and retry shortly.',
-                            'warning'
-                        );
+                        showToastRef.current(t('app.offlineModeLimited'), 'warning');
                         storageWarningShownRef.current = true;
                     } else if (storageHealth.hasLocalCache) {
                         storageWarningShownRef.current = false;
@@ -235,7 +238,7 @@ function App() {
 
                             // Initialize Electric and pull from Supabase
                             // (useEffect will handle full initialization, but we can start pulling early)
-                            showToastRef.current('Signed in successfully', 'success');
+                            showToastRef.current(t('app.signedInSuccess'), 'success');
 
                             // Trigger sync after sign-in if Electric is already initialized
                             if (electricInitialized.current) {
@@ -277,6 +280,50 @@ function App() {
         initializeDarkMode();
     }, [initializeDarkMode]);
 
+    // Initialize language (account setting > local cached > device language)
+    useEffect(() => {
+        let isMounted = true;
+
+        const initializeLanguage = async () => {
+            const deviceLanguage = detectDeviceLanguage();
+            const localLanguage = normalizeLanguageCode(languageCode || '', '');
+
+            if (!currentUser?.userId) {
+                const fallbackLanguage = localLanguage || deviceLanguage;
+                if (isMounted) {
+                    setLanguageCode(fallbackLanguage);
+                }
+                return;
+            }
+
+            let accountLanguage = '';
+            try {
+                accountLanguage = normalizeLanguageCode(await storageService.getLanguage(currentUser.userId), '');
+            } catch (err) {
+                console.warn('[App] Failed to read language from settings:', err);
+            }
+
+            const resolvedLanguage = accountLanguage || localLanguage || deviceLanguage;
+            if (!isMounted) return;
+
+            setLanguageCode(resolvedLanguage);
+
+            if (!accountLanguage) {
+                try {
+                    await storageService.setLanguage(currentUser.userId, resolvedLanguage);
+                } catch (err) {
+                    console.warn('[App] Failed to persist detected language:', err);
+                }
+            }
+        };
+
+        initializeLanguage();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [currentUser?.userId, setLanguageCode]);
+
     // Listen for system preference changes (only if not manually set)
     useEffect(() => {
         if (darkModeManual !== null) {
@@ -312,7 +359,7 @@ function App() {
                     <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
                         <div className="flex items-start justify-between gap-3">
                             <p className="leading-5">
-                                Local cache is unavailable. You are in cloud-only mode. Reconnect to the internet and tap Refresh to restore offline access.
+                                {t('app.cacheUnavailableBanner')}
                             </p>
                             <button
                                 type="button"
@@ -320,7 +367,7 @@ function App() {
                                 disabled={isRecoveringStorage}
                                 className="h-11 px-3 rounded-md border border-amber-400 bg-white/70 text-amber-900 disabled:opacity-60 dark:bg-amber-900/30 dark:border-amber-600 dark:text-amber-100"
                             >
-                                {isRecoveringStorage ? 'Refreshing...' : 'Refresh'}
+                                {isRecoveringStorage ? t('app.refreshingButton') : t('app.refreshButton')}
                             </button>
                         </div>
                     </div>

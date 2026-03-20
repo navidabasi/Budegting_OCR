@@ -5,6 +5,7 @@ import { ocrApi } from '../../services/ocrApi';
 import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
+import { useTranslation } from '../../languages/useTranslation';
 
 const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_OCR_IMAGE_DIMENSION = 2200;
@@ -149,6 +150,7 @@ const optimizeImageForOcr = async (file) => {
 };
 
 export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initialFile = null, onSwitchToManual }) {
+    const { t } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const setLoading = useAppStore((state) => state.setLoading);
@@ -185,8 +187,8 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                 videoRef.current.srcObject = stream;
             }
         } catch (err) {
-            setError('Camera access denied. Please allow camera permissions.');
-            showToast('Camera access denied', 'error');
+            setError(t('receipts.upload.cameraDenied'));
+            showToast(t('receipts.upload.cameraDenied'), 'error');
         }
     };
 
@@ -233,7 +235,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
 
             const normalizedApiKey = (apiKey || '').trim();
             if (!normalizedApiKey) {
-                throw new Error('OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.');
+                throw new Error(t('receipts.upload.premiumRequired'));
             }
 
             let fileToProcess = file;
@@ -244,7 +246,10 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
 
                 if (optimized.optimized && optimized.optimizedSize < optimized.originalSize) {
                     showToast(
-                        `Image optimized: ${formatBytes(optimized.originalSize)} -> ${formatBytes(optimized.optimizedSize)}`,
+                        t('receipts.upload.optimizedToast', {
+                            original: formatBytes(optimized.originalSize),
+                            optimized: formatBytes(optimized.optimizedSize),
+                        }),
                         'info'
                     );
                 }
@@ -257,8 +262,24 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
             setOcrResult(result);
         } catch (err) {
             console.error('[ReceiptUpload] OCR processing error:', err);
-            setError(err.message || 'Failed to process receipt');
-            showToast(err.message || 'Failed to process receipt', 'error');
+            const rawMessage = err?.message || '';
+            const normalized = rawMessage.toLowerCase();
+            let localizedMessage = rawMessage || t('receipts.upload.processFailed');
+
+            if (normalized.includes('unable to compress image')) {
+                localizedMessage = t('receipts.upload.compressFailed');
+            } else if (normalized.includes('unable to load image for ocr')) {
+                localizedMessage = t('receipts.upload.loadImageFailed');
+            } else if (normalized.includes('camera access denied')) {
+                localizedMessage = t('receipts.upload.cameraDenied');
+            } else if (normalized.includes('origin not allowed')) {
+                localizedMessage = t('receipts.upload.originNotAllowed');
+            } else if (normalized.includes('invalid response')) {
+                localizedMessage = t('receipts.upload.processFailedInvalid');
+            }
+
+            setError(localizedMessage);
+            showToast(localizedMessage, 'error');
         } finally {
             setLoading(false);
         }
@@ -272,14 +293,14 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                 ...receiptData,
                 userId: currentUser.userId
             });
-            showToast('Receipt saved successfully', 'success');
+            showToast(t('receipts.upload.saveSuccess'), 'success');
             handleClose();
             // Dispatch events to refresh components using hooks
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
-            showToast('Failed to save receipt', 'error');
+            showToast(t('receipts.upload.saveFailed'), 'error');
         }
     };
 
@@ -340,7 +361,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
 
     if (ocrResult) {
         return (
-            <Modal isOpen={isOpen} onClose={handleClose} title="Review Receipt" size="lg">
+            <Modal isOpen={isOpen} onClose={handleClose} title={t('receipts.upload.saveAndEdit')} size="lg">
                 <ReceiptForm
                     initialData={ocrResult}
                     onSave={handleSave}
@@ -351,7 +372,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
     }
 
     return (
-        <Modal isOpen={isOpen} onClose={handleClose} title={mode === 'camera' ? 'Take Photo' : 'Upload Receipt'}>
+        <Modal isOpen={isOpen} onClose={handleClose} title={mode === 'camera' ? t('receipts.upload.titleCamera') : t('receipts.upload.titleUpload')}>
             <div className="space-y-4">
                 {mode === 'camera' && !imagePreview && (
                     <div className="space-y-4">
@@ -370,13 +391,13 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                                 disabled={loading}
                             >
                                 <Camera className="inline mr-2" size={20} />
-                                Capture
+                                {t('receipts.upload.capture')}
                             </button>
                             <button
                                 onClick={handleClose}
                                 className="btn btn-secondary"
                             >
-                                Cancel
+                                {t('common.actions.cancel')}
                             </button>
                         </div>
                     </div>
@@ -396,7 +417,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                             className="w-full btn btn-primary"
                         >
                             <Upload className="inline mr-2" size={20} />
-                            Select Image
+                            {t('receipts.upload.chooseImage')}
                         </button>
                     </div>
                 )}
@@ -406,7 +427,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                         <div className="relative">
                             <img
                                 src={imagePreview}
-                                alt="Receipt preview"
+                                alt={t('receipts.detail.title')}
                                 className="w-full rounded-lg"
                             />
                             {loading && (
@@ -421,10 +442,10 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                                 <p className="text-xs text-red-600 mt-2">
                                     {error.includes('rate limit') ? (
                                         <>
-                                            <strong>Tip:</strong> Add an OCR.Space API key in Settings for higher limits.
+                                            <strong>{t('receipts.upload.tipLabel')}</strong> {t('receipts.upload.rateLimitTip')}
                                         </>
                                     ) : (
-                                        'You can still add this receipt manually.'
+                                        t('receipts.upload.manualFallback')
                                     )}
                                 </p>
                             </div>
@@ -433,8 +454,13 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="text-xs text-blue-800">
                                     {optimizationInfo.optimized
-                                        ? `Upload optimized for OCR: ${formatBytes(optimizationInfo.originalSize)} -> ${formatBytes(optimizationInfo.optimizedSize)}`
-                                        : `Upload size: ${formatBytes(optimizationInfo.originalSize)}`}
+                                        ? t('receipts.upload.optimizedForOcr', {
+                                            original: formatBytes(optimizationInfo.originalSize),
+                                            optimized: formatBytes(optimizationInfo.optimizedSize),
+                                        })
+                                        : t('receipts.upload.uploadSize', {
+                                            size: formatBytes(optimizationInfo.originalSize),
+                                        })}
                                 </p>
                             </div>
                         )}
@@ -449,7 +475,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                                     }}
                                     className="flex-1 btn btn-primary"
                                 >
-                                    Enter Manually
+                                    {t('receipts.upload.switchToManual')}
                                 </button>
                             )}
                             <button
@@ -457,13 +483,13 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
                                 className={`${error ? 'flex-1' : 'flex-1'} btn btn-secondary`}
                                 disabled={loading}
                             >
-                                Retry
+                                {t('receipts.upload.retake')}
                             </button>
                             <button
                                 onClick={handleClose}
                                 className="btn btn-secondary"
                             >
-                                Cancel
+                                {t('common.actions.cancel')}
                             </button>
                         </div>
                     </div>

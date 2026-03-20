@@ -10,13 +10,14 @@ import {
     Tooltip,
     Legend
 } from 'chart.js';
-import { format, eachDayOfInterval, subDays } from 'date-fns';
-import { getDateKey, getEffectiveAmount } from '../../utils/helpers';
+import { eachDayOfInterval, subDays } from 'date-fns';
+import { formatCurrency, getDateKey, getEffectiveAmount } from '../../utils/helpers';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 ChartJS.register(
     CategoryScale,
@@ -29,6 +30,7 @@ ChartJS.register(
 );
 
 export default function ExpenseChart({ receipts }) {
+    const { t, languageCode, localizeCategory } = useTranslation();
     const navigate = useNavigate();
     const selectedChartDate = useAppStore((state) => state.selectedChartDate);
     const selectedChartReceipts = useAppStore((state) => state.selectedChartReceipts);
@@ -125,7 +127,9 @@ export default function ExpenseChart({ receipts }) {
         }
     });
 
-    const labels = last30Days.map(day => format(day, 'MMM dd'));
+    const labels = last30Days.map((day) =>
+        day.toLocaleDateString(languageCode || 'en-US', { month: 'short', day: '2-digit' })
+    );
     const expenseData = Object.values(dailyExpenses);
     const incomeData = Object.values(dailyIncome);
 
@@ -240,7 +244,7 @@ export default function ExpenseChart({ receipts }) {
         labels,
         datasets: [
             {
-                label: 'Daily Expenses',
+                label: t('dashboard.expenseChart.dailyExpenses'),
                 data: expenseData,
                 borderColor: '#ef4444',
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -250,7 +254,7 @@ export default function ExpenseChart({ receipts }) {
                 pointHoverRadius: expenseData.map(value => value > 0 ? (window.innerWidth < 768 ? 10 : 6) : 0)
             },
             {
-                label: 'Daily Income',
+                label: t('dashboard.expenseChart.dailyIncome'),
                 data: incomeData,
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -356,8 +360,8 @@ export default function ExpenseChart({ receipts }) {
                 callbacks: {
                     label: function (context) {
                         const label = context.dataset.label || '';
-                        const value = context.parsed.y.toFixed(2);
-                        return `${label}: $${value}`;
+                        const value = context.parsed.y;
+                        return `${label}: ${formatCurrency(value)}`;
                     }
                 }
             }
@@ -386,7 +390,7 @@ export default function ExpenseChart({ receipts }) {
                 beginAtZero: true,
                 ticks: {
                     callback: function (value) {
-                        return '$' + value.toFixed(0);
+                        return formatCurrency(value);
                     },
                     font: {
                         size: 10
@@ -423,7 +427,7 @@ export default function ExpenseChart({ receipts }) {
     return (
         <div className="contents">
             <div className="card h-80 w-full overflow-hidden">
-                <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">Last 30 Days (Income & Expenses)</h3>
+                <h3 className="text-base sm:text-lg font-semibold mb-2 dark:text-white">{t('dashboard.expenseChart.title')}</h3>
 
                 {/* Mobile Navigation Bar - only shows on interaction */}
                 {isTouchDevice && daysWithDataIndices.length > 0 && (
@@ -431,26 +435,32 @@ export default function ExpenseChart({ receipts }) {
                         <button
                             onClick={handleNavPrevious}
                             className="flex items-center gap-1 text-gray-700 dark:text-white hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-400 p-1"
-                            aria-label="Previous day with data"
+                            aria-label={t('dashboard.expenseChart.previousDataDay')}
                         >
                             <ChevronLeft size={24} />
-                            <span className="text-sm">Prev</span>
+                            <span className="text-sm">{t('common.actions.previous')}</span>
                         </button>
 
                         <div className="text-gray-900 dark:text-white text-sm font-medium">
                             {navIndex !== null ? (
-                                <span>{format(last30Days[navIndex], 'MMM dd, yyyy')}</span>
+                                <span>
+                                    {last30Days[navIndex].toLocaleDateString(languageCode || 'en-US', {
+                                        month: 'short',
+                                        day: '2-digit',
+                                        year: 'numeric',
+                                    })}
+                                </span>
                             ) : (
-                                <span className="text-gray-500 dark:text-gray-300">Tap arrows to browse</span>
+                                <span className="text-gray-500 dark:text-gray-300">{t('dashboard.expenseChart.tapToBrowse')}</span>
                             )}
                         </div>
 
                         <button
                             onClick={handleNavNext}
                             className="flex items-center gap-1 text-gray-700 dark:text-white hover:text-gray-500 dark:hover:text-gray-300 active:text-gray-400 p-1"
-                            aria-label="Next day with data"
+                            aria-label={t('dashboard.expenseChart.nextDataDay')}
                         >
-                            <span className="text-sm">Next</span>
+                            <span className="text-sm">{t('common.actions.next')}</span>
                             <ChevronRight size={24} />
                         </button>
                     </div>
@@ -466,7 +476,10 @@ export default function ExpenseChart({ receipts }) {
                 </div>
                 {swipeCurrent !== null && highlightedIndex !== null && (
                     <div className="text-xs text-gray-500 dark:text-gray-300 mt-1 text-center">
-                        {format(last30Days[highlightedIndex], 'MMM dd')}
+                        {last30Days[highlightedIndex].toLocaleDateString(languageCode || 'en-US', {
+                            month: 'short',
+                            day: '2-digit',
+                        })}
                     </div>
                 )}
             </div>
@@ -476,10 +489,18 @@ export default function ExpenseChart({ receipts }) {
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                {format(selectedDate, 'EEEE, MMMM dd, yyyy')}
+                                {selectedDate.toLocaleDateString(languageCode || 'en-US', {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: '2-digit',
+                                    year: 'numeric',
+                                })}
                             </h4>
                             <p className="text-sm text-gray-500 dark:text-gray-300">
-                                {selectedDayReceipts.length} receipt{selectedDayReceipts.length !== 1 ? 's' : ''}
+                                {t('dashboard.expenseChart.receiptCount', {
+                                    count: selectedDayReceipts.length,
+                                    suffix: selectedDayReceipts.length !== 1 ? 's' : '',
+                                })}
                             </p>
                         </div>
                         <button
@@ -503,7 +524,9 @@ export default function ExpenseChart({ receipts }) {
                                     onClick={() => navigate(`/receipts/${receipt.id}`)}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-gray-900 dark:text-white">{receipt.merchant}</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">
+                                            {receipt.merchant || t('dashboard.topMerchants.unknown')}
+                                        </span>
                                         <span className={`font-bold ${
                                             isIncome ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
                                         }`}>
@@ -511,7 +534,7 @@ export default function ExpenseChart({ receipts }) {
                                         </span>
                                     </div>
                                     {receipt.category && (
-                                        <span className="text-xs text-gray-600 dark:text-gray-400">{receipt.category}</span>
+                                        <span className="text-xs text-gray-600 dark:text-gray-400">{localizeCategory(receipt.category)}</span>
                                     )}
                                 </div>
                             );

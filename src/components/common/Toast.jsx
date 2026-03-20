@@ -32,7 +32,7 @@ export default function Toast() {
     };
 
     return (
-        <div className="fixed top-4 right-4 z-50 animate-slide-in">
+        <div className="toast-container fixed top-4 right-4 z-50 animate-slide-in">
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${bgColors[toast.type] || bgColors.info} max-w-md`}>
                 {icons[toast.type] || icons.info}
                 <p className="flex-1 text-sm text-gray-800">{toast.message}</p>
@@ -46,4 +46,3 @@ export default function Toast() {
         </div>
     );
 }
-

@@ -4,8 +4,10 @@ import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function SummaryCards({ receipts }) {
+    const { t } = useTranslation();
     const nav = useReceiptNavigation();
     const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
@@ -37,7 +39,7 @@ export default function SummaryCards({ receipts }) {
     return (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6">
             <SummaryCard
-                label="Total Income"
+                label={t('dashboard.summary.totalIncome')}
                 amount={totalIncome}
                 receipts={income}
                 icon={TrendingUp}
@@ -47,7 +49,7 @@ export default function SummaryCards({ receipts }) {
                 onClick={nav.toAllIncome}
             />
             <SummaryCard
-                label="Total Expenses"
+                label={t('dashboard.summary.totalExpenses')}
                 amount={totalExpenses}
                 receipts={expenses}
                 icon={TrendingDown}
@@ -57,7 +59,7 @@ export default function SummaryCards({ receipts }) {
                 onClick={nav.toAllExpenses}
             />
             <SummaryCard
-                label="Net"
+                label={t('dashboard.cashFlow.net')}
                 amount={net}
                 receipts={financialReceipts}
                 icon={ArrowUpDown}
@@ -67,7 +69,7 @@ export default function SummaryCards({ receipts }) {
                 onClick={nav.toReceipts}
             />
             <SummaryCard
-                label="This Month"
+                label={t('dashboard.summary.thisMonth')}
                 amount={monthlyExpenses}
                 receipts={monthlyReceipts}
                 icon={Calendar}

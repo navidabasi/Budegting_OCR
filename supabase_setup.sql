@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS settings (
   user_id UUID UNIQUE NOT NULL, -- References auth.users(id) via RLS, not FK constraint
   veryfi_api_key TEXT,
   default_currency TEXT DEFAULT 'USD',
+  language_code TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -125,4 +126,3 @@ CREATE TRIGGER update_settings_updated_at
 -- RLS policies provide the same security by ensuring users can only access
 -- their own data using auth.uid() = user_id checks.
 -- ============================================
-

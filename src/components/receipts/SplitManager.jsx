@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Users, DollarSign } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import { formatCurrency } from '../../utils/helpers';
+import { useTranslation } from '../../languages/useTranslation';
+import { useAppStore } from '../../store/appStore';
 
 export default function SplitManager({ receipt, onSave, onClose }) {
+    const { t } = useTranslation();
+    const showToast = useAppStore((state) => state.showToast);
     const [method, setMethod] = useState('equal');
     const [people, setPeople] = useState(2);
     const [users, setUsers] = useState([]);
@@ -73,14 +77,14 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             const initialUsers = [];
             for (let i = 0; i < people; i++) {
                 initialUsers.push({
-                    name: i === 0 ? 'You' : '', // First user is always "You"
+                    name: i === 0 ? 'You' : '',
                     amount: perPerson,
                     percentage: total > 0 ? (perPerson / total) * 100 : 0
                 });
             }
             setUsers(initialUsers);
         }
-    }, [method]);
+    }, [method, people, receipt?.splitData, total, users.length]);
 
     // Auto-adjust users when people count changes in custom mode
     useEffect(() => {
@@ -145,10 +149,6 @@ export default function SplitManager({ receipt, onSave, onClose }) {
         setUsers([...users, { name: '', amount: newAmount, percentage: total > 0 ? (newAmount / total) * 100 : 0 }]);
     };
 
-    const handleRemoveUser = (index) => {
-        setUsers(users.filter((_, i) => i !== index));
-    };
-
     const handleUserChange = (index, field, value) => {
         const updated = [...users];
         updated[index] = { ...updated[index], [field]: value };
@@ -189,13 +189,22 @@ export default function SplitManager({ receipt, onSave, onClose }) {
             const difference = Math.abs(total - customTotal);
             
             if (difference > 0.01) { // Allow small rounding differences
-                alert(`The split amounts (${formatCurrency(customTotal, receipt?.currency || 'EUR')}) don't match the total (${formatCurrency(total, receipt?.currency || 'EUR')}). Please adjust the amounts.`);
+                showToast(
+                    t('receipts.split.splitTotalMismatch', {
+                        customTotal: formatCurrency(customTotal, receipt?.currency || 'EUR'),
+                        total: formatCurrency(total, receipt?.currency || 'EUR'),
+                    }),
+                    'error'
+                );
                 return;
             }
             
             // Ensure all people have amounts
             if (users.length !== people) {
-                alert(`Please add amounts for all ${people} people.`);
+                showToast(
+                    t('receipts.split.splitPeopleMissing', { people }),
+                    'error'
+                );
                 return;
             }
         }
@@ -231,7 +240,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold dark:text-white">Split Receipt</h3>
+                    <h3 className="text-lg font-semibold dark:text-white">{t('receipts.split.title')}</h3>
                     <button onClick={onClose} className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100">
                         <X size={20} />
                     </button>
@@ -239,7 +248,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
 
                 <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600 dark:text-gray-300">Total Amount</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">{t('receipts.form.total')}</span>
                         <span className="text-lg font-bold dark:text-white">
                             {formatCurrency(total, receipt?.currency || 'EUR')}
                         </span>
@@ -248,7 +257,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
 
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
-                        Split Method
+                        {t('receipts.split.method')}
                     </label>
                     <div className="flex gap-2">
                         <button
@@ -260,7 +269,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                             }`}
                         >
-                            Equal Split
+                            {t('receipts.split.equal')}
                         </button>
                         <button
                             type="button"
@@ -271,7 +280,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                             }`}
                         >
-                            Custom Split
+                            {t('receipts.split.custom')}
                         </button>
                     </div>
                 </div>
@@ -280,7 +289,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                                Number of People
+                                {t('receipts.split.people')}
                             </label>
                             <Input
                                 type="number"
@@ -292,13 +301,18 @@ export default function SplitManager({ receipt, onSave, onClose }) {
 
                         <div className="p-4 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-green-900 dark:text-green-200">Each Person Pays</span>
+                                <span className="text-sm font-medium text-green-900 dark:text-green-200">{t('receipts.split.eachPersonPays')}</span>
                                 <span className="text-lg font-bold text-green-700 dark:text-green-300">
                                     {formatCurrency(equalAmount, receipt?.currency || 'EUR')}
                                 </span>
                             </div>
                             <div className="text-xs text-green-700 dark:text-green-300">
-                                {people} person{people !== 1 ? 's' : ''} × {formatCurrency(equalAmount, receipt?.currency || 'EUR')} = {formatCurrency(total, receipt?.currency || 'EUR')}
+                                {t('receipts.split.equalSummary', {
+                                    people,
+                                    suffix: people !== 1 ? 's' : '',
+                                    amount: formatCurrency(equalAmount, receipt?.currency || 'EUR'),
+                                    total: formatCurrency(total, receipt?.currency || 'EUR'),
+                                })}
                             </div>
                         </div>
                     </div>
@@ -306,7 +320,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                                Total Number of People
+                                {t('receipts.split.people')}
                             </label>
                             <Input
                                 type="number"
@@ -326,7 +340,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-white">
-                                    Custom Amounts ({users.length} / {people})
+                                    {t('receipts.split.customAmounts', { current: users.length, total: people })}
                                 </label>
                                 {users.length < people && (
                                     <button
@@ -335,7 +349,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                         className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
                                     >
                                         <Plus size={16} />
-                                        Add Person
+                                        {t('receipts.split.addPerson')}
                                     </button>
                                 )}
                             </div>
@@ -344,7 +358,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                 {users.map((user, index) => (
                                     <div key={index} className="flex gap-2 items-center p-2 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
                                         <Input
-                                            placeholder="Name (optional)"
+                                            placeholder={t('receipts.split.nameOptional')}
                                             value={user.name || ''}
                                             onChange={(e) => handleUserChange(index, 'name', e.target.value)}
                                             className="flex-1"
@@ -354,7 +368,7 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                             step="0.01"
                                             min="0"
                                             max={total}
-                                            placeholder="Amount"
+                                            placeholder={t('receipts.form.price')}
                                             value={user.amount > 0 ? user.amount.toString() : ''}
                                             onChange={(e) => handleUserChange(index, 'amount', e.target.value)}
                                             className="w-32"
@@ -395,13 +409,18 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                             {users.length < people && (
                                 <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-sm font-medium text-blue-900 dark:text-blue-200">Remaining to Split</span>
+                                        <span className="text-sm font-medium text-blue-900 dark:text-blue-200">{t('receipts.split.remainingToSplit')}</span>
                                         <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
                                             {formatCurrency(remaining, receipt?.currency || 'EUR')}
                                         </span>
                                     </div>
                                     <div className="text-xs text-blue-700 dark:text-blue-300">
-                                        {people - users.length} person{people - users.length !== 1 ? 's' : ''} × {formatCurrency(remainingPerPerson, receipt?.currency || 'EUR')} = {formatCurrency(remaining, receipt?.currency || 'EUR')}
+                                        {t('receipts.split.remainingSummary', {
+                                            people: people - users.length,
+                                            suffix: people - users.length !== 1 ? 's' : '',
+                                            amount: formatCurrency(remainingPerPerson, receipt?.currency || 'EUR'),
+                                            total: formatCurrency(remaining, receipt?.currency || 'EUR'),
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -416,8 +435,10 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                                         Math.abs(remaining) < 0.01 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
                                     }`}>
                                         {Math.abs(remaining) < 0.01 
-                                            ? '✓ Split is balanced' 
-                                            : `⚠ Remaining: ${formatCurrency(Math.abs(remaining), receipt?.currency || 'EUR')}. Please adjust amounts to match the total.`}
+                                            ? t('receipts.split.exactMatch')
+                                            : t('receipts.split.remaining', {
+                                                remaining: formatCurrency(Math.abs(remaining), receipt?.currency || 'EUR'),
+                                            })}
                                     </div>
                                 </div>
                             )}
@@ -431,17 +452,16 @@ export default function SplitManager({ receipt, onSave, onClose }) {
                         onClick={handleSave}
                         className="flex-1"
                     >
-                        Save Split
+                        {t('common.actions.save')}
                     </Button>
                     <Button
                         variant="secondary"
                         onClick={onClose}
                     >
-                        Cancel
+                        {t('common.actions.cancel')}
                     </Button>
                 </div>
             </div>
         </div>
     );
 }
-

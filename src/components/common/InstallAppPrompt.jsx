@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, Download, Monitor, Smartphone } from 'lucide-react';
+import { useTranslation } from '../../languages/useTranslation';
 
 function getPlatform() {
     const userAgent = navigator.userAgent || '';
@@ -20,6 +21,7 @@ function getPlatform() {
 }
 
 export default function InstallAppPrompt() {
+    const { t } = useTranslation();
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [showPrompt, setShowPrompt] = useState(false);
     const [platform, setPlatform] = useState('unsupported');
@@ -77,8 +79,8 @@ export default function InstallAppPrompt() {
         if (platform === 'ios') {
             return {
                 icon: Smartphone,
-                title: 'Add To Home Screen',
-                body: 'Install "Where my money went?" on your iPhone or iPad for quicker access and offline use.',
+                title: t('app.installPrompt.iosTitle'),
+                body: t('app.installPrompt.iosBody'),
                 ctaLabel: null,
             };
         }
@@ -87,25 +89,25 @@ export default function InstallAppPrompt() {
             const hasInstallPrompt = !!deferredPrompt;
             return {
                 icon: Smartphone,
-                title: hasInstallPrompt ? 'Install On Android' : 'Add To Home Screen',
+                title: hasInstallPrompt ? t('app.installPrompt.androidTitleReady') : t('app.installPrompt.androidTitleManual'),
                 body: hasInstallPrompt
-                    ? 'Add "Where my money went?" to your Android home screen for faster access and offline use.'
-                    : 'If the install button is not available, use Chrome menu > "Add to Home screen".',
-                ctaLabel: hasInstallPrompt ? 'Install On Android' : null,
+                    ? t('app.installPrompt.androidBodyReady')
+                    : t('app.installPrompt.androidBodyManual'),
+                ctaLabel: hasInstallPrompt ? t('app.installPrompt.androidCta') : null,
             };
         }
 
         if (platform === 'desktop') {
             return {
                 icon: Monitor,
-                title: 'Install On This Computer',
-                body: 'Create an installed desktop app for faster access and offline use.',
-                ctaLabel: 'Install On This Computer',
+                title: t('app.installPrompt.desktopTitle'),
+                body: t('app.installPrompt.desktopBody'),
+                ctaLabel: t('app.installPrompt.desktopCta'),
             };
         }
 
         return null;
-    }, [platform, deferredPrompt]);
+    }, [platform, deferredPrompt, t]);
 
     const canShowPrompt = !isStandalone && promptContent && (
         platform === 'ios'
@@ -157,22 +159,22 @@ export default function InstallAppPrompt() {
 
                         {platform === 'ios' ? (
                             <div className="mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <p className="font-medium text-gray-900 dark:text-white mb-2">To install:</p>
+                                <p className="font-medium text-gray-900 dark:text-white mb-2">{t('app.installPrompt.iosStepsTitle')}</p>
                                 <ol className="list-decimal list-inside space-y-1">
-                                    <li>Tap the Share button <span className="inline-block w-5 h-5 align-middle">
+                                    <li>{t('app.installPrompt.iosStepOne')} <span className="inline-block w-5 h-5 align-middle">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                             <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
                                         </svg>
                                     </span></li>
-                                    <li>Scroll down and tap "Add to Home Screen"</li>
+                                    <li>{t('app.installPrompt.iosStepTwo')}</li>
                                 </ol>
                             </div>
                         ) : platform === 'android' && !deferredPrompt ? (
                             <div className="mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <p className="font-medium text-gray-900 dark:text-white mb-2">To install:</p>
+                                <p className="font-medium text-gray-900 dark:text-white mb-2">{t('app.installPrompt.androidStepsTitle')}</p>
                                 <ol className="list-decimal list-inside space-y-1">
-                                    <li>Tap the browser menu (top-right)</li>
-                                    <li>Tap "Add to Home screen"</li>
+                                    <li>{t('app.installPrompt.androidStepOne')}</li>
+                                    <li>{t('app.installPrompt.androidStepTwo')}</li>
                                 </ol>
                             </div>
                         ) : (
@@ -189,7 +191,7 @@ export default function InstallAppPrompt() {
                     <button
                         onClick={handleDismiss}
                         className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        aria-label="Dismiss"
+                        aria-label={t('app.installPrompt.dismiss')}
                     >
                         <X size={20} />
                     </button>

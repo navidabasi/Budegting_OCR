@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Calendar, Bell } from 'lucide-react';
 import { calculateNextRecurringDate } from '../../utils/recurring';
+import { useTranslation } from '../../languages/useTranslation';
 
-const FREQUENCY_OPTIONS = [
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'biweekly', label: 'Every 2 Weeks' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'quarterly', label: 'Quarterly' },
-    { value: 'yearly', label: 'Yearly' }
-];
+const FREQUENCY_VALUES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
 
 export default function RecurringManager({ recurringData, onChange, receiptDate }) {
+    const { t } = useTranslation();
     const [isRecurring, setIsRecurring] = useState(!!recurringData?.isActive);
     const [frequency, setFrequency] = useState(recurringData?.frequency || 'monthly');
     const [nextDueDate, setNextDueDate] = useState(recurringData?.nextDueDate || '');
@@ -88,7 +84,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <RefreshCw size={18} className={isRecurring ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'} />
-                    <span className="font-medium text-gray-700 dark:text-gray-200">Recurring Payment</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{t('receipts.recurring.enabled')}</span>
                 </div>
                 <button
                     type="button"
@@ -107,15 +103,15 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                 <div className="space-y-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Frequency
+                            {t('receipts.recurring.frequency')}
                         </label>
                         <select
                             value={frequency}
                             onChange={(e) => handleFrequencyChange(e.target.value)}
                             className={inputClass}
                         >
-                            {FREQUENCY_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            {FREQUENCY_VALUES.map((value) => (
+                                <option key={value} value={value}>{t(`receipts.recurring.${value}`)}</option>
                             ))}
                         </select>
                     </div>
@@ -124,7 +120,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                         <div className="input-wrapper">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 <Calendar size={14} className="inline mr-1" />
-                                Next Due Date
+                                {t('receipts.recurring.nextDueDate')}
                             </label>
                             <input
                                 type="date"
@@ -136,8 +132,8 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                         <div className="input-wrapper">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 <Calendar size={14} className="inline mr-1" />
-                                End Date
-                                <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
+                                {t('receipts.recurring.endDate')}
+                                <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">{t('receipts.recurring.optional')}</span>
                             </label>
                             <input
                                 type="date"
@@ -151,17 +147,17 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             <Bell size={14} className="inline mr-1" />
-                            Remind me (days before)
+                            {t('receipts.recurring.reminderDays')}
                         </label>
                         <select
                             value={reminderDays}
                             onChange={(e) => handleReminderChange(parseInt(e.target.value))}
                             className={inputClass}
                         >
-                            <option value={0}>On due date</option>
-                            <option value={1}>1 day before</option>
-                            <option value={3}>3 days before</option>
-                            <option value={7}>1 week before</option>
+                            <option value={0}>{t('receipts.recurring.onDueDate')}</option>
+                            <option value={1}>{t('receipts.recurring.daysBefore', { days: 1, suffix: '' })}</option>
+                            <option value={3}>{t('receipts.recurring.daysBefore', { days: 3, suffix: 's' })}</option>
+                            <option value={7}>{t('receipts.recurring.oneWeekBefore')}</option>
                         </select>
                     </div>
                 </div>

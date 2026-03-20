@@ -75,6 +75,19 @@ export const storageService = {
         });
     },
 
+    async getLanguage(userId) {
+        const settings = await electricStorage.getSettings(userId);
+        return settings?.languageCode || null;
+    },
+
+    async setLanguage(userId, languageCode) {
+        const settings = await electricStorage.getSettings(userId);
+        return await electricStorage.saveSettings(userId, {
+            ...settings,
+            languageCode,
+        });
+    },
+
     // User Layout
     getUserLayout: electricStorage.getUserLayout,
     saveUserLayout: electricStorage.saveUserLayout,

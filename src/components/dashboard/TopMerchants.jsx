@@ -2,14 +2,16 @@ import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import { getEffectiveAmount } from '../../utils/helpers';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function TopMerchants({ receipts }) {
+    const { t } = useTranslation();
     const nav = useReceiptNavigation();
     const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
     const merchantTotals = {};
 
     financialReceipts.forEach(receipt => {
-        const merchant = receipt.merchant || 'Unknown';
+        const merchant = receipt.merchant || t('dashboard.topMerchants.unknown');
         // Use effective amount (user's share if split)
         merchantTotals[merchant] = (merchantTotals[merchant] || 0) + getEffectiveAmount(receipt);
     });
@@ -21,15 +23,15 @@ export default function TopMerchants({ receipts }) {
     if (topMerchants.length === 0) {
         return (
             <div className="card">
-                <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Merchants</h3>
-                <p className="text-gray-500 dark:text-gray-300">No data to display</p>
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('dashboard.topMerchants.title')}</h3>
+                <p className="text-gray-500 dark:text-gray-300">{t('dashboard.topMerchants.noData')}</p>
             </div>
         );
     }
 
     return (
         <div className="card">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Merchants</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('dashboard.topMerchants.title')}</h3>
             <div className="space-y-3">
                 {topMerchants.map(([merchant, total], index) => (
                     <div 
@@ -45,7 +47,7 @@ export default function TopMerchants({ receipts }) {
                         </div>
                         <div className="font-semibold text-gray-900 dark:text-white">
                             <CurrencyTotalDisplay 
-                                receipts={financialReceipts.filter(r => (r.merchant || 'Unknown') === merchant)} 
+                                receipts={financialReceipts.filter(r => (r.merchant || t('dashboard.topMerchants.unknown')) === merchant)} 
                                 amount={total} 
                             />
                         </div>

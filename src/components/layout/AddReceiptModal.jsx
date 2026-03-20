@@ -6,8 +6,10 @@ import Modal from '../common/Modal';
 import ReceiptForm from '../receipts/ReceiptForm';
 import ReceiptUpload from '../receipts/ReceiptUpload';
 import ErrorBoundary from '../common/ErrorBoundary';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function AddReceiptModal() {
+    const { t } = useTranslation();
     const addReceiptModalOpen = useAppStore((state) => state.addReceiptModalOpen);
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
     const currentUser = useAppStore((state) => state.currentUser);
@@ -55,18 +57,18 @@ export default function AddReceiptModal() {
                 ...receiptData,
                 userId: currentUser.userId
             });
-            showToast('Receipt saved successfully', 'success');
+            showToast(t('receipts.addModal.saveSuccess'), 'success');
             handleClose();
             window.dispatchEvent(new CustomEvent('refreshReceipts'));
             window.dispatchEvent(new CustomEvent('refreshGroups'));
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
-            showToast('Failed to save receipt', 'error');
+            showToast(t('receipts.addModal.saveFailed'), 'error');
         }
     };
 
     const showPremiumUpgradeError = () => {
-        showToast('OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.', 'error');
+        showToast(t('receipts.addModal.premiumError'), 'error');
     };
 
     const handleStartCamera = () => {
@@ -125,7 +127,7 @@ export default function AddReceiptModal() {
                 <Modal
                     isOpen={addReceiptModalOpen}
                     onClose={handleClose}
-                    title="Add Receipt Manually"
+                    title={t('receipts.addModal.manualTitle')}
                     size="lg"
                 >
                     <ReceiptForm onSave={handleSave} onClose={handleClose} />
@@ -141,7 +143,7 @@ export default function AddReceiptModal() {
         <Modal
             isOpen={addReceiptModalOpen}
             onClose={handleClose}
-            title="Add Receipt"
+            title={t('receipts.addModal.title')}
         >
             <div className="space-y-4">
                 <button
@@ -152,9 +154,9 @@ export default function AddReceiptModal() {
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Camera size={24} className="primary-color" />
                     </div>
-                    <div className="text-left">
-                        <h3 className="font-medium text-gray-900 dark:text-white">Take Photo</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">Capture receipt with camera</p>
+                    <div className="text-start">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.takePhoto')}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.takePhotoDescription')}</p>
                     </div>
                 </button>
 
@@ -166,22 +168,18 @@ export default function AddReceiptModal() {
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Upload size={24} className="primary-color" />
                     </div>
-                    <div className="text-left">
-                        <h3 className="font-medium text-gray-900 dark:text-white">Upload Image</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">Select image from device</p>
+                    <div className="text-start">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.uploadImage')}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.uploadDescription')}</p>
                     </div>
                 </button>
 
-                <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
-                    <AlertCircle size={16} className="flex-shrink-0" />
-                    <span>
-                        {hasOcrKey === null
-                            ? 'Checking OCR access...'
-                            : hasOcrKey
-                                ? 'OCR API key detected. Scanning is enabled.'
-                                : 'OCR scanning requires a premium API key. Add it in Settings to continue.'}
-                    </span>
-                </div>
+                {hasOcrKey === false && (
+                    <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
+                        <AlertCircle size={16} className="flex-shrink-0" />
+                        <span>{t('receipts.addModal.premiumRequired')}</span>
+                    </div>
+                )}
 
                 <input
                     ref={fileInputRef}
@@ -198,9 +196,9 @@ export default function AddReceiptModal() {
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <FileText size={24} className="primary-color" />
                     </div>
-                    <div className="text-left">
-                        <h3 className="font-medium text-gray-900 dark:text-white">Enter Manually</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">Type receipt details</p>
+                    <div className="text-start">
+                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.enterManually')}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.enterManuallyDescription')}</p>
                     </div>
                 </button>
             </div>

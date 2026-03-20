@@ -1,17 +1,11 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Calendar, AlertCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '../../utils/helpers';
-
-const FREQUENCY_LABELS = {
-    weekly: 'Weekly',
-    biweekly: 'Bi-weekly',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-    yearly: 'Yearly'
-};
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function RecurringPayments({ receipts }) {
+    const { t, localizeCategory } = useTranslation();
     const navigate = useNavigate();
 
     const recurringPayments = useMemo(() => {
@@ -45,11 +39,17 @@ export default function RecurringPayments({ receipts }) {
     };
 
     const getDueText = (daysUntil) => {
-        if (daysUntil === null) return 'No date set';
-        if (daysUntil < 0) return `${Math.abs(daysUntil)} day${Math.abs(daysUntil) !== 1 ? 's' : ''} overdue`;
-        if (daysUntil === 0) return 'Due today';
-        if (daysUntil === 1) return 'Due tomorrow';
-        return `Due in ${daysUntil} days`;
+        if (daysUntil === null) return t('dashboard.recurring.noDate');
+        if (daysUntil < 0) {
+            const overdueDays = Math.abs(daysUntil);
+            return t('dashboard.recurring.overdue', {
+                days: overdueDays,
+                suffix: overdueDays !== 1 ? 's' : '',
+            });
+        }
+        if (daysUntil === 0) return t('dashboard.recurring.dueToday');
+        if (daysUntil === 1) return t('dashboard.recurring.dueTomorrow');
+        return t('dashboard.recurring.dueInDays', { days: daysUntil });
     };
 
     const monthlyTotal = useMemo(() => {
@@ -80,10 +80,10 @@ export default function RecurringPayments({ receipts }) {
             <div className="card h-full">
                 <div className="flex items-center gap-2 mb-4">
                     <RefreshCw size={20} className="text-primary-600 dark:text-primary-400" />
-                    <h3 className="text-lg font-semibold dark:text-white">Recurring Payments</h3>
+                    <h3 className="text-lg font-semibold dark:text-white">{t('dashboard.recurring.title')}</h3>
                 </div>
                 <div className="flex items-center justify-center h-32 text-gray-500 dark:text-gray-400">
-                    <p className="text-sm">No recurring payments set up</p>
+                    <p className="text-sm">{t('dashboard.recurring.noItems')}</p>
                 </div>
             </div>
         );
@@ -94,10 +94,10 @@ export default function RecurringPayments({ receipts }) {
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <RefreshCw size={20} className="text-primary-600 dark:text-primary-400" />
-                    <h3 className="text-lg font-semibold dark:text-white">Recurring Payments</h3>
+                    <h3 className="text-lg font-semibold dark:text-white">{t('dashboard.recurring.title')}</h3>
                 </div>
                 <div className="text-right">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Monthly total</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.recurring.monthlyTotal')}</div>
                     <div className="text-sm font-semibold text-gray-900 dark:text-white">
                         {formatCurrency(monthlyTotal)}
                     </div>
@@ -126,12 +126,12 @@ export default function RecurringPayments({ receipts }) {
                                             <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
                                         )}
                                         <p className="font-medium text-gray-900 dark:text-white truncate">
-                                            {receipt.merchant || 'Unknown'}
+                                            {receipt.merchant || t('dashboard.topMerchants.unknown')}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 text-xs">
                                         <span className="text-gray-500 dark:text-gray-400">
-                                            {FREQUENCY_LABELS[receipt.recurringData?.frequency] || 'Monthly'}
+                                            {t(`receipts.recurring.${receipt.recurringData?.frequency || 'monthly'}`)}
                                         </span>
                                         <span className="text-gray-300 dark:text-gray-600">|</span>
                                         <span className={getDueStatusClass(daysUntil)}>
@@ -145,7 +145,7 @@ export default function RecurringPayments({ receipts }) {
                                     </p>
                                     {receipt.category && (
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {receipt.category}
+                                            {localizeCategory(receipt.category)}
                                         </p>
                                     )}
                                 </div>
@@ -160,7 +160,7 @@ export default function RecurringPayments({ receipts }) {
                     onClick={() => navigate('/receipts')}
                     className="w-full mt-3 text-sm text-primary-600 dark:text-primary-400 hover:underline"
                 >
-                    View all {recurringPayments.length} recurring payments
+                    {t('dashboard.recurring.viewAll', { count: recurringPayments.length })}
                 </button>
             )}
         </div>

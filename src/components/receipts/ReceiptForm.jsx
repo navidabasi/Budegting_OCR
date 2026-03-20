@@ -12,8 +12,10 @@ import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
 import { useCategories } from '../../hooks/useCategories';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
+    const { t, localizeCategory } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [selectedCurrency, setSelectedCurrency] = useState('EUR');
@@ -274,7 +276,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full overflow-hidden">
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Transaction Type *
+                    {t('receipts.detail.transactionType')} *
                 </label>
                 <div className="flex gap-2">
                     <button
@@ -286,7 +288,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 : 'border-gray-300 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
                     >
-                        Expense
+                        {t('receipts.detail.expense')}
                     </button>
                     <button
                         type="button"
@@ -297,7 +299,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 : 'border-gray-300 bg-white dark:bg-gray-700 text-gray-700 dark:text-white hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
                     >
-                        Income
+                        {t('receipts.detail.income')}
                     </button>
                 </div>
                 <input type="hidden" {...register('transactionType', { value: 'expense' })} />
@@ -305,24 +307,24 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
 
             <div className="input-wrapper">
                 <Input
-                    label="Merchant"
-                    {...register('merchant', { required: 'Merchant name is required' })}
+                    label={t('receipts.form.merchant')}
+                    {...register('merchant', { required: t('receipts.form.merchantRequired') })}
                     error={errors.merchant?.message}
                 />
             </div>
 
             <div className="input-wrapper">
                 <Input
-                    label="Date"
+                    label={t('receipts.form.date')}
                     type="date"
-                    {...register('date', { required: 'Date is required' })}
+                    {...register('date', { required: t('receipts.form.dateRequired') })}
                     error={errors.date?.message}
                 />
             </div>
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-2">
-                    Line Items
+                    {t('receipts.form.lineItems')}
                 </label>
                 <div className="space-y-3">
                     {lineItems.map((item, index) => (
@@ -330,7 +332,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                             <div className="flex-1 space-y-2">
                                 <input
                                     type="text"
-                                    placeholder="Item name"
+                                    placeholder={t('receipts.form.itemName')}
                                     value={item.name}
                                     onChange={(e) => updateLineItem(index, 'name', e.target.value)}
                                     className="input text-sm input-line-item"
@@ -338,7 +340,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                 <div className="flex gap-2">
                                     <input
                                         type="number"
-                                        placeholder="Qty"
+                                        placeholder={t('receipts.form.quantity')}
                                         value={item.quantity}
                                         onChange={(e) => updateLineItem(index, 'quantity', parseFloat(e.target.value) || 1)}
                                         className="input text-sm w-20 input-line-item"
@@ -347,7 +349,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     />
                                     <input
                                         type="number"
-                                        placeholder="Price"
+                                        placeholder={t('receipts.form.price')}
                                         value={item.price}
                                         onChange={(e) => updateLineItem(index, 'price', e.target.value)}
                                         className="input text-sm flex-1 input-line-item"
@@ -359,10 +361,10 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                         onChange={(e) => updateLineItem(index, 'category', e.target.value)}
                                         className="input text-sm flex-1 input-line-item"
                                     >
-                                        <option value="">Category</option>
+                                        <option value="">{t('receipts.form.category')}</option>
                                         {categories.map(cat => (
                                             <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
-                                                {typeof cat === 'string' ? cat : cat.name}
+                                                {localizeCategory(typeof cat === 'string' ? cat : cat.name)}
                                             </option>
                                         ))}
                                     </select>
@@ -386,13 +388,13 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     className="mt-2 text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
                 >
                     <Plus size={16} />
-                    Add Item
+                    {t('receipts.form.addItem')}
                 </button>
             </div>
 
             <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Currency
+                    {t('receipts.form.currency')}
                 </label>
                 <select
                     {...register('currency')}
@@ -409,7 +411,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
             <div className="flex gap-4">
                 <div className="flex-1 input-wrapper">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                        Total Amount
+                        {t('receipts.form.total')}
                     </label>
                     <input
                         type="number"
@@ -426,7 +428,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 </div>
                 <div className="flex-1 input-wrapper">
                     <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                        Items Total
+                        {t('receipts.form.itemsTotal')}
                     </label>
                     <div className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white items-total-display">
                         {formatCurrency(itemsTotal, selectedCurrency)}
@@ -436,38 +438,41 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
 
             <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Category
+                    {t('receipts.form.category')}
                 </label>
                 <select
                     {...register('category')}
                     className={`input input-line-item ${hasCategorizedLineItems ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 cursor-not-allowed' : ''}`}
                     disabled={hasCategorizedLineItems}
                 >
-                    <option value="">Select category</option>
+                    <option value="">{t('receipts.form.selectCategory')}</option>
                     {categories.map(cat => (
                         <option key={typeof cat === 'string' ? cat : cat.name} value={typeof cat === 'string' ? cat : cat.name}>
-                            {typeof cat === 'string' ? cat : cat.name}
+                            {localizeCategory(typeof cat === 'string' ? cat : cat.name)}
                         </option>
                     ))}
                 </select>
                 {hasCategorizedLineItems && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                        {categorizedLineItems.length} line item{categorizedLineItems.length > 1 ? 's' : ''} already have categor{categorizedLineItems.length > 1 ? 'ies' : 'y'}.
-                        Item categories will be used for category analytics.
+                        {t('receipts.form.itemCategoryLocked', {
+                            count: categorizedLineItems.length,
+                            suffix: categorizedLineItems.length > 1 ? 's' : '',
+                            categorySuffix: categorizedLineItems.length > 1 ? 'ies' : 'y',
+                        })}
                     </p>
                 )}
             </div>
 
             <div className="input-wrapper">
                 <Input
-                    label="Notes (optional)"
+                    label={`${t('receipts.form.notes')} ${t('receipts.recurring.optional')}`}
                     {...register('notes')}
                 />
             </div>
 
             <div className="input-wrapper">
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Group (optional)
+                    {t('receipts.form.group')} {t('receipts.recurring.optional')}
                 </label>
                 <div className="flex flex-col gap-2">
                     {watch('groupId') && watch('groupName') && (() => {
@@ -478,7 +483,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         const groupColor = selectedGroup?.color || '#3b82f6';
                         return (
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-600 dark:text-gray-300">Selected:</span>
+                                <span className="text-sm text-gray-600 dark:text-gray-300">{t('receipts.form.groupSelected')}</span>
                                 <span
                                     className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded"
                                     style={{
@@ -530,7 +535,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });
                                 }}
                             >
-                                <option value="">No group</option>
+                                <option value="">{t('receipts.form.noGroup')}</option>
                                 {groups.map(group => {
                                     const groupValue = group.supabaseId || group.id;
                                     return (
@@ -553,7 +558,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                 {showNewGroupInput && (
                     <div className="mt-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
                         <Input
-                            placeholder="New group name"
+                            placeholder={t('receipts.form.newGroupPlaceholder')}
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
                             className="mb-2"
@@ -594,7 +599,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     }
                                 }}
                             >
-                                Create & Select
+                                {t('receipts.form.createAndSelect')}
                             </Button>
                             <Button
                                 type="button"
@@ -605,7 +610,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     setNewGroupName('');
                                 }}
                             >
-                                Cancel
+                                {t('common.actions.cancel')}
                             </Button>
                         </div>
                     </div>
@@ -614,7 +619,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
-                    Split Receipt (optional)
+                    {t('receipts.split.title')} {t('receipts.recurring.optional')}
                 </label>
                 <div className="flex items-center gap-2">
                     <Button
@@ -626,9 +631,9 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                         <Users size={18} />
                         {splitData ? (
                             splitData.method === 'equal' 
-                                ? `Split between ${splitData.people} people`
-                                : `Custom split (${splitData.users?.length || 0} people)`
-                        ) : 'Add Split'}
+                                ? t('receipts.form.splitBetween', { people: splitData.people })
+                                : t('receipts.form.splitCustomCount', { people: splitData.users?.length || 0 })
+                        ) : t('receipts.form.addSplit')}
                     </Button>
                     {splitData && (
                         <button
@@ -638,7 +643,7 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                             }}
                             className="text-red-500 hover:text-red-700 text-sm"
                         >
-                            Remove
+                            {t('common.actions.remove')}
                         </button>
                     )}
                 </div>
@@ -665,10 +670,10 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                     />
                     <div>
                         <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            Enable &quot;Mark as done&quot;
+                            {t('receipts.form.trackPayment')}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Track whether this item is paid and show a Mark as done action on its detail page.
+                            {t('receipts.form.trackPaymentHint')}
                         </p>
                     </div>
                 </label>
@@ -676,10 +681,10 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
 
             <div className="flex gap-2 pt-4">
                 <Button type="submit" variant="primary" className="flex-1">
-                    Save Receipt
+                    {initialData ? t('receipts.form.updateReceipt') : t('receipts.form.saveReceipt')}
                 </Button>
                 <Button type="button" variant="secondary" onClick={onClose}>
-                    Cancel
+                    {t('common.actions.cancel')}
                 </Button>
             </div>
 

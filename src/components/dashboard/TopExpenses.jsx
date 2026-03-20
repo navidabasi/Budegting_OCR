@@ -2,8 +2,10 @@ import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { useTranslation } from '../../languages/useTranslation';
 
 export default function TopExpenses({ receipts }) {
+    const { t, localizeCategory, languageCode } = useTranslation();
     const nav = useReceiptNavigation();
     const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
 
@@ -25,17 +27,17 @@ export default function TopExpenses({ receipts }) {
     if (topExpenses.length === 0) {
         return (
             <div className="card">
-                <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Expenses of the Month</h3>
-                <p className="text-gray-500 dark:text-gray-400">No expenses this month</p>
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('dashboard.topExpenses.title')}</h3>
+                <p className="text-gray-500 dark:text-gray-400">{t('dashboard.topExpenses.noData')}</p>
             </div>
         );
     }
 
-    const monthName = new Date().toLocaleDateString('en-US', { month: 'long' });
+    const monthName = new Date().toLocaleDateString(languageCode || 'en-US', { month: 'long' });
 
     return (
         <div className="card">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">Top Expenses - {monthName}</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('dashboard.topExpenses.thisMonth')}: {monthName}</h3>
             <div className="space-y-3">
                 {topExpenses.map((receipt, index) => {
                     const effectiveAmount = getEffectiveAmount(receipt);
@@ -57,7 +59,7 @@ export default function TopExpenses({ receipts }) {
                                     </span>
                                     {receipt.category && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                                            {receipt.category}
+                                            {localizeCategory(receipt.category)}
                                         </span>
                                     )}
                                 </div>
@@ -68,7 +70,7 @@ export default function TopExpenses({ receipts }) {
                                 </div>
                                 {hasSplit && (
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        Your share
+                                        {t('dashboard.topExpenses.splitShare')}
                                     </div>
                                 )}
                             </div>

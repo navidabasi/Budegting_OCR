@@ -19,8 +19,10 @@ import { useUserLayout } from '../hooks/useUserLayout';
 import { useCustomEvent } from '../hooks/useCustomEvent';
 import { Settings, Layout } from 'lucide-react';
 import { shouldIncludeInFinancialTotals } from '../utils/tracking';
+import { useTranslation } from '../languages/useTranslation';
 
 export default function HomePage() {
+    const { t } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
     const showToast = useAppStore((state) => state.showToast);
@@ -46,12 +48,12 @@ export default function HomePage() {
             await storageService.saveUserLayout(currentUser.userId, newLayout);
             // Reload layout from storage to ensure consistency
             await reloadLayout();
-            showToast('Dashboard layout saved', 'success');
+            showToast(t('dashboard.toasts.layoutSaved'), 'success');
             // Dispatch event to refresh layout in other components
             window.dispatchEvent(new CustomEvent('refreshLayout'));
         } catch (err) {
             console.error('Failed to save layout:', err);
-            showToast('Failed to save layout', 'error');
+            showToast(t('dashboard.toasts.layoutSaveFailed'), 'error');
         }
     };
 
@@ -165,19 +167,19 @@ export default function HomePage() {
     return (
         <PageLayout className="pt-8 md:pt-0">
             <PageHeader
-                title="Dashboard"
-                subtitle="Overview of your expenses"
+                title={t('dashboard.title')}
+                subtitle={t('dashboard.subtitle')}
                 actions={
                     <>
                         <IconButton
                             icon={Layout}
                             onClick={() => setShowCustomizer(true)}
-                            ariaLabel="Customize Dashboard"
+                            ariaLabel={t('dashboard.widgetCustomizer.title')}
                         />
                         <IconButton
                             icon={Settings}
                             onClick={() => setSidebarOpen(true)}
-                            ariaLabel="Settings"
+                            ariaLabel={t('navigation.settings')}
                         />
                     </>
                 }
