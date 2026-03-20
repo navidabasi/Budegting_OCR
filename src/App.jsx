@@ -24,8 +24,22 @@ import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
 import InstallAppPrompt from './components/common/InstallAppPrompt';
+import Modal from './components/common/Modal';
+import Button from './components/common/Button';
 import { detectDeviceLanguage, normalizeLanguageCode } from './languages';
 import { useTranslation } from './languages/useTranslation';
+import {
+    collectPaymentNotificationEvents,
+    DEFAULT_DAILY_REMINDER_TIME,
+    getLocalDateKey,
+    hasNotificationBeenSent,
+    markNotificationSent,
+    normalizeNotificationPreferences,
+    requestNotificationPermission,
+    sendBrowserNotification,
+    shouldShowNotificationSetupPrompt,
+    shouldTriggerDailyExpenseReminder,
+} from './services/notificationService';
 
 function ProtectedRoute({ children }) {
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
@@ -56,6 +70,8 @@ function App() {
     const storageWarningShownRef = useRef(false);
     const showToastRef = useRef(showToast);
     const [isRecoveringStorage, setIsRecoveringStorage] = useState(false);
+    const [showNotificationSetupPrompt, setShowNotificationSetupPrompt] = useState(false);
+    const [notificationPromptLoading, setNotificationPromptLoading] = useState(false);
 
     const handleRefreshStorage = async () => {
         if (!currentUser?.userId || isRecoveringStorage) return;
@@ -85,6 +101,78 @@ function App() {
             showToastRef.current(t('app.refreshFailed'), 'error');
         } finally {
             setIsRecoveringStorage(false);
+        }
+    };
+
+    const saveNotificationPreferences = async (updater) => {
+        if (!currentUser?.userId) return null;
+
+        const currentPreferences = normalizeNotificationPreferences(
+            await storageService.getNotificationPreferences(currentUser.userId)
+        );
+        const updatedPreferences = normalizeNotificationPreferences(
+            typeof updater === 'function' ? updater(currentPreferences) : updater
+        );
+
+        await storageService.setNotificationPreferences(currentUser.userId, updatedPreferences);
+        window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated'));
+        return updatedPreferences;
+    };
+
+    const handleNotificationPromptMaybeLater = async () => {
+        if (!currentUser?.userId || notificationPromptLoading) {
+            setShowNotificationSetupPrompt(false);
+            return;
+        }
+
+        setNotificationPromptLoading(true);
+        try {
+            const nowIso = new Date().toISOString();
+            await saveNotificationPreferences((preferences) => ({
+                ...preferences,
+                lastSetupPromptAt: nowIso,
+            }));
+        } catch (error) {
+            console.error('[App] Failed to postpone notification setup prompt:', error);
+        } finally {
+            setNotificationPromptLoading(false);
+            setShowNotificationSetupPrompt(false);
+        }
+    };
+
+    const handleNotificationPromptEnableNow = async () => {
+        if (!currentUser?.userId || notificationPromptLoading) return;
+
+        setNotificationPromptLoading(true);
+        try {
+            const permission = await requestNotificationPermission();
+            const nowIso = new Date().toISOString();
+
+            await saveNotificationPreferences((preferences) => ({
+                ...preferences,
+                enabled: permission === 'granted',
+                paymentDueAlertsEnabled: true,
+                dailyExpenseReminderEnabled: true,
+                dailyExpenseReminderTime: preferences.dailyExpenseReminderTime || DEFAULT_DAILY_REMINDER_TIME,
+                configuredAt: nowIso,
+                lastSetupPromptAt: nowIso,
+            }));
+
+            setShowNotificationSetupPrompt(false);
+            if (permission === 'granted') {
+                showToastRef.current(t('app.notifications.setupPromptEnabledSuccess'), 'success');
+            } else if (permission === 'denied') {
+                showToastRef.current(t('app.notifications.setupPromptPermissionDenied'), 'warning');
+            } else if (permission === 'unsupported') {
+                showToastRef.current(t('app.notifications.setupPromptUnsupported'), 'warning');
+            } else {
+                showToastRef.current(t('app.notifications.setupPromptPermissionNotGranted'), 'warning');
+            }
+        } catch (error) {
+            console.error('[App] Failed to enable notifications from setup prompt:', error);
+            showToastRef.current(t('app.notifications.saveFailed'), 'error');
+        } finally {
+            setNotificationPromptLoading(false);
         }
     };
 
@@ -336,6 +424,181 @@ function App() {
         };
     }, [currentUser?.userId, setLanguageCode]);
 
+    // Notification setup prompt (first login and every 48h until configured)
+    useEffect(() => {
+        let isMounted = true;
+
+        const evaluatePrompt = async () => {
+            if (!currentUser?.userId) {
+                if (isMounted) {
+                    setShowNotificationSetupPrompt(false);
+                }
+                return;
+            }
+
+            try {
+                const preferences = normalizeNotificationPreferences(
+                    await storageService.getNotificationPreferences(currentUser.userId)
+                );
+                if (!isMounted) return;
+
+                setShowNotificationSetupPrompt(shouldShowNotificationSetupPrompt(preferences));
+            } catch (error) {
+                console.error('[App] Failed to evaluate notification setup prompt:', error);
+            }
+        };
+
+        const handleNotificationPreferencesUpdated = () => {
+            evaluatePrompt();
+        };
+        const handleSettingsRefresh = () => {
+            evaluatePrompt();
+        };
+
+        evaluatePrompt();
+        window.addEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
+        window.addEventListener('refreshSettings', handleSettingsRefresh);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
+            window.removeEventListener('refreshSettings', handleSettingsRefresh);
+        };
+    }, [currentUser?.userId]);
+
+    // Notification runtime checks (while app/PWA is open)
+    useEffect(() => {
+        if (!currentUser?.userId) return;
+
+        let disposed = false;
+        let running = false;
+
+        const runNotificationChecks = async () => {
+            if (disposed || running || !currentUser?.userId) {
+                return;
+            }
+
+            running = true;
+            try {
+                const preferences = normalizeNotificationPreferences(
+                    await storageService.getNotificationPreferences(currentUser.userId)
+                );
+
+                if (!preferences.enabled) {
+                    return;
+                }
+
+                const now = new Date();
+                const dayKey = getLocalDateKey(now);
+                const receipts = await storageService.getReceiptsByUserId(currentUser.userId);
+
+                if (preferences.paymentDueAlertsEnabled) {
+                    const paymentEvents = collectPaymentNotificationEvents(receipts, now);
+                    for (const event of paymentEvents) {
+                        if (hasNotificationBeenSent(currentUser.userId, event.notificationKey, dayKey)) {
+                            continue;
+                        }
+
+                        const merchantName = event.merchant || t('dashboard.topMerchants.unknown');
+                        const title = event.kind === 'overdue'
+                            ? t('app.notifications.paymentOverdueTitle')
+                            : t('app.notifications.paymentDueTitle');
+                        let body = '';
+
+                        if (event.kind === 'overdue') {
+                            body = t('app.notifications.paymentOverdueBody', {
+                                merchant: merchantName,
+                                days: event.overdueDays,
+                                suffix: event.overdueDays === 1 ? '' : 's',
+                            });
+                        } else if (event.daysUntilDue === 0) {
+                            body = t('app.notifications.paymentDueTodayBody', {
+                                merchant: merchantName,
+                            });
+                        } else {
+                            body = t('app.notifications.paymentDueInDaysBody', {
+                                merchant: merchantName,
+                                days: event.daysUntilDue,
+                                suffix: event.daysUntilDue === 1 ? '' : 's',
+                            });
+                        }
+
+                        const shown = sendBrowserNotification({
+                            title,
+                            body,
+                            tag: event.notificationKey,
+                        });
+
+                        if (!shown) {
+                            showToastRef.current(body, 'info');
+                        }
+
+                        markNotificationSent(currentUser.userId, event.notificationKey, dayKey);
+                    }
+                }
+
+                if (shouldTriggerDailyExpenseReminder(preferences, now)) {
+                    const dailyReminderKey = 'daily-expense-reminder';
+                    if (!hasNotificationBeenSent(currentUser.userId, dailyReminderKey, dayKey)) {
+                        const title = t('app.notifications.dailyReminderTitle');
+                        const body = t('app.notifications.dailyReminderBody');
+                        const shown = sendBrowserNotification({
+                            title,
+                            body,
+                            tag: dailyReminderKey,
+                        });
+
+                        if (!shown) {
+                            showToastRef.current(body, 'info');
+                        }
+
+                        markNotificationSent(currentUser.userId, dailyReminderKey, dayKey);
+                    }
+                }
+            } catch (error) {
+                console.error('[App] Notification runtime check failed:', error);
+            } finally {
+                running = false;
+            }
+        };
+
+        const handleFocus = () => {
+            runNotificationChecks();
+        };
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                runNotificationChecks();
+            }
+        };
+        const handleReceiptsRefresh = () => {
+            runNotificationChecks();
+        };
+        const handleNotificationPreferencesUpdated = () => {
+            runNotificationChecks();
+        };
+        const handleSettingsRefresh = () => {
+            runNotificationChecks();
+        };
+
+        runNotificationChecks();
+        const intervalId = setInterval(runNotificationChecks, 5 * 60 * 1000);
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibility);
+        window.addEventListener('refreshReceipts', handleReceiptsRefresh);
+        window.addEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
+        window.addEventListener('refreshSettings', handleSettingsRefresh);
+
+        return () => {
+            disposed = true;
+            clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibility);
+            window.removeEventListener('refreshReceipts', handleReceiptsRefresh);
+            window.removeEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
+            window.removeEventListener('refreshSettings', handleSettingsRefresh);
+        };
+    }, [currentUser?.userId, t]);
+
     // Listen for system preference changes (only if not manually set)
     useEffect(() => {
         if (darkModeManual !== null) {
@@ -443,6 +706,36 @@ function App() {
                         <Sidebar />
                         <AddReceiptModal />
                         <InstallAppPrompt />
+                        <Modal
+                            isOpen={showNotificationSetupPrompt}
+                            onClose={handleNotificationPromptMaybeLater}
+                            title={t('app.notifications.setupPromptTitle')}
+                            size="md"
+                        >
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {t('app.notifications.setupPromptMessage')}
+                            </p>
+                            <div className="flex gap-2 mt-6">
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleNotificationPromptMaybeLater}
+                                    disabled={notificationPromptLoading}
+                                    className="flex-1"
+                                >
+                                    {t('app.notifications.setupPromptMaybeLater')}
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    onClick={handleNotificationPromptEnableNow}
+                                    disabled={notificationPromptLoading}
+                                    className="flex-1"
+                                >
+                                    {notificationPromptLoading
+                                        ? t('common.states.saving')
+                                        : t('app.notifications.setupPromptEnableNow')}
+                                </Button>
+                            </div>
+                        </Modal>
                     </>
                 )}
 

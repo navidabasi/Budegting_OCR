@@ -464,16 +464,21 @@ export const supabaseService = {
 
         // Support both ocrApiKey and legacy veryfiApiKey
         const apiKey = settings.ocrApiKey !== undefined ? settings.ocrApiKey : settings.veryfiApiKey;
+        const upsertPayload = {
+            user_id: authenticatedUserId, // Always use auth.uid() for RLS
+            veryfi_api_key: apiKey, // Still using old column name for backward compatibility
+            default_currency: settings.defaultCurrency,
+            language_code: settings.languageCode || null,
+            updated_at: new Date().toISOString()
+        };
+
+        if (settings.notificationPreferences !== undefined) {
+            upsertPayload.notification_preferences = settings.notificationPreferences || null;
+        }
 
         const { data, error } = await supabase
             .from('settings')
-            .upsert({
-                user_id: authenticatedUserId, // Always use auth.uid() for RLS
-                veryfi_api_key: apiKey, // Still using old column name for backward compatibility
-                default_currency: settings.defaultCurrency,
-                language_code: settings.languageCode || null,
-                updated_at: new Date().toISOString()
-            }, {
+            .upsert(upsertPayload, {
                 onConflict: 'user_id'
             })
             .select()
@@ -509,11 +514,25 @@ export const supabaseService = {
         if (error) throw error;
         if (!data) return null;
 
+        let notificationPreferences = null;
+        if (data.notification_preferences) {
+            if (typeof data.notification_preferences === 'string') {
+                try {
+                    notificationPreferences = JSON.parse(data.notification_preferences);
+                } catch {
+                    notificationPreferences = null;
+                }
+            } else {
+                notificationPreferences = data.notification_preferences;
+            }
+        }
+
         return {
             ocrApiKey: data.veryfi_api_key, // Return as ocrApiKey for new code
             veryfiApiKey: data.veryfi_api_key, // Keep legacy name for backward compatibility
             defaultCurrency: data.default_currency || 'EUR',
             languageCode: data.language_code || null,
+            notificationPreferences,
             createdAt: data.created_at || null,
             updatedAt: data.updated_at || null,
         };

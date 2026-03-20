@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS settings (
     veryfi_api_key TEXT,  -- Stores OCR.Space API key (legacy column name)
     default_currency TEXT DEFAULT 'EUR',
     language_code TEXT,
+    notification_preferences JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -38,6 +39,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name = 'settings' AND column_name = 'language_code') THEN
         ALTER TABLE settings ADD COLUMN language_code TEXT;
+    END IF;
+
+    -- Add notification_preferences if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'settings' AND column_name = 'notification_preferences') THEN
+        ALTER TABLE settings ADD COLUMN notification_preferences JSONB;
     END IF;
 END $$;
 

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS settings (
   veryfi_api_key TEXT,
   default_currency TEXT DEFAULT 'USD',
   language_code TEXT,
+  notification_preferences JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

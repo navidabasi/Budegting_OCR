@@ -88,6 +88,19 @@ export const storageService = {
         });
     },
 
+    async getNotificationPreferences(userId) {
+        const settings = await electricStorage.getSettings(userId);
+        return settings?.notificationPreferences || null;
+    },
+
+    async setNotificationPreferences(userId, notificationPreferences) {
+        const settings = await electricStorage.getSettings(userId);
+        return await electricStorage.saveSettings(userId, {
+            ...settings,
+            notificationPreferences,
+        });
+    },
+
     // User Layout
     getUserLayout: electricStorage.getUserLayout,
     saveUserLayout: electricStorage.saveUserLayout,

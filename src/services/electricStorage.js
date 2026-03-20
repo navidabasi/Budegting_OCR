@@ -219,6 +219,7 @@ async function createSchema() {
             ocr_api_key TEXT,
             default_currency TEXT DEFAULT 'EUR',
             language_code TEXT,
+            notification_preferences JSONB,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             _synced BOOLEAN DEFAULT FALSE
@@ -227,6 +228,12 @@ async function createSchema() {
 
     try {
         await db.exec(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS language_code TEXT;`);
+    } catch (e) {
+        // Column might already exist
+    }
+
+    try {
+        await db.exec(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS notification_preferences JSONB;`);
     } catch (e) {
         // Column might already exist
     }
@@ -1053,12 +1060,26 @@ export const electricStorage = {
             );
             if (result.rows[0]) {
                 const row = result.rows[0];
+                let notificationPreferences = null;
+                if (row.notification_preferences) {
+                    if (typeof row.notification_preferences === 'string') {
+                        try {
+                            notificationPreferences = JSON.parse(row.notification_preferences);
+                        } catch {
+                            notificationPreferences = null;
+                        }
+                    } else {
+                        notificationPreferences = row.notification_preferences;
+                    }
+                }
+
                 return {
                     id: row.id,
                     userId: row.user_id,
                     ocrApiKey: row.ocr_api_key,
                     defaultCurrency: row.default_currency,
                     languageCode: row.language_code || null,
+                    notificationPreferences,
                 };
             }
             // Local empty - try Supabase as fallback (for API key sync across devices)
@@ -1102,6 +1123,7 @@ export const electricStorage = {
                 ocrApiKey: settings?.ocrApiKey ?? null,
                 defaultCurrency: settings?.defaultCurrency ?? 'EUR',
                 languageCode: settings?.languageCode ?? null,
+                notificationPreferences: settings?.notificationPreferences ?? null,
             };
 
             if (!db) {
@@ -1114,13 +1136,14 @@ export const electricStorage = {
             const id = crypto.randomUUID();
 
             await db.query(`
-                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)
+                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, notification_preferences, created_at, updated_at, _synced)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
                 ON CONFLICT (user_id) DO UPDATE SET
                     ocr_api_key = $3,
                     default_currency = $4,
                     language_code = $5,
-                    updated_at = $7,
+                    notification_preferences = $6,
+                    updated_at = $8,
                     _synced = FALSE
             `, [
                 id,
@@ -1128,6 +1151,7 @@ export const electricStorage = {
                 normalizedSettings.ocrApiKey,
                 normalizedSettings.defaultCurrency,
                 normalizedSettings.languageCode,
+                normalizedSettings.notificationPreferences ? JSON.stringify(normalizedSettings.notificationPreferences) : null,
                 now,
                 now,
             ]);
@@ -1388,10 +1412,24 @@ export const electricStorage = {
                 const supabaseService = (await import('./supabaseService.js')).supabaseService;
                 for (const row of unsyncedSettings.rows) {
                     try {
+                        let notificationPreferences = null;
+                        if (row.notification_preferences) {
+                            if (typeof row.notification_preferences === 'string') {
+                                try {
+                                    notificationPreferences = JSON.parse(row.notification_preferences);
+                                } catch {
+                                    notificationPreferences = null;
+                                }
+                            } else {
+                                notificationPreferences = row.notification_preferences;
+                            }
+                        }
+
                         const remoteSettings = await supabaseService.saveSettings(userId, {
                             ocrApiKey: row.ocr_api_key,
                             defaultCurrency: row.default_currency || 'EUR',
                             languageCode: row.language_code || null,
+                            notificationPreferences,
                         });
                         const remoteUpdatedAt = remoteSettings?.updated_at || new Date().toISOString();
                         await db.query(
@@ -1650,12 +1688,13 @@ export const electricStorage = {
 
                 if (shouldApplyRemote) {
                     await db.query(`
-                        INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+                        INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, notification_preferences, created_at, updated_at, _synced)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
                         ON CONFLICT (user_id) DO UPDATE SET
                             ocr_api_key = EXCLUDED.ocr_api_key,
                             default_currency = EXCLUDED.default_currency,
                             language_code = EXCLUDED.language_code,
+                            notification_preferences = EXCLUDED.notification_preferences,
                             updated_at = EXCLUDED.updated_at,
                             _synced = TRUE
                     `, [
@@ -1664,6 +1703,7 @@ export const electricStorage = {
                         settings.ocrApiKey,
                         settings.defaultCurrency || 'EUR',
                         settings.languageCode || null,
+                        settings.notificationPreferences ? JSON.stringify(settings.notificationPreferences) : null,
                         settings.createdAt || now,
                         remoteUpdatedAt || now
                     ]);

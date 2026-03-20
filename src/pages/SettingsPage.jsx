@@ -6,9 +6,15 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
-import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
+import {
+    DEFAULT_DAILY_REMINDER_TIME,
+    getNotificationPermissionStatus,
+    normalizeNotificationPreferences,
+    requestNotificationPermission,
+} from '../services/notificationService';
 
 export default function SettingsPage() {
     const { t } = useTranslation();
@@ -32,6 +38,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(false);
     const [loadingCurrency, setLoadingCurrency] = useState(false);
     const [loadingLanguage, setLoadingLanguage] = useState(false);
+    const [loadingNotifications, setLoadingNotifications] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [clearingDemo, setClearingDemo] = useState(false);
     const [demoReceiptCount, setDemoReceiptCount] = useState(0);
@@ -48,6 +55,10 @@ export default function SettingsPage() {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryColor, setNewCategoryColor] = useState('#00573f');
     const [selectedLanguage, setSelectedLanguage] = useState(detectDeviceLanguage());
+    const [notificationPermission, setNotificationPermission] = useState(getNotificationPermissionStatus());
+    const [notificationPreferences, setNotificationPreferences] = useState(() =>
+        normalizeNotificationPreferences(null)
+    );
 
     useEffect(() => {
         loadSettings();
@@ -65,6 +76,20 @@ export default function SettingsPage() {
             window.removeEventListener('refreshReceipts', handleReceiptRefresh);
         };
     }, [currentUser]);
+
+    useEffect(() => {
+        const refreshPermission = () => {
+            setNotificationPermission(getNotificationPermissionStatus());
+        };
+
+        refreshPermission();
+        window.addEventListener('focus', refreshPermission);
+        document.addEventListener('visibilitychange', refreshPermission);
+        return () => {
+            window.removeEventListener('focus', refreshPermission);
+            document.removeEventListener('visibilitychange', refreshPermission);
+        };
+    }, []);
 
     const loadCustomCategories = async () => {
         if (!currentUser) return;
@@ -92,6 +117,8 @@ export default function SettingsPage() {
             resetCurrency({ defaultCurrency: currency });
             const language = normalizeLanguageCode(settings?.languageCode || '', '');
             setSelectedLanguage(language || detectDeviceLanguage());
+            setNotificationPreferences(normalizeNotificationPreferences(settings?.notificationPreferences || null));
+            setNotificationPermission(getNotificationPermissionStatus());
         } catch (err) {
             console.error('Failed to load settings:', err);
         }
@@ -177,6 +204,71 @@ export default function SettingsPage() {
             showToast(t('settings.language.saveFailed'), 'error');
         } finally {
             setLoadingLanguage(false);
+        }
+    };
+
+    const updateNotificationPreference = (updates) => {
+        setNotificationPreferences((previous) =>
+            normalizeNotificationPreferences({
+                ...previous,
+                ...updates,
+            })
+        );
+    };
+
+    const onRequestNotificationPermission = async () => {
+        const permission = await requestNotificationPermission();
+        setNotificationPermission(permission);
+
+        if (permission === 'granted') {
+            updateNotificationPreference({
+                enabled: true,
+                paymentDueAlertsEnabled: true,
+                dailyExpenseReminderEnabled: true,
+                dailyExpenseReminderTime:
+                    notificationPreferences.dailyExpenseReminderTime || DEFAULT_DAILY_REMINDER_TIME,
+            });
+            showToast(t('settings.notifications.permissionGrantedToast'), 'success');
+            return;
+        }
+
+        if (permission === 'denied') {
+            showToast(t('settings.notifications.permissionDeniedToast'), 'warning');
+            return;
+        }
+
+        if (permission === 'unsupported') {
+            showToast(t('settings.notifications.permissionUnsupportedToast'), 'warning');
+            return;
+        }
+
+        showToast(t('settings.notifications.permissionDefaultToast'), 'info');
+    };
+
+    const onSaveNotifications = async () => {
+        if (!currentUser) {
+            showToast(t('settings.toasts.userNotLoggedIn'), 'error');
+            return;
+        }
+
+        setLoadingNotifications(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const normalized = normalizeNotificationPreferences({
+                ...notificationPreferences,
+                configuredAt: notificationPreferences.configuredAt || nowIso,
+                lastSetupPromptAt: nowIso,
+            });
+
+            await storageService.setNotificationPreferences(currentUser.userId, normalized);
+            setNotificationPreferences(normalized);
+            window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated'));
+            showToast(t('settings.notifications.saveSuccess'), 'success');
+        } catch (err) {
+            console.error('Failed to save notifications settings:', err);
+            showToast(t('settings.notifications.saveFailed'), 'error');
+        } finally {
+            setLoadingNotifications(false);
         }
     };
 
@@ -482,6 +574,138 @@ export default function SettingsPage() {
                     </p>
                     <Button type="button" variant="primary" onClick={onSaveLanguage} disabled={loadingLanguage}>
                         {loadingLanguage ? t('common.states.saving') : t('common.actions.save')}
+                    </Button>
+                </div>
+            </SettingsCard>
+
+            <SettingsCard
+                icon={Bell}
+                title={t('settings.notifications.title')}
+            >
+                <div className="space-y-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t('settings.notifications.description')}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {t('settings.notifications.enabled')}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {t('settings.notifications.enabledHint')}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => updateNotificationPreference({ enabled: !notificationPreferences.enabled })}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${notificationPreferences.enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                            role="switch"
+                            aria-checked={notificationPreferences.enabled}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notificationPreferences.enabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {t('settings.notifications.paymentDueAlerts')}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {t('settings.notifications.paymentDueAlertsHint')}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => updateNotificationPreference({ paymentDueAlertsEnabled: !notificationPreferences.paymentDueAlertsEnabled })}
+                            disabled={!notificationPreferences.enabled}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 ${notificationPreferences.paymentDueAlertsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                            role="switch"
+                            aria-checked={notificationPreferences.paymentDueAlertsEnabled}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notificationPreferences.paymentDueAlertsEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {t('settings.notifications.dailyReminder')}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {t('settings.notifications.dailyReminderHint')}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => updateNotificationPreference({ dailyExpenseReminderEnabled: !notificationPreferences.dailyExpenseReminderEnabled })}
+                            disabled={!notificationPreferences.enabled}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 ${notificationPreferences.dailyExpenseReminderEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                            role="switch"
+                            aria-checked={notificationPreferences.dailyExpenseReminderEnabled}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notificationPreferences.dailyExpenseReminderEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {t('settings.notifications.dailyReminderTime')}
+                        </label>
+                        <input
+                            type="time"
+                            value={notificationPreferences.dailyExpenseReminderTime || DEFAULT_DAILY_REMINDER_TIME}
+                            onChange={(e) => updateNotificationPreference({ dailyExpenseReminderTime: e.target.value })}
+                            disabled={!notificationPreferences.enabled || !notificationPreferences.dailyExpenseReminderEnabled}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50"
+                        />
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {t('settings.notifications.permissionStatusLabel')}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {notificationPermission === 'granted'
+                                ? t('settings.notifications.permissionGranted')
+                                : notificationPermission === 'denied'
+                                    ? t('settings.notifications.permissionDenied')
+                                    : notificationPermission === 'unsupported'
+                                        ? t('settings.notifications.permissionUnsupported')
+                                        : t('settings.notifications.permissionDefault')}
+                        </p>
+                        {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={onRequestNotificationPermission}
+                                className="mt-3"
+                            >
+                                {t('settings.notifications.requestPermission')}
+                            </Button>
+                        )}
+                    </div>
+
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={onSaveNotifications}
+                        disabled={loadingNotifications}
+                    >
+                        {loadingNotifications ? t('settings.notifications.saving') : t('settings.notifications.save')}
                     </Button>
                 </div>
             </SettingsCard>
