@@ -108,6 +108,10 @@ export default function RecurringPayments({ receipts }) {
                 {recurringPayments.slice(0, 5).map((receipt) => {
                     const daysUntil = getDaysUntilDue(receipt.recurringData?.nextDueDate);
                     const isOverdue = daysUntil !== null && daysUntil < 0;
+                    const transactionType = receipt.transactionType === 'income' ? 'income' : 'expense';
+                    const transactionLabel = transactionType === 'income'
+                        ? t('receipts.detail.income')
+                        : t('receipts.detail.expense');
 
                     return (
                         <div
@@ -128,6 +132,15 @@ export default function RecurringPayments({ receipts }) {
                                         <p className="font-medium text-gray-900 dark:text-white truncate">
                                             {receipt.merchant || t('dashboard.topMerchants.unknown')}
                                         </p>
+                                        <span
+                                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                                                transactionType === 'income'
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                                    : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                            }`}
+                                        >
+                                            {transactionLabel}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 text-xs">
                                         <span className="text-gray-500 dark:text-gray-400">

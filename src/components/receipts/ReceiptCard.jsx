@@ -78,6 +78,19 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
             icon: RefreshCw,
             className: 'bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
         });
+
+        const transactionType = receipt.transactionType === 'income' ? 'income' : 'expense';
+        receiptTags.push({
+            key: 'recurring-transaction-type',
+            label: truncateReceiptTagLabel(
+                transactionType === 'income' ? t('receipts.detail.income') : t('receipts.detail.expense')
+            ),
+            title: transactionType === 'income' ? t('receipts.detail.income') : t('receipts.detail.expense'),
+            icon: null,
+            className: transactionType === 'income'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+                : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
+        });
     }
 
     if (trackingStatus === 'open') {

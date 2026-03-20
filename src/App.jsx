@@ -296,9 +296,20 @@ function App() {
                 return;
             }
 
+            // Pull latest cloud settings first so language stays in sync across devices.
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
+                try {
+                    await electricStorage.pullFromSupabase(currentUser.userId);
+                } catch (err) {
+                    console.warn('[App] Failed to pull latest settings before language init:', err);
+                }
+            }
+
             let accountLanguage = '';
+            let accountLanguageLoaded = false;
             try {
                 accountLanguage = normalizeLanguageCode(await storageService.getLanguage(currentUser.userId), '');
+                accountLanguageLoaded = true;
             } catch (err) {
                 console.warn('[App] Failed to read language from settings:', err);
             }
@@ -308,7 +319,8 @@ function App() {
 
             setLanguageCode(resolvedLanguage);
 
-            if (!accountLanguage) {
+            // Persist only when there is no account value yet.
+            if (accountLanguageLoaded && !accountLanguage) {
                 try {
                     await storageService.setLanguage(currentUser.userId, resolvedLanguage);
                 } catch (err) {

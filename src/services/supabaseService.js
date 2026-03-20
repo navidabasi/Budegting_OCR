@@ -514,6 +514,8 @@ export const supabaseService = {
             veryfiApiKey: data.veryfi_api_key, // Keep legacy name for backward compatibility
             defaultCurrency: data.default_currency || 'EUR',
             languageCode: data.language_code || null,
+            createdAt: data.created_at || null,
+            updatedAt: data.updated_at || null,
         };
     },
 

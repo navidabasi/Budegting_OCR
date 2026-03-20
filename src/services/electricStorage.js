@@ -1098,28 +1098,30 @@ export const electricStorage = {
     async saveSettings(userId, settings) {
         try {
             await initDatabase();
-            if (!db) {
-                // Fallback to Supabase
-                const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                return await supabaseService.saveSettings(userId, settings);
-            }
-
-            const now = new Date().toISOString();
-            const id = crypto.randomUUID();
             const normalizedSettings = {
                 ocrApiKey: settings?.ocrApiKey ?? null,
                 defaultCurrency: settings?.defaultCurrency ?? 'EUR',
                 languageCode: settings?.languageCode ?? null,
             };
 
+            if (!db) {
+                // Fallback to Supabase
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                return await supabaseService.saveSettings(userId, normalizedSettings);
+            }
+
+            const now = new Date().toISOString();
+            const id = crypto.randomUUID();
+
             await db.query(`
-                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)
                 ON CONFLICT (user_id) DO UPDATE SET
                     ocr_api_key = $3,
                     default_currency = $4,
                     language_code = $5,
-                    updated_at = $7
+                    updated_at = $7,
+                    _synced = FALSE
             `, [
                 id,
                 userId,
@@ -1130,16 +1132,22 @@ export const electricStorage = {
                 now,
             ]);
 
-            // Push settings directly to Supabase (not via pushToRemote, as it doesn't support settings)
-            (async () => {
+            // Sync settings to Supabase and mark local row as synced on success.
+            if (SUPABASE_URL && !isOffline()) {
                 try {
                     const supabaseService = (await import('./supabaseService.js')).supabaseService;
-                    await supabaseService.saveSettings(userId, normalizedSettings);
+                    const remoteSettings = await supabaseService.saveSettings(userId, normalizedSettings);
+                    const remoteUpdatedAt = remoteSettings?.updated_at || now;
+                    await db.query(
+                        `UPDATE settings SET _synced = TRUE, updated_at = $2 WHERE user_id = $1`,
+                        [userId, remoteUpdatedAt]
+                    );
                     console.log('[Storage] Settings synced to Supabase');
                 } catch (e) {
                     console.error('[Storage] Failed to sync settings to Supabase:', e);
+                    // Keep local settings with _synced = FALSE so future sync retries can push.
                 }
-            })();
+            }
 
             return id;
         } catch (err) {
@@ -1368,6 +1376,40 @@ export const electricStorage = {
             errors.push({ type: 'categories', error: err.message });
         }
 
+        // Push unsynced settings
+        try {
+            const unsyncedSettings = await db.query(
+                `SELECT * FROM settings WHERE user_id = $1 AND _synced = FALSE`,
+                [userId]
+            );
+            console.log(`[Storage] Found ${unsyncedSettings.rows.length} unsynced settings rows`);
+
+            if (unsyncedSettings.rows.length > 0) {
+                const supabaseService = (await import('./supabaseService.js')).supabaseService;
+                for (const row of unsyncedSettings.rows) {
+                    try {
+                        const remoteSettings = await supabaseService.saveSettings(userId, {
+                            ocrApiKey: row.ocr_api_key,
+                            defaultCurrency: row.default_currency || 'EUR',
+                            languageCode: row.language_code || null,
+                        });
+                        const remoteUpdatedAt = remoteSettings?.updated_at || new Date().toISOString();
+                        await db.query(
+                            `UPDATE settings SET _synced = TRUE, updated_at = $2 WHERE user_id = $1`,
+                            [userId, remoteUpdatedAt]
+                        );
+                        pushed++;
+                    } catch (err) {
+                        console.error(`[Storage] Failed to push settings for user ${userId}:`, err);
+                        errors.push({ type: 'settings', userId, error: err.message });
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[Storage] Failed to query unsynced settings:', err);
+            errors.push({ type: 'settings', error: err.message });
+        }
+
         console.log(`[Storage] Push complete: ${pushed} items pushed, ${errors.length} errors`);
         return { pushed, errors };
     },
@@ -1585,26 +1627,48 @@ export const electricStorage = {
                 console.log('[Storage] Pulled settings from Supabase');
                 const now = new Date().toISOString();
                 const id = crypto.randomUUID();
+                const remoteUpdatedAt = settings.updatedAt || null;
+                let shouldApplyRemote = true;
 
-                await db.query(`
-                    INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
-                    ON CONFLICT (user_id) DO UPDATE SET
-                        ocr_api_key = EXCLUDED.ocr_api_key,
-                        default_currency = EXCLUDED.default_currency,
-                        language_code = EXCLUDED.language_code,
-                        updated_at = EXCLUDED.updated_at,
-                        _synced = TRUE
-                `, [
-                    id,
-                    userId,
-                    settings.ocrApiKey,
-                    settings.defaultCurrency || 'EUR',
-                    settings.languageCode || null,
-                    now,
-                    now
-                ]);
-                pulled++;
+                try {
+                    const localSettingsResult = await db.query(
+                        `SELECT updated_at, _synced FROM settings WHERE user_id = $1`,
+                        [userId]
+                    );
+                    const localSettings = localSettingsResult.rows[0];
+
+                    if (localSettings && localSettings._synced === false) {
+                        const localUpdatedAt = localSettings.updated_at || null;
+                        if (!remoteUpdatedAt || (localUpdatedAt && new Date(localUpdatedAt) > new Date(remoteUpdatedAt))) {
+                            shouldApplyRemote = false;
+                            console.log('[Storage] Skipping remote settings pull to preserve newer unsynced local settings');
+                        }
+                    }
+                } catch (compareErr) {
+                    console.warn('[Storage] Failed comparing local/remote settings timestamps:', compareErr);
+                }
+
+                if (shouldApplyRemote) {
+                    await db.query(`
+                        INSERT INTO settings (id, user_id, ocr_api_key, default_currency, language_code, created_at, updated_at, _synced)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+                        ON CONFLICT (user_id) DO UPDATE SET
+                            ocr_api_key = EXCLUDED.ocr_api_key,
+                            default_currency = EXCLUDED.default_currency,
+                            language_code = EXCLUDED.language_code,
+                            updated_at = EXCLUDED.updated_at,
+                            _synced = TRUE
+                    `, [
+                        id,
+                        userId,
+                        settings.ocrApiKey,
+                        settings.defaultCurrency || 'EUR',
+                        settings.languageCode || null,
+                        settings.createdAt || now,
+                        remoteUpdatedAt || now
+                    ]);
+                    pulled++;
+                }
             }
         } catch (err) {
             console.error('[Storage] Failed to pull settings:', err);
