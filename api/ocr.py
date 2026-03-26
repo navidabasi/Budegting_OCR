@@ -54,6 +54,8 @@ def _safe_int_env(var_name, default):
 MAX_REQUEST_BYTES = _safe_int_env('MAX_OCR_REQUEST_BYTES', 12 * 1024 * 1024)
 OCR_RATE_LIMIT_REQUESTS = _safe_int_env('OCR_RATE_LIMIT_REQUESTS', 30)
 OCR_RATE_LIMIT_WINDOW_SECONDS = _safe_int_env('OCR_RATE_LIMIT_WINDOW_SECONDS', 60)
+OCR_MAX_LANGUAGE_PASSES = max(1, min(_safe_int_env('OCR_MAX_LANGUAGE_PASSES', 3), 5))
+OCR_HIGH_CONFIDENCE_SCORE = max(10, min(_safe_int_env('OCR_HIGH_CONFIDENCE_SCORE', 72), 100))
 ALLOW_VERCEL_PREVIEWS = os.getenv('ALLOW_VERCEL_PREVIEWS', 'false').lower() == 'true'
 _rate_limit_state = {}
 
@@ -75,6 +77,60 @@ ALLOWED_ORIGINS = get_allowed_origins()
 
 # Cache for loaded templates
 _templates_cache = None
+
+DEFAULT_OCR_LANGUAGE = 'eng'
+LANGUAGE_ALIAS_MAP = {
+    'en': 'eng',
+    'eng': 'eng',
+    'english': 'eng',
+    'it': 'ita',
+    'ita': 'ita',
+    'italian': 'ita',
+    'es': 'spa',
+    'spa': 'spa',
+    'spanish': 'spa',
+    'fr': 'fre',
+    'fre': 'fre',
+    'fra': 'fre',
+    'french': 'fre',
+    'de': 'ger',
+    'ger': 'ger',
+    'deu': 'ger',
+    'german': 'ger',
+    'pt': 'por',
+    'por': 'por',
+    'portuguese': 'por',
+    'ar': 'ara',
+    'ara': 'ara',
+    'arabic': 'ara',
+    'fa': 'fas',
+    'fas': 'fas',
+    'per': 'fas',
+    'persian': 'fas',
+}
+SUPPORTED_OCR_LANGUAGES = {
+    'eng', 'ita', 'spa', 'fre', 'ger', 'por', 'ara', 'fas'
+}
+FALLBACK_OCR_LANGUAGES = ['ita', 'spa', 'fre', 'ger', 'por', 'ara', 'fas']
+LANGUAGE_HINT_PATTERNS = {
+    'ita': [
+        r'\biva\b', r'\btotale\b', r'documento commerciale', r'\bprezzo\b', r'\bscontrino\b', r'\beur/kg\b'
+    ],
+    'spa': [
+        r'\biva\b', r'\bimporte\b', r'\bfactura\b', r'\bart[ií]culo\b', r'\bsubtotal\b', r'\bgracias\b'
+    ],
+    'fre': [
+        r'\btva\b', r'\bmontant\b', r'\bprix\b', r'\bticket\b', r'\bmerci\b'
+    ],
+    'ger': [
+        r'\bmwst\b', r'\bgesamt\b', r'\bsumme\b', r'\bbetrag\b', r'\bkassenbon\b', r'\bdanke\b'
+    ],
+    'por': [
+        r'\biva\b', r'\bfatura\b', r'\bpre[çc]o\b', r'\btotal\b', r'\bobrigad[oa]\b'
+    ],
+    'ara': [r'[\u0600-\u06ff]'],
+    'fas': [r'[\u0600-\u06ff]'],
+}
 
 
 def _normalize_host(value):
@@ -331,7 +387,181 @@ def extract_template_lines(text, lines_config):
     return items
 
 
-def call_ocr_space(file_data, file_name, api_key=None):
+def normalize_ocr_language_code(value):
+    """Normalize free-form language values to OCR.Space-compatible codes."""
+    token = str(value or '').strip().lower()
+    if not token:
+        return None
+
+    normalized = LANGUAGE_ALIAS_MAP.get(token, token)
+    if normalized not in SUPPORTED_OCR_LANGUAGES:
+        return None
+    return normalized
+
+
+def infer_language_scores_from_text(text):
+    """Score language hints from OCR text content."""
+    if not text:
+        return {}
+
+    text_lower = text.lower()
+    scores = {}
+
+    for language, patterns in LANGUAGE_HINT_PATTERNS.items():
+        score = 0
+        for pattern in patterns:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                score += 1
+        if score > 0:
+            scores[language] = score
+
+    return scores
+
+
+def build_ocr_language_candidates(seed_text='', preferred_language=None, max_passes=3):
+    """Build ordered OCR language candidates with heuristic hints and sensible fallbacks."""
+    max_passes = max(1, max_passes)
+    candidates = []
+
+    def add(language):
+        normalized = normalize_ocr_language_code(language)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    add(preferred_language)
+    add(DEFAULT_OCR_LANGUAGE)
+
+    hint_scores = infer_language_scores_from_text(seed_text)
+    for language, _ in sorted(hint_scores.items(), key=lambda item: item[1], reverse=True):
+        add(language)
+
+    for language in FALLBACK_OCR_LANGUAGES:
+        add(language)
+
+    return candidates[:max_passes]
+
+
+def clamp_score(value, min_value=0.0, max_value=1.0):
+    return max(min_value, min(max_value, value))
+
+
+def score_receipt_candidate(parsed_result, raw_text, text_overlay):
+    """
+    Score parsed receipt quality so we can pick the most reliable OCR-language candidate.
+    Weighted dimensions: total, items, total-vs-sum match, merchant, date, noise, layout.
+    """
+    parsed_result = parsed_result or {}
+    items = parsed_result.get('lineItems') or []
+    merchant = parsed_result.get('merchant') or ''
+    total = parse_price(parsed_result.get('total', 0))
+    item_sum = round(sum(parse_price((item or {}).get('price', 0)) for item in items), 2)
+
+    total_conf = 0.0
+    if 0 < total < 100000:
+        total_conf = 1.0 if total <= 10000 else 0.7
+
+    raw_quality = line_items_quality_score(items, total)
+    if raw_quality == float('-inf'):
+        items_conf = 0.0
+    else:
+        # Empirical normalization for line_items_quality_score typical range.
+        items_conf = clamp_score((raw_quality + 8.0) / 16.0)
+
+    if total > 0 and item_sum > 0:
+        deviation = abs(item_sum - total) / max(total, 1.0)
+        sum_match = clamp_score(1.0 - (deviation * 1.5))
+    elif total > 0 and not items:
+        sum_match = 0.25
+    elif total == 0 and item_sum > 0:
+        sum_match = 0.35
+    else:
+        sum_match = 0.0
+
+    merchant_conf = 1.0 if is_valid_merchant_name(merchant) else (0.25 if merchant and merchant != 'Unknown Merchant' else 0.0)
+    date_conf = 1.0 if extract_date_from_text(raw_text or '') else 0.0
+
+    noise_hits = 0.0
+    for item in items:
+        name = ((item or {}).get('name') or '').strip()
+        if is_noise_item_name(name):
+            noise_hits += 1.0
+        if len(name.split()) >= 12:
+            noise_hits += 0.7
+        if re.search(r'\d{1,3}\s*[.,]\s*\d{2}.*\d{1,3}\s*[.,]\s*\d{2}', name):
+            noise_hits += 0.5
+        if re.search(r'\b(?:eur/kg|kg\s*x|pz\s*x)\b', name, re.IGNORECASE):
+            noise_hits += 1.0
+    noise_penalty = clamp_score(noise_hits / max(len(items), 1))
+
+    newline_count = (raw_text or '').count('\n')
+    line_count_conf = clamp_score(newline_count / 10.0)
+    overlay_lines = len((text_overlay or {}).get('Lines', [])) if isinstance(text_overlay, dict) else 0
+    overlay_conf = clamp_score(overlay_lines / 25.0)
+    layout_conf = clamp_score((line_count_conf * 0.6) + (overlay_conf * 0.4))
+
+    score = (
+        35.0 * total_conf +
+        25.0 * items_conf +
+        15.0 * sum_match +
+        10.0 * merchant_conf +
+        10.0 * date_conf -
+        20.0 * noise_penalty +
+        5.0 * layout_conf
+    )
+
+    metrics = {
+        'total_conf': round(total_conf, 3),
+        'items_conf': round(items_conf, 3),
+        'sum_match': round(sum_match, 3),
+        'merchant_conf': round(merchant_conf, 3),
+        'date_conf': round(date_conf, 3),
+        'noise_penalty': round(noise_penalty, 3),
+        'layout_conf': round(layout_conf, 3),
+        'item_sum': item_sum,
+        'total': round(total, 2),
+        'items_count': len(items),
+    }
+    return score, metrics
+
+
+def build_receipt_candidate(raw_text, text_overlay, language):
+    """Parse and score one OCR candidate."""
+    parsed = parse_receipt(raw_text, text_overlay)
+    score, metrics = score_receipt_candidate(parsed, raw_text, text_overlay)
+    return {
+        'language': language,
+        'raw_text': raw_text,
+        'result': parsed,
+        'score': score,
+        'metrics': metrics,
+    }
+
+
+def attach_candidate_metadata(best_candidate, all_candidates):
+    """Attach candidate ranking metadata into rawData for diagnostics."""
+    result = (best_candidate or {}).get('result') or {}
+    if not isinstance(result, dict):
+        return result
+
+    raw_data = result.get('rawData')
+    if not isinstance(raw_data, dict):
+        raw_data = {'parsedText': (best_candidate or {}).get('raw_text', '')}
+
+    raw_data['ocrLanguage'] = best_candidate.get('language')
+    raw_data['ocrQualityScore'] = round(best_candidate.get('score', 0.0), 2)
+    raw_data['ocrCandidates'] = [
+        {
+            'language': candidate.get('language'),
+            'score': round(candidate.get('score', 0.0), 2),
+            'metrics': candidate.get('metrics', {}),
+        }
+        for candidate in sorted(all_candidates, key=lambda item: item.get('score', float('-inf')), reverse=True)
+    ]
+    result['rawData'] = raw_data
+    return result
+
+
+def call_ocr_space(file_data, file_name, api_key=None, language=DEFAULT_OCR_LANGUAGE):
     """Call OCR.Space API to extract text from image"""
     try:
         # Prepare multipart form data
@@ -359,7 +589,8 @@ def call_ocr_space(file_data, file_name, api_key=None):
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="apikey"\r\n\r\n{actual_key}\r\n')
 
         # OCR settings
-        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\neng\r\n')
+        actual_language = normalize_ocr_language_code(language) or DEFAULT_OCR_LANGUAGE
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n{actual_language}\r\n')
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="OCREngine"\r\n\r\n2\r\n')
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="detectOrientation"\r\n\r\ntrue\r\n')
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="scale"\r\n\r\ntrue\r\n')
@@ -387,6 +618,7 @@ def call_ocr_space(file_data, file_name, api_key=None):
         if result.get('OCRExitCode') == 1 and result.get('ParsedResults'):
             parsed_text = result['ParsedResults'][0].get('ParsedText', '')
             text_overlay = result['ParsedResults'][0].get('TextOverlay')
+            print(f"[OCR] OCR.Space language={actual_language}, chars={len(parsed_text)}")
             return parsed_text, text_overlay
         else:
             error_msg = result.get('ErrorMessage', ['OCR processing failed'])[0]
@@ -1119,7 +1351,7 @@ def parse_receipt(raw_text, text_overlay=None):
     return result
 
 
-def process_receipt(file_data, file_name, api_key=None):
+def process_receipt(file_data, file_name, api_key=None, ocr_language=None):
     """Main processing function"""
     ext = os.path.splitext(file_name)[1].lower() if file_name else '.jpg'
     is_pdf = ext == '.pdf'
@@ -1147,13 +1379,56 @@ def process_receipt(file_data, file_name, api_key=None):
 
     # Use OCR.Space for images or if PDF extraction failed
     if not raw_text:
-        raw_text, text_overlay = call_ocr_space(file_data, file_name, api_key)
-        print(f"[OCR] OCR.Space extracted: {len(raw_text)} chars, overlay: {text_overlay is not None}")
+        language_candidates = build_ocr_language_candidates(
+            seed_text='',
+            preferred_language=ocr_language,
+            max_passes=OCR_MAX_LANGUAGE_PASSES,
+        )
+        primary_language = language_candidates[0] if language_candidates else DEFAULT_OCR_LANGUAGE
+
+        raw_text, text_overlay = call_ocr_space(file_data, file_name, api_key, primary_language)
+        print(f"[OCR] OCR.Space extracted: {len(raw_text)} chars, overlay: {text_overlay is not None}, language={primary_language}")
+
+        candidate_results = []
+        if raw_text:
+            primary_candidate = build_receipt_candidate(raw_text, text_overlay, primary_language)
+            candidate_results.append(primary_candidate)
+            print(f"[OCR] Candidate {primary_language} score={primary_candidate['score']:.2f}")
+
+            if primary_candidate['score'] >= OCR_HIGH_CONFIDENCE_SCORE:
+                return attach_candidate_metadata(primary_candidate, candidate_results)
+
+        remaining_slots = max(0, OCR_MAX_LANGUAGE_PASSES - len(candidate_results))
+        if remaining_slots > 0:
+            hinted_candidates = build_ocr_language_candidates(
+                seed_text=raw_text,
+                preferred_language=ocr_language,
+                max_passes=max(OCR_MAX_LANGUAGE_PASSES + 2, 4),  # allow hint expansion before slicing
+            )
+            extra_languages = []
+            for language in hinted_candidates:
+                if language == primary_language:
+                    continue
+                if language not in extra_languages:
+                    extra_languages.append(language)
+                if len(extra_languages) >= remaining_slots:
+                    break
+
+            for language in extra_languages:
+                alt_text, alt_overlay = call_ocr_space(file_data, file_name, api_key, language)
+                if not alt_text:
+                    continue
+                candidate = build_receipt_candidate(alt_text, alt_overlay, language)
+                candidate_results.append(candidate)
+                print(f"[OCR] Candidate {language} score={candidate['score']:.2f}")
+
+        if candidate_results:
+            best_candidate = max(candidate_results, key=lambda item: item.get('score', float('-inf')))
+            print(f"[OCR] Selected language {best_candidate['language']} score={best_candidate['score']:.2f}")
+            return attach_candidate_metadata(best_candidate, candidate_results)
 
     # Parse the extracted text
-    result = parse_receipt(raw_text, text_overlay)
-
-    return result
+    return parse_receipt(raw_text, text_overlay)
 
 
 class handler(BaseHTTPRequestHandler):
@@ -1228,6 +1503,7 @@ class handler(BaseHTTPRequestHandler):
             file_base64 = data.get('file')
             file_name = data.get('fileName', 'receipt.jpg')
             api_key = data.get('apiKey')
+            ocr_language = data.get('ocrLanguage')
 
             if not file_base64:
                 self.send_error_response(400, 'File is required')
@@ -1252,7 +1528,7 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_response(413, 'Decoded file is too large')
                 return
 
-            result = process_receipt(file_data, file_name, api_key)
+            result = process_receipt(file_data, file_name, api_key, ocr_language)
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
