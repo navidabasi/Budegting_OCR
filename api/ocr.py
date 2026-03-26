@@ -899,9 +899,17 @@ def extract_line_items_from_overlay(text_overlay):
 
                 # Clean up name
                 name = re.sub(r'^\d+\s*', '', name)  # Remove leading quantity numbers
-                name = name.strip()
+                name = re.sub(r'\b\d+[.,]\d+\s*kg\s*x\s*$', '', name, flags=re.IGNORECASE)
+                name = re.sub(r'\b(?:eur/kg|€/kg)\b', '', name, flags=re.IGNORECASE)
+                name = re.sub(r'\s+\d{1,2}%\s*$', '', name)
+                name = re.sub(r'\s+', ' ', name).strip()
 
-                if name and len(name) >= 2 and 0 < price < 10000:
+                if (
+                    name and
+                    len(name) >= 2 and
+                    0 < price < 10000 and
+                    not is_noise_item_name(name)
+                ):
                     items.append({
                         'name': name,
                         'quantity': 1,
@@ -1006,9 +1014,9 @@ def extract_tabular_items(text):
             name = re.sub(r'^[\dX\+\*\-]+\s*', '', name)
             # Remove trailing VAT percentage if stuck to name
             name = re.sub(r'\s+\d{1,2}%\s*$', '', name)
-            name = name.strip()
+            name = sanitize_item_name(name)
 
-            if name and len(name) >= 2 and 0 < price < 10000:
+            if name and len(name) >= 2 and 0 < price < 10000 and not is_noise_item_name(name):
                 items.append({
                     'name': name,
                     'quantity': 1,
@@ -1060,6 +1068,147 @@ def normalize_text_for_item_lines(text):
     )
 
     return normalized
+
+
+def sanitize_item_name(raw_name):
+    """Normalize parsed item names and strip common OCR/header artifacts."""
+    if not raw_name:
+        return ''
+
+    name = str(raw_name)
+    name = re.sub(r'\b(?:descrizione|description|item|articolo|prodotto|prezzo|price|iva|vat)\b', ' ', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s+\d{1,2}%\s*', ' ', name)
+    name = re.sub(r'\b(?:eur/kg|€/kg)\b', ' ', name, flags=re.IGNORECASE)
+    name = re.sub(r'^[\d\s,./-]{1,12}(?=[A-Za-zÀ-ÖØ-öø-ÿ])', ' ', name)
+    name = re.sub(r'[\|*_]+', ' ', name)
+    name = re.sub(r'\s+', ' ', name).strip(' -:;,.')
+
+    # Long merged OCR chunks often include multiple products; keep trailing chunk near price.
+    words = name.split()
+    if len(words) > 9:
+        name = ' '.join(words[-9:])
+
+    return name.strip()
+
+
+def extract_line_items_from_token_stream(text):
+    """
+    Extract items from flattened OCR text where newline segmentation is unreliable.
+    Uses token scanning with price markers and VAT/header filtering.
+    """
+    if not text:
+        return []
+
+    working = text
+
+    start_match = re.search(r'(descrizione|description|item|articolo|prodotto)\b', working, re.IGNORECASE)
+    if start_match:
+        working = working[start_match.end():]
+
+    end_match = re.search(r'\b(?:subtotale|totale(?:\s+complessivo)?|total|importo\s+pagato|pagamento|cash|carta)\b', working, re.IGNORECASE)
+    if end_match:
+        working = working[:end_match.start()]
+
+    # Normalize broken decimal variants like "0, 29", "1 79"
+    working = re.sub(r'(\d)\s*,\s*(\d{2})(?!\d)', r'\1,\2', working)
+    working = re.sub(r'(?<![\d.,])(\d{1,2})\s+(\d{2})(?!\d)', r'\1,\2', working)
+
+    tokens = [token for token in re.split(r'\s+', working) if token]
+    if not tokens:
+        return []
+
+    price_pattern = re.compile(r'^[€$£]?\d{1,3}[.,]\d{2}$')
+    vat_pattern = re.compile(r'^\d{1,2}%$')
+    skip_tokens = {
+        'descrizione', 'description', 'item', 'articolo', 'prodotto',
+        'iva', 'vat', 'prezzo', 'price', 'importo', 'euro', 'eur',
+    }
+
+    items = []
+    name_tokens = []
+    index = 0
+
+    def push_item(candidate_name_tokens, price_value):
+        candidate_name = sanitize_item_name(' '.join(candidate_name_tokens))
+        if (
+            candidate_name and
+            len(candidate_name) >= 2 and
+            0 < price_value < 10000 and
+            not is_noise_item_name(candidate_name)
+        ):
+            items.append({
+                'name': candidate_name,
+                'quantity': 1,
+                'price': price_value,
+                'category': 'Other'
+            })
+
+    while index < len(tokens):
+        token = tokens[index].strip()
+        if not token:
+            index += 1
+            continue
+
+        normalized = token.lower().strip('.,;:()[]{}')
+        if not normalized:
+            index += 1
+            continue
+
+        combined_price = None
+        step = 1
+
+        if re.match(r'^\d{1,3}[.,]$', token) and index + 1 < len(tokens) and re.match(r'^\d{2}$', tokens[index + 1]):
+            combined_price = f"{token}{tokens[index + 1]}"
+            step = 2
+        elif re.match(r'^\d{1,2}$', token) and index + 1 < len(tokens) and re.match(r'^\d{2}$', tokens[index + 1]):
+            prev = tokens[index - 1].lower() if index > 0 else ''
+            if vat_pattern.match(prev) or (name_tokens and re.search(r'[A-Za-zÀ-ÖØ-öø-ÿ]', name_tokens[-1])):
+                combined_price = f"{token},{tokens[index + 1]}"
+                step = 2
+
+        price_token = None
+        if combined_price and price_pattern.match(combined_price):
+            price_token = combined_price
+        elif price_pattern.match(token.replace(' ', '')):
+            price_token = token.replace(' ', '')
+
+        if price_token:
+            next_token = tokens[index + step].lower() if index + step < len(tokens) else ''
+            next_next_token = tokens[index + step + 1].lower() if index + step + 1 < len(tokens) else ''
+            recent_context = ' '.join(name_tokens[-5:]).lower()
+
+            is_unit_price = (
+                'eur/kg' in next_token or
+                '€/kg' in next_token or
+                'eur/kg' in next_next_token or
+                '€/kg' in next_next_token or
+                re.search(r'\bkg\b.*\bx\b', recent_context) is not None
+            )
+
+            if not is_unit_price:
+                push_item(name_tokens, parse_price(price_token))
+                name_tokens = []
+
+            index += step
+            continue
+
+        if vat_pattern.match(normalized) or normalized in skip_tokens:
+            index += 1
+            continue
+
+        if normalized in {'eur/kg', '€/kg'}:
+            index += 1
+            continue
+
+        # Drop isolated numeric noise tokens not useful for names.
+        if re.match(r'^\d{3,}$', normalized):
+            index += 1
+            continue
+
+        name_tokens.append(token)
+        index += 1
+
+    return items
 
 
 def is_noise_item_name(name):
@@ -1117,6 +1266,12 @@ def line_items_quality_score(items, expected_total=0):
         if is_noise_item_name(name):
             noise_names += 1
             score -= 2.0
+        if re.search(r'\b(?:descrizione|prezzo|iva|vat)\b', normalized_name):
+            score -= 1.2
+        if len(name.split()) > 8:
+            score -= 1.0
+        if re.search(r'\d{3,}', normalized_name):
+            score -= 0.5
 
     score += min(len(items), 25) * 0.5
 
@@ -1154,18 +1309,20 @@ def choose_best_line_items(overlay_items, text_items, expected_total=0):
 
 def extract_line_items_from_text(text):
     """Extract line items from plain text"""
-    text = normalize_text_for_item_lines(text)
+    original_text = text or ''
+    normalized_text = normalize_text_for_item_lines(original_text)
+    candidates = []
 
-    # First, check if this is a tabular receipt
-    if detect_tabular_format(text):
+    # First candidate: tabular parser when headers indicate columnar format.
+    if detect_tabular_format(original_text) or detect_tabular_format(normalized_text):
         print("[OCR] Detected tabular receipt format")
-        items = extract_tabular_items(text)
-        if items:
-            return items
-        # Fall through to standard parsing if tabular extraction fails
+        tabular_items = extract_tabular_items(normalized_text)
+        if tabular_items:
+            candidates.append(tabular_items)
 
+    # Second candidate: line-by-line parser on normalized text.
     items = []
-    lines = text.split('\n')
+    lines = normalized_text.split('\n')
 
     skip_patterns = [
         r'^total|^subtotal|^tax',
@@ -1213,7 +1370,19 @@ def extract_line_items_from_text(text):
                     'category': 'Other'
                 })
 
-    return items
+    if items:
+        candidates.append(items)
+
+    # Third candidate: token-stream parser for flattened OCR blobs.
+    token_items = extract_line_items_from_token_stream(original_text)
+    if token_items:
+        candidates.append(token_items)
+
+    if not candidates:
+        return []
+
+    best_items = max(candidates, key=lambda candidate: line_items_quality_score(candidate))
+    return best_items
 
 
 def extract_merchant_from_overlay(text_overlay):
