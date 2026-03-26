@@ -477,7 +477,13 @@ def score_receipt_candidate(parsed_result, raw_text, text_overlay):
     else:
         sum_match = 0.0
 
-    merchant_conf = 1.0 if is_valid_merchant_name(merchant) else (0.25 if merchant and merchant != 'Unknown Merchant' else 0.0)
+    merchant_normalized = re.sub(r'\s+', ' ', str(merchant or '')).strip().lower()
+    if not merchant_normalized or merchant_normalized in {'unknown merchant', 'unknown'}:
+        merchant_conf = 0.0
+    elif is_valid_merchant_name(merchant):
+        merchant_conf = 1.0
+    else:
+        merchant_conf = 0.25
     date_conf = 1.0 if extract_date_from_text(raw_text or '') else 0.0
 
     noise_hits = 0.0
