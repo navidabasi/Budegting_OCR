@@ -1,7 +1,7 @@
 # Receipt Manager PWA
 
 A Progressive Web App (PWA) for managing receipts and expenses with OCR capabilities.
-Try a live demo at: https://budegting-ocr.vercel.app
+Try a live demo at: https://budegting-ocr-navidabasis-projects.vercel.app/
 
 ## Features
 
