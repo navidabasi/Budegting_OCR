@@ -866,4 +866,12 @@ export const it = {
         finishNoBudget: "Inizia senza budget",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "Applicare a tutti i {{count}} di {{merchant}}?",
+        apply: "Applica",
+        applied: "{{count}} aggiornati a {{category}}",
+        appliesTo: "Vale per tutti i {{count}} scontrini di {{merchant}}",
+    },
+    // @i18n:end learning
 };

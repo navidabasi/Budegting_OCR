@@ -916,4 +916,12 @@ export const fa = {
         finishNoBudget: "شروع بدون بودجه",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "برای همه {{count}} مورد از {{merchant}} اعمال شود؟",
+        apply: "اعمال",
+        applied: "{{count}} مورد به {{category}} تغییر کرد",
+        appliesTo: "برای همه {{count}} رسید {{merchant}} اعمال می‌شود",
+    },
+    // @i18n:end learning
 };

@@ -753,4 +753,12 @@ export const fr = {
         finishNoBudget: "Commencer sans budget",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "Appliquer aux {{count}} de {{merchant}} ?",
+        apply: "Appliquer",
+        applied: "{{count}} mis à jour vers {{category}}",
+        appliesTo: "S’applique aux {{count}} reçus de {{merchant}}",
+    },
+    // @i18n:end learning
 };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { suggestCategory } from '../categorizer'
+import { suggestCategory, suggestForMerchant } from '../categorizer'
 
 const cat = (merchant, extra = {}) => suggestCategory({ merchant, ...extra })
 
@@ -124,5 +124,20 @@ describe('suggestCategory: item keywords', () => {
     })
     it('returns none for unreadable items', () => {
         expect(cat('Foo', { items: [{ name: 'ABC123' }, { name: 'XYZ' }] }).source).toBe('none')
+    })
+})
+
+describe('suggestForMerchant (forms re-suggest when the merchant changes)', () => {
+    const names = ['Groceries', 'Dining', 'Other']
+    it('a learned user rule beats history and seeds', () => {
+        const rules = [{ merchantKey: 'lidl', category: 'Dining', hitCount: 2 }]
+        const transactions = [{ merchant: 'Lidl', category: 'Groceries', date: '2026-11-01' }]
+        expect(suggestForMerchant({ merchant: 'LIDL 0231', rules, transactions, names })).toBe('Dining')
+    })
+    it('falls back to history, then seeds, and only returns offered names', () => {
+        expect(suggestForMerchant({ merchant: 'Bar Roma', transactions: [{ merchant: 'Bar Roma', category: 'Restaurant', date: '2026-11-01' }], names })).toBe('Dining')
+        expect(suggestForMerchant({ merchant: 'Conad', names })).toBe('Groceries')
+        expect(suggestForMerchant({ merchant: 'Conad', names: ['Dining'] })).toBeNull()
+        expect(suggestForMerchant({ merchant: '  ', names })).toBeNull()
     })
 })

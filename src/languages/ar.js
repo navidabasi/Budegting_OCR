@@ -898,4 +898,12 @@ export const ar = {
         finishNoBudget: "ابدأ بدون ميزانية",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "تطبيق على جميع الـ {{count}} من {{merchant}}؟",
+        apply: "تطبيق",
+        applied: "تم تحديث {{count}} إلى {{category}}",
+        appliesTo: "ينطبق على جميع الإيصالات ({{count}}) من {{merchant}}",
+    },
+    // @i18n:end learning
 };

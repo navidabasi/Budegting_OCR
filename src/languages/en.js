@@ -1022,4 +1022,12 @@ export const en = {
         finishNoBudget: "Start without a budget",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "Apply to all {{count}} from {{merchant}}?",
+        apply: "Apply",
+        applied: "{{count}} updated to {{category}}",
+        appliesTo: "Applies to all {{count}} receipts from {{merchant}}",
+    },
+    // @i18n:end learning
 };

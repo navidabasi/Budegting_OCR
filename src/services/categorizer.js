@@ -2,6 +2,8 @@
 // Resolution order: user rule (exact key) -> user rule (token prefix, then first word)
 //                   -> seed rules (word-boundary regex) -> item keywords -> none.
 import { merchantKey, findSeed } from '../utils/merchant';
+import { categoryForMerchant } from '../utils/quickAdd';
+import { normalizeCategoryName } from '../utils/categoryNames';
 
 const clean = (s) =>
     String(s || '')
@@ -92,4 +94,22 @@ export function suggestCategory({ merchant, items = [], rules = [] } = {}) {
     if (byItems) return { ...byItems, source: 'items', merchantKey: key };
 
     return { category: null, source: 'none', confidence: 0, merchantKey: key };
+}
+
+/** Rules in the shape suggestCategory wants. */
+export const toSuggestRules = (rules = []) => rules.map((r) => ({ merchantKey: r.merchantKey, category: r.category, hitCount: r.hitCount }));
+
+/**
+ * The category the forms pre-select for a merchant: the user's own last choice at that merchant, else
+ * rules/seeds/items. Only returns names the picker offers (`names`), otherwise null.
+ */
+export function suggestForMerchant({ merchant, items = [], rules = [], transactions = [], names = [] } = {}) {
+    if (!String(merchant || '').trim()) return null;
+    const allowed = (c) => {
+        const n = normalizeCategoryName(c);
+        return n && (names.length === 0 || names.includes(n)) ? n : null;
+    };
+    const guess = suggestCategory({ merchant, items, rules: toSuggestRules(rules) });
+    if (guess.source === 'user') return allowed(guess.category); // a learned rule beats history
+    return allowed(categoryForMerchant(transactions, merchant)) || allowed(guess.category);
 }

@@ -215,6 +215,12 @@ export function useRules() {
     return { rules: rows, loading };
 }
 
+/** The user's merchant rules ({ merchantKey, category, displayName, source, hitCount }) for suggestCategory / suggestForMerchant. */
+export function useMerchantRules() {
+    const { rules, loading } = useRules();
+    return { rules, loading };
+}
+
 /** create(data) / update(id, patch) / remove(id) for one of: accounts, budgets, goals, rules. */
 export function useRowMutations(table) {
     const userId = useUserId();

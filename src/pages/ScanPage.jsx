@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Camera, CloudOff, FileText, Loader2, X } from 'lucide-react';
 import ReviewScreen from '../components/scan/ReviewScreen';
 import { useAppStore } from '../store/appStore';
-import { useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useSettings, useTransactions } from '../data/hooks';
+import { useMerchantRules, useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useSettings, useTransactions } from '../data/hooks';
 import { useCategories } from '../hooks/useCategories';
 import { useTranslation } from '../languages/useTranslation';
 import { buildHints, extractReceipt, initialScanState, ScanError, scanReducer } from '../services/receiptScan';
@@ -13,7 +13,7 @@ import { optimizeImage } from '../utils/imageOptimize';
 import { isPdf, renderPdfFirstPage } from '../utils/pdfRender';
 import { decimalSeparator, formatMoney, localeFor } from '../utils/format';
 import { getLastAccountId, setLastAccountId } from '../utils/quickAdd';
-import { suggestCategory } from '../services/categorizer';
+import { suggestForMerchant } from '../services/categorizer';
 import { merchantKey } from '../utils/merchant';
 import { normalizeCategoryName } from '../utils/categoryNames';
 import { getScanPrefs } from '../utils/scanPrefs';
@@ -27,15 +27,18 @@ async function getAccessToken() {
 
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-function formFromResult(result, { defaultCurrency, sep, accountId, names }) {
+function formFromResult(result, { defaultCurrency, sep, accountId, names, rules, transactions }) {
     const r = result.receipt;
     const pick = (c) => {
         const n = normalizeCategoryName(c);
         return n && names.includes(n) ? n : null;
     };
-    const category = pick(r.category) || pick(suggestCategory({ merchant: r.merchant, items: r.items }).category) || '';
+    // A learned rule (the user's own correction) beats the model's guess; otherwise the model's category, then history/seeds
+    const ruleHit = rules.find((x) => x.merchantKey && x.merchantKey === merchantKey(r.merchant));
+    const category = pick(ruleHit?.category) || pick(r.category) || suggestForMerchant({ merchant: r.merchant, items: r.items, rules, transactions, names }) || '';
     return {
         suggested: category,
+        categoryTouched: false,
         merchant: r.merchant || '',
         date: r.date || new Date().toISOString().slice(0, 10),
         total: r.total === null ? '' : String(r.total).replace('.', sep),
@@ -58,6 +61,7 @@ export default function ScanPage() {
     const openQuickAdd = useAppStore((s) => s.openQuickAdd);
     const { defaultCurrency } = useSettings();
     const { transactions } = useTransactions();
+    const { rules } = useMerchantRules();
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
     const categoryList = useCategories();
@@ -78,6 +82,8 @@ export default function ScanPage() {
     const previewUrl = useMemo(() => (state.file ? URL.createObjectURL(state.file) : state.original && !isPdf(state.original) ? URL.createObjectURL(state.original) : null), [state.file, state.original]);
     useEffect(() => () => previewUrl && URL.revokeObjectURL(previewUrl), [previewUrl]);
 
+    const rulesRef = useRef(rules);
+    rulesRef.current = rules;
     const hintsRef = useRef(null);
     hintsRef.current = () => buildHints({ languageCode, defaultCurrency, categories: categoryNames, transactions, accounts });
 
@@ -108,7 +114,7 @@ export default function ScanPage() {
                 if (cancelled) return;
                 const last = getLastAccountId();
                 const accountId = (accounts.find((a) => a.id === last) || accounts[0])?.id || null;
-                setForm(formFromResult(result, { defaultCurrency, sep, accountId, names: categoryNames }));
+                setForm(formFromResult(result, { defaultCurrency, sep, accountId, names: categoryNames, rules: rulesRef.current, transactions }));
                 dispatch({ type: 'EXTRACTED', result });
             } catch (err) {
                 if (cancelled) return;
@@ -221,6 +227,7 @@ export default function ScanPage() {
                     groups={groups}
                     categoryNames={categoryNames}
                     transactions={transactions}
+                    rules={rules}
                     onCreateGroup={(name) => createGroup({ name, color: '#3b82f6', isPinned: false })}
                     onSave={save}
                     onManual={() => openManual(true)}

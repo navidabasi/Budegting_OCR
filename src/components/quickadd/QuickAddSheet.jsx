@@ -11,14 +11,14 @@ import {
     useCreateTransaction,
     useDeleteTransaction,
     useGroupsData,
-    useRules,
+    useMerchantRules,
     useSettings,
     useTransactions,
     useUpdateTransaction,
 } from '../../data/hooks';
 import { useCategories } from '../../hooks/useCategories';
 import { DEFAULT_CATEGORY } from '../../utils/constants';
-import { suggestCategory } from '../../services/categorizer';
+import { suggestForMerchant } from '../../services/categorizer';
 import { merchantKey } from '../../utils/merchant';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
@@ -68,7 +68,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const { transactions } = useTransactions();
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
-    const { rules } = useRules();
+    const { rules } = useMerchantRules();
     const categoryList = useCategories();
     const createTransaction = useCreateTransaction();
     const updateTransaction = useUpdateTransaction();
@@ -113,10 +113,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const names = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const suggested = useMemo(() => {
         if (!state.merchant.trim()) return null;
-        const fromHistory = categoryForMerchant(transactions, state.merchant);
-        if (fromHistory) return fromHistory;
-        const guess = suggestCategory({ merchant: state.merchant, rules: rules.map((r) => ({ merchantKey: r.merchantKey, category: r.category, hitCount: r.hitCount })) });
-        return guess.category && names.includes(guess.category) ? guess.category : null;
+        return suggestForMerchant({ merchant: state.merchant, rules, transactions, names });
     }, [state.merchant, transactions, rules, names]);
     const ranked = useMemo(() => rankCategories({ suggested, transactions, names, limit: 4 }), [suggested, transactions, names]);
     const merchantChips = useMemo(() => recentMerchants(transactions, { type: state.type === 'income' ? 'income' : 'expense' }), [transactions, state.type]);

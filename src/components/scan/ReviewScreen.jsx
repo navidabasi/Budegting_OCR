@@ -1,3 +1,4 @@
+import { suggestForMerchant } from '../../services/categorizer';
 import { useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronLeft } from 'lucide-react';
 import { Chip, ChipRow, IconButton } from '../ui';
@@ -16,7 +17,7 @@ const fieldBox = (check) =>
 /**
  * Scan review (docs/design/ScanReview.dc.html). Controlled by ScanPage: `form` + `onChange`.
  */
-export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, categoryNames, transactions, onCreateGroup, onSave, onManual, onRescan, onBack, saving }) {
+export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [viewer, setViewer] = useState(false);
     const [itemsOpen, setItemsOpen] = useState(false);
@@ -36,6 +37,15 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
     const sum = Math.round(items.reduce((s, it) => s + (parseFloat(String(it.price).replace(',', '.')) || 0), 0) * 100) / 100;
     const unreadable = items.filter((it) => isUnreadable({ ...it, price: it.price === '' ? null : it.price })).length;
     const set = (patch, field) => onChange({ ...form, ...patch, edited: field ? { ...edited, [field]: true } : edited });
+    // P3-T5: a corrected merchant re-suggests the category, unless the user already picked one
+    const changeMerchant = (merchant) => {
+        const patch = { merchant };
+        if (!form.categoryTouched) {
+            const s = suggestForMerchant({ merchant, items, rules, transactions, names: categoryNames });
+            if (s) Object.assign(patch, { category: s, suggested: s });
+        }
+        set(patch, 'merchant');
+    };
     const setItem = (i, patch) => set({ items: items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) });
 
     const ranked = useMemo(() => rankCategories({ suggested: form.suggested, transactions, names: categoryNames, limit: 4 }), [form.suggested, transactions, categoryNames]);
@@ -66,7 +76,7 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                 <div className="flex gap-2">
                     <div className={`${fieldBox(flag('merchant'))} flex-1`}>
                         <label htmlFor="scan-merchant" className={lbl}>{t('quickAdd.where')}</label>
-                        <input id="scan-merchant" className="w-full min-w-0 bg-transparent text-[17px] font-semibold leading-6 text-ink outline-none" value={form.merchant} onChange={(e) => set({ merchant: e.target.value }, 'merchant')} />
+                        <input id="scan-merchant" className="w-full min-w-0 bg-transparent text-[17px] font-semibold leading-6 text-ink outline-none" value={form.merchant} onChange={(e) => changeMerchant(e.target.value)} />
                         {flag('merchant') ? <span className="text-[11px] font-semibold text-warn-ink">{t('scan.checkThis')}</span> : null}
                     </div>
                     <div className={`${fieldBox(flag('date'))} flex-[1.25]`}>
@@ -101,13 +111,13 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                     {allCats ? (
                         <div className="flex flex-wrap gap-2">
                             {catChips.map((n) => (
-                                <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n })}>{localizeCategory(n)}</Chip>
+                                <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n, categoryTouched: true })}>{localizeCategory(n)}</Chip>
                             ))}
                         </div>
                     ) : (
                         <ChipRow>
                             {catChips.map((n) => (
-                                <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n })}>{localizeCategory(n)}</Chip>
+                                <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n, categoryTouched: true })}>{localizeCategory(n)}</Chip>
                             ))}
                             {ranked.all.length > catChips.length ? <Chip size="sm" onClick={() => setAllCats(true)}>{t('quickAdd.categoryMore')}</Chip> : null}
                         </ChipRow>

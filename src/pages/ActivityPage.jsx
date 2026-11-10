@@ -15,7 +15,7 @@ import { useAppStore } from '../store/appStore';
 import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useSettings, useTransactions } from '../data/hooks';
 import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
-import { onCategoryChanged } from '../services/categoryLearning';
+import { useCategoryChange } from '../hooks/useCategoryChange';
 import { useTranslation } from '../languages/useTranslation';
 import { applyFilters, groupByDay, isUncategorised, isUnpaid, parseFilters, serializeFilters, summarize } from '../utils/activityFilters';
 
@@ -43,6 +43,7 @@ export default function ActivityPage() {
     const { accounts } = useAccounts();
     const { defaultCurrency } = useSettings();
     const categoryList = useCategories();
+    const changeCategory = useCategoryChange();
     const deleteTransaction = useDeleteTransaction();
     const createTransaction = useCreateTransaction();
     const { toReceiptDetail } = useReceiptNavigation();
@@ -130,8 +131,7 @@ export default function ActivityPage() {
     const handleCategory = async (tx, category) => {
         setCategoryFor(null);
         try {
-            await onCategoryChanged(tx, category);
-            showToast(t('activity.categoryChanged', { category: localizeCategory(category) }), 'success');
+            await changeCategory(tx, category);
         } catch {
             showToast(t('quickAdd.saveFailed'), 'error');
         }

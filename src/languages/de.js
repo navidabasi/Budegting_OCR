@@ -866,4 +866,12 @@ export const de = {
         finishNoBudget: "Ohne Budget starten",
     },
     // @i18n:end onboarding
+    // @i18n:begin learning
+    learning: {
+        applyToAll: "Auf alle {{count}} von {{merchant}} anwenden?",
+        apply: "Anwenden",
+        applied: "{{count}} auf {{category}} geändert",
+        appliesTo: "Gilt für alle {{count}} Belege von {{merchant}}",
+    },
+    // @i18n:end learning
 };

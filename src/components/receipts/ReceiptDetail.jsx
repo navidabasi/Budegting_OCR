@@ -11,10 +11,12 @@ import { useCategories } from '../../hooks/useCategories';
 import { useAppStore } from '../../store/appStore';
 import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 import { getEffectiveAmount } from '../../utils/helpers';
-import { onCategoryChanged } from '../../services/categoryLearning';
+import { useCategoryChange } from '../../hooks/useCategoryChange';
+import { countSameMerchant } from '../../services/categoryLearning';
 import { isUnreadable } from '../../services/receiptScan';
 import { rankCategories, dateKey } from '../../utils/quickAdd';
 import { currencySymbol, localeFor, formatAmount } from '../../utils/format';
+import { displayName } from '../../utils/merchant';
 import { categoryVisual } from '../../utils/categoryVisual.jsx';
 import { useTranslation } from '../../languages/useTranslation';
 
@@ -37,6 +39,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const location = useLocation();
     const showToast = useAppStore((s) => s.showToast);
     const openQuickAdd = useAppStore((s) => s.openQuickAdd);
+    const applyChange = useCategoryChange();
     const updateReceipt = useUpdateTransaction();
     const deleteReceipt = useDeleteTransaction();
     const markDone = useMarkTransactionDone();
@@ -59,6 +62,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const names = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const ranked = useMemo(() => rankCategories({ suggested: receipt.category, transactions, names, limit: 4 }), [receipt.category, transactions, names]);
     const items = receipt.lineItems || [];
+    const sameMerchantCount = useMemo(() => countSameMerchant(transactions, receipt), [transactions, receipt]);
     const { Icon: CatIcon } = categoryVisual(receipt.category, type);
 
     const dateText = (() => {
@@ -76,7 +80,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
     const changeCategory = async (category) => {
         try {
-            await onCategoryChanged(receipt, category);
+            await applyChange(receipt, category);
             onUpdate?.();
         } catch {
             showToast(t('quickAdd.saveFailed'), 'error');
@@ -149,6 +153,11 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                         <div className="flex items-baseline justify-between">
                             <span className={cap}>{t('quickAdd.categoryLabel').split(' · ')[0]}</span>
                         </div>
+                        {sameMerchantCount > 1 ? (
+                            <p className="text-xs text-ink-muted" data-testid="applies-hint">
+                                {t('learning.appliesTo', { count: sameMerchantCount, merchant: displayName(receipt.merchant) || receipt.merchant })}
+                            </p>
+                        ) : null}
                         {allCategories ? (
                             <div className="flex flex-wrap gap-2">
                                 {names.map((n) => (

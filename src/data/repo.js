@@ -19,6 +19,7 @@ import {
 } from '../utils/tracking';
 import { calculateNextRecurringDate } from '../utils/recurring';
 import { normalizeCategoryName } from '../utils/categoryNames';
+import { merchantKey as computeMerchantKey } from '../utils/merchant';
 
 const nowIso = () => new Date().toISOString();
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -37,7 +38,9 @@ export function normalizeTransaction(tx) {
     const items = Array.isArray(tx.lineItems) && tx.lineItems.some((it) => it && normalizeCategoryName(it.category) !== it.category)
         ? tx.lineItems.map((it) => (it && it.category ? { ...it, category: normalizeCategoryName(it.category) } : it))
         : tx.lineItems;
-    return category === tx.category && items === tx.lineItems ? tx : { ...tx, category, lineItems: items };
+    // Lazy backfill: rows saved before merchantKey existed get it computed on read (persisted by the next write, see updateTransaction)
+    const key = tx.merchantKey || (tx.transactionType === 'transfer' || !tx.merchant ? tx.merchantKey : computeMerchantKey(tx.merchant) || tx.merchantKey);
+    return category === tx.category && items === tx.lineItems && key === tx.merchantKey ? tx : { ...tx, category, lineItems: items, merchantKey: key };
 }
 
 const byDateDesc = (a, b) => {
@@ -141,6 +144,7 @@ export async function createTransaction(receipt) {
         updatedAt: now,
     };
     if (typeof record.total === 'string') record.total = parseFloat(record.total);
+    if (!record.merchantKey && record.transactionType !== 'transfer' && record.merchant) record.merchantKey = computeMerchantKey(record.merchant) || undefined;
     await insertRecord('transactions', record);
     return record.id;
 }
@@ -150,8 +154,53 @@ export async function updateTransaction(id, updates) {
     delete patch.id;
     delete patch.userId;
     if (patch.trackingData !== undefined) patch.trackingData = normalizeTrackingData(patch.trackingData);
+    await withMerchantKey(id, patch);
     await patchRecord('transactions', id, patch);
     return id;
+}
+
+/** Keep merchantKey in step with the merchant, and persist it for rows that were saved without one (lazy backfill). */
+async function withMerchantKey(id, patch) {
+    if (patch.merchantKey !== undefined || !(await mirrorOk())) return;
+    const existing = await db.transactions.get(id);
+    if (!existing) return;
+    const type = patch.transactionType ?? existing.transactionType;
+    const merchant = patch.merchant !== undefined ? patch.merchant : existing.merchant;
+    if (type === 'transfer' || !merchant) return;
+    if (existing.merchantKey && patch.merchant === undefined) return;
+    const key = computeMerchantKey(merchant);
+    if (key && key !== existing.merchantKey) patch.merchantKey = key;
+}
+
+/**
+ * Apply several transaction patches in one local transaction (one outbox pass). Returns the previous values of
+ * the patched fields so the caller can undo with another batch: [{ id, patch }].
+ */
+export async function batchUpdateTransactions(changes) {
+    if (!changes?.length) return [];
+    if (!(await mirrorOk())) {
+        const previous = [];
+        for (const { id, patch } of changes) {
+            await patchRecord('transactions', id, patch);
+        }
+        return previous;
+    }
+    const previous = [];
+    const users = new Set();
+    const ts = nowIso();
+    await db.transaction('rw', db.transactions, db.outbox, async () => {
+        for (const { id, patch } of changes) {
+            const existing = await db.transactions.get(id);
+            if (!existing) continue;
+            const updates = { ...patch, updatedAt: ts };
+            previous.push({ id, patch: Object.fromEntries(Object.keys(patch).map((k) => [k, existing[k]])) });
+            await db.transactions.put({ ...existing, ...updates });
+            await enqueue({ table: 'transactions', op: 'update', recordId: id, userId: existing.userId, payload: updates, ts });
+            users.add(existing.userId);
+        }
+    });
+    for (const u of users) requestFlush(u);
+    return previous;
 }
 
 export async function deleteTransaction(id) {
