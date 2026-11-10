@@ -26,7 +26,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     return (
         /* Outer div IS the backdrop — fixed inset-0 guarantees full coverage including safe area */
         <div
-            className="fixed inset-0 z-50 overflow-y-auto bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
+            className="fixed inset-0 z-[65] overflow-y-auto bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
             onClick={onClose}
         >
             <div

@@ -61,6 +61,8 @@ export function buildDoneTrackingData(existingTrackingData = null, completedAt =
 }
 
 export function shouldIncludeInFinancialTotals(receipt) {
+    // Transfers between own accounts are neither spending nor income
+    if (receipt?.transactionType === 'transfer') return false;
     const trackingData = normalizeTrackingData(receipt?.trackingData);
     if (!trackingData?.isTracked) {
         return true;

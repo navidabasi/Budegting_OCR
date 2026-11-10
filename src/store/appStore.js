@@ -12,6 +12,7 @@ export const useAppStore = create(
             // UI state
             sidebarOpen: false,
             addReceiptModalOpen: false,
+            quickAddPreset: null, // { initial?, transaction? } consumed by the Quick Add sheet
             loading: false,
             error: null,
             toast: null,
@@ -47,6 +48,7 @@ export const useAppStore = create(
                     isAuthenticated: false,
                     sidebarOpen: false,
                     addReceiptModalOpen: false,
+                    quickAddPreset: null,
                     storageHealth: {
                         hasLocalCache: true,
                         initFailed: false,
@@ -59,7 +61,10 @@ export const useAppStore = create(
 
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-            setAddReceiptModalOpen: (open) => set({ addReceiptModalOpen: open }),
+            setAddReceiptModalOpen: (open) => set(open ? { addReceiptModalOpen: true } : { addReceiptModalOpen: false, quickAddPreset: null }),
+
+            /** Open the Quick Add sheet, optionally prefilled ({ initial }) or editing ({ transaction }). */
+            openQuickAdd: (preset = null) => set({ addReceiptModalOpen: true, quickAddPreset: preset }),
 
             setLoading: (loading) => set({ loading }),
 
@@ -67,9 +72,16 @@ export const useAppStore = create(
 
             clearError: () => set({ error: null }),
 
-            showToast: (message, type = 'info') => {
-                set({ toast: { message, type, id: Date.now() } });
-                setTimeout(() => set({ toast: null }), 3000);
+            /** options: { action: { label, onClick }, duration } - actions (Undo) get a longer default. */
+            showToast: (message, type = 'info', options = {}) => {
+                if (message === null || message === undefined) {
+                    set({ toast: null });
+                    return;
+                }
+                const id = Date.now() + Math.random();
+                const duration = options.duration ?? (options.action ? 6000 : 3000);
+                set({ toast: { message, type, id, action: options.action || null } });
+                setTimeout(() => set((state) => (state.toast?.id === id ? { toast: null } : state)), duration);
             },
 
             applyLanguageToDocument: (languageCode) => {

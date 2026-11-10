@@ -11,7 +11,7 @@ describe('format', () => {
     });
     it('maps languages to locales', () => {
         expect(localeFor('it', 'EUR')).toBe('it-IT');
-        expect(localeFor('en', 'EUR')).toBe('en-IE');
+        expect(localeFor('en', 'EUR')).toBe('de-DE');
         expect(localeFor('en', 'USD')).toBe('en-US');
     });
     it('knows the decimal separator', () => {

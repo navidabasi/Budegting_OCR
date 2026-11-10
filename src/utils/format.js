@@ -1,6 +1,6 @@
 /**
  * Locale-aware amount formatting for the UI (design: monospace, tabular, `1.240,30`).
- * The locale follows the app language; English + EUR uses Irish English so the symbol/grouping stay sane.
+ * The locale follows the app language; English + EUR uses German-style separators (1.240,30) as in the design.
  */
 const LOCALES = {
     it: 'it-IT',
@@ -13,7 +13,7 @@ const LOCALES = {
 
 export function localeFor(languageCode = 'en', currency = 'EUR') {
     if (LOCALES[languageCode]) return LOCALES[languageCode];
-    return currency === 'EUR' ? 'en-IE' : 'en-US';
+    return currency === 'EUR' ? 'de-DE' : 'en-US'; // EUR users get comma decimals (matches formatCurrency)
 }
 
 const cache = new Map();
@@ -26,14 +26,14 @@ function numberFormat(locale, minDigits, maxDigits) {
 }
 
 /** 1240.3 -> "1.240,30" (it/de/es...). Always two decimals unless `digits` says otherwise. */
-export function formatAmount(value, { locale = 'en-IE', digits = 2 } = {}) {
+export function formatAmount(value, { locale = 'de-DE', digits = 2 } = {}) {
     const n = Number(value);
     if (!Number.isFinite(n)) return '';
     return numberFormat(locale, digits, digits).format(n);
 }
 
 /** Symbol for a currency code in a locale ("EUR" -> "€"). */
-export function currencySymbol(currency = 'EUR', locale = 'en-IE') {
+export function currencySymbol(currency = 'EUR', locale = 'de-DE') {
     try {
         const parts = new Intl.NumberFormat(locale, { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).formatToParts(0);
         return parts.find((p) => p.type === 'currency')?.value || currency;
@@ -43,12 +43,12 @@ export function currencySymbol(currency = 'EUR', locale = 'en-IE') {
 }
 
 /** "23,47 €" - amount + narrow symbol, the shape used in button labels and toasts. */
-export function formatMoney(value, currency = 'EUR', locale = 'en-IE') {
+export function formatMoney(value, currency = 'EUR', locale = 'de-DE') {
     const text = formatAmount(value, { locale });
     return text ? `${text} ${currencySymbol(currency, locale)}` : '';
 }
 
-export function decimalSeparator(locale = 'en-IE') {
+export function decimalSeparator(locale = 'de-DE') {
     const part = new Intl.NumberFormat(locale).formatToParts(1.1).find((p) => p.type === 'decimal');
     return part?.value || '.';
 }

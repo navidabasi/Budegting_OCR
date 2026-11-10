@@ -22,6 +22,8 @@ export default function Sheet({ open, onClose, label, children, className = '', 
         (first || panel)?.focus?.();
 
         const onKey = (e) => {
+            // Keys inside a nested dialog (portal / sibling) belong to that dialog
+            if (panel && e.target?.nodeType === 1 && e.target !== document.body && !panel.contains(e.target)) return;
             if (e.key === 'Escape') {
                 e.stopPropagation();
                 onClose?.();

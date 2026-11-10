@@ -1,151 +1,52 @@
-import { useState, useRef } from 'react';
-import { Camera, Upload, FileText } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { useCreateTransaction } from '../../data/hooks';
-import Modal from '../common/Modal';
-import ReceiptForm from '../receipts/ReceiptForm';
+import QuickAddSheet from '../quickadd/QuickAddSheet';
 import ReceiptUpload from '../receipts/ReceiptUpload';
 import ErrorBoundary from '../common/ErrorBoundary';
-import { useTranslation } from '../../languages/useTranslation';
 
+/**
+ * Host for the add flow: the FAB opens the Quick Add sheet; its camera/gallery shortcuts open the scan flow.
+ */
 export default function AddReceiptModal() {
-    const { t } = useTranslation();
-    const addReceiptModalOpen = useAppStore((state) => state.addReceiptModalOpen);
-    const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
-    const currentUser = useAppStore((state) => state.currentUser);
-    const showToast = useAppStore((state) => state.showToast);
-    const createReceipt = useCreateTransaction();
-    const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
-    const [selectedFile, setSelectedFile] = useState(null);
+    const open = useAppStore((state) => state.addReceiptModalOpen);
+    const preset = useAppStore((state) => state.quickAddPreset);
+    const setOpen = useAppStore((state) => state.setAddReceiptModalOpen);
+    const openQuickAdd = useAppStore((state) => state.openQuickAdd);
+    const [scan, setScan] = useState(null); // { mode: 'camera' | 'upload', file? }
     const fileInputRef = useRef(null);
 
-    const handleClose = () => {
-        setMode(null);
-        setSelectedFile(null);
-        setAddReceiptModalOpen(false);
+    const closeAll = () => {
+        setScan(null);
+        setOpen(false);
     };
 
-    const handleSave = async (receiptData) => {
-        if (!currentUser) return;
-
-        try {
-            await createReceipt({
-                ...receiptData,
-                userId: currentUser.userId
-            });
-            showToast(t('receipts.addModal.saveSuccess'), 'success');
-            handleClose();
-        } catch (err) {
-            showToast(t('receipts.addModal.saveFailed'), 'error');
-        }
+    const handleScan = (source) => {
+        if (source === 'camera') setScan({ mode: 'camera' });
+        else fileInputRef.current?.click();
     };
 
-    const handleStartCamera = () => {
-        setMode('camera');
-    };
-
-    const handleStartUpload = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileSelect = (e) => {
+    const handleFile = (e) => {
         const file = e.target.files?.[0];
-        if (file) {
-            setSelectedFile(file);
-            setMode('upload');
-        }
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
+        if (file) setScan({ mode: 'upload', file });
+        e.target.value = '';
     };
-
-    if (mode === 'camera' || mode === 'upload') {
-        return (
-            <ErrorBoundary>
-                <ReceiptUpload
-                    isOpen={addReceiptModalOpen}
-                    onClose={handleClose}
-                    mode={mode}
-                    initialFile={selectedFile}
-                    onSwitchToManual={() => setMode('manual')}
-                />
-            </ErrorBoundary>
-        );
-    }
-
-    if (mode === 'manual') {
-        return (
-            <ErrorBoundary>
-                <Modal
-                    isOpen={addReceiptModalOpen}
-                    onClose={handleClose}
-                    title={t('receipts.addModal.manualTitle')}
-                    size="lg"
-                >
-                    <ReceiptForm onSave={handleSave} onClose={handleClose} />
-                </Modal>
-            </ErrorBoundary>
-        );
-    }
-
-    const ocrButtonClass = () =>
-        'w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-colors border-gray-200 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900';
 
     return (
-        <Modal
-            isOpen={addReceiptModalOpen}
-            onClose={handleClose}
-            title={t('receipts.addModal.title')}
-        >
-            <div className="space-y-4">
-                <button
-                    onClick={handleStartCamera}
-                    className={ocrButtonClass()}
-                >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
-                        <Camera size={24} className="primary-color" />
-                    </div>
-                    <div className="text-start">
-                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.takePhoto')}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.takePhotoDescription')}</p>
-                    </div>
-                </button>
-
-                <button
-                    onClick={handleStartUpload}
-                    className={ocrButtonClass()}
-                >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
-                        <Upload size={24} className="primary-color" />
-                    </div>
-                    <div className="text-start">
-                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.uploadImage')}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.uploadDescription')}</p>
-                    </div>
-                </button>
-
-
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
+        <ErrorBoundary>
+            <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFile} className="hidden" aria-hidden="true" tabIndex={-1} />
+            <QuickAddSheet open={open && !scan} onClose={closeAll} preset={preset} onScan={handleScan} />
+            {scan ? (
+                <ReceiptUpload
+                    isOpen={open}
+                    onClose={closeAll}
+                    mode={scan.mode}
+                    initialFile={scan.file}
+                    onSwitchToManual={() => {
+                        setScan(null);
+                        openQuickAdd();
+                    }}
                 />
-
-                <button
-                    onClick={() => setMode('manual')}
-                    className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors"
-                >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
-                        <FileText size={24} className="primary-color" />
-                    </div>
-                    <div className="text-start">
-                        <h3 className="font-medium text-gray-900 dark:text-white">{t('receipts.addModal.enterManually')}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-300">{t('receipts.addModal.enterManuallyDescription')}</p>
-                    </div>
-                </button>
-            </div>
-        </Modal>
+            ) : null}
+        </ErrorBoundary>
     );
 }
