@@ -4,7 +4,9 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-Receipt Manager PWA - A Progressive Web App for managing receipts and expenses with OCR capabilities. Uses React/Vite frontend with a hybrid storage architecture (local IndexedDB + cloud Supabase).
+Receipt Manager PWA - A Progressive Web App for managing receipts and expenses with OCR capabilities. Uses a React/Vite frontend with local PGlite (Postgres in WASM, IndexedDB-backed) and Supabase cloud sync. **The storage layer is being replaced (see `docs/IMPROVEMENT_PLAN.md`, Phase 1) by an online-first Supabase design with an offline outbox.**
+
+**Read `docs/IMPROVEMENT_PLAN.md` first: it is the approved roadmap (design reference linked at its top). Follow its section 0 rules.**
 
 ## Commands
 
@@ -15,14 +17,14 @@ npm run build        # Production build to dist/
 npm run preview      # Preview production build
 ```
 
-No test framework is configured.
+Tests: `npm test` (Vitest + jsdom). CI runs build + test (`.github/workflows/ci.yml`).
 
 ## Architecture
 
 ### Data Flow
 ```
 React Components → Zustand Store → Services Layer → Dual Storage
-                                                    ├─ IndexedDB (Dexie) - offline
+                                                    ├─ PGlite (electricStorage.js) - local, offline
                                                     └─ Supabase PostgreSQL - cloud sync
 ```
 
@@ -31,10 +33,10 @@ React Components → Zustand Store → Services Layer → Dual Storage
 - `src/components/common/` - Reusable UI components (Button, Input, Card, Modal, Toast)
 - `src/components/dashboard/` - Dashboard widgets (charts, summaries, widget customizer)
 - `src/components/receipts/` - Receipt-specific components (ReceiptCard, ReceiptForm, GroupManager)
-- `src/services/` - Backend services (storage.js for Dexie, supabaseService.js, authService.js, ocrApi.js)
+- `src/services/` - Backend services (electricStorage.js for PGlite, storage.js legacy facade, supabaseService.js, authService.js, ocrApi.js)
 - `src/store/appStore.js` - Zustand global state with localStorage persistence
 - `src/hooks/` - Custom hooks (useReceipts, useGroups, useCategories, useUserLayout)
-- `api/ocr-proxy.js` - Vercel serverless function for OCR.Space API proxy
+- `api/ocr.py` - Vercel Python serverless OCR endpoint (OCR.Space + regex parsing); `api/ocr-proxy.js` - JS fallback proxy. Both are to be replaced by `api/extract-receipt.js` (plan Phase 2)
 
 ### State Management
 Zustand with localStorage persistence. Access state with selectors:
@@ -42,8 +44,8 @@ Zustand with localStorage persistence. Access state with selectors:
 const state = useAppStore((state) => state.fieldName)
 ```
 
-### Database (Dexie)
-IndexedDB with 5 schema versions. Tables: `users`, `receipts`, `settings`, `userCategories`, `groups`. Migrations must maintain backward compatibility.
+### Database (PGlite)
+Local Postgres via `@electric-sql/pglite` in `src/services/electricStorage.js` (tables: receipts, groups, settings, user categories, users). Supabase holds the cloud copy; SQL migrations live in `supabase/migrations/`.
 
 ### Cross-Component Communication
 Custom events for refresh triggers:
@@ -52,7 +54,7 @@ Custom events for refresh triggers:
 
 ### Sync Architecture
 - Auto-sync every 5 minutes, on focus/visibility change, on sign-in
-- Offline-first: local DB is source of truth, syncs to Supabase when online
+- Currently offline-first with a local PGlite DB; Phase 1 of the plan moves to Supabase as source of truth with an offline outbox
 
 ## UI Guidelines (from UI_DESIGN_RULES.md)
 
@@ -95,4 +97,4 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## OCR
 
-Uses OCR.Space API via Vercel serverless proxy (`api/ocr-proxy.js`). The proxy solves CORS issues. OCR won't work in local dev without Vercel CLI (`vercel dev`).
+Currently OCR.Space via the Python serverless function `api/ocr.py` (see `OCR_SETUP.md`). It is being replaced by AI structured extraction (`api/extract-receipt.js`, plan Phase 2). OCR does not work in local dev without Vercel CLI (`vercel dev`).

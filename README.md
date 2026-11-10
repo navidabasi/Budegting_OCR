@@ -9,7 +9,7 @@ Try a live demo at: https://budegting-ocr-navidabasis-projects.vercel.app/
 - ✍️ **Manual Entry**: Add receipts manually without OCR
 - 📊 **Analytics Dashboard**: View expense trends, category breakdowns, and top merchants
 - 🏷️ **Smart Categorization**: Automatic category suggestions based on merchant names
-- 💾 **Hybrid Storage**: Local-first with IndexedDB, cloud sync with Supabase
+- 💾 **Hybrid Storage**: Local-first with PGlite, cloud sync with Supabase
 - 📱 **PWA Support**: Installable app with offline capabilities
 - 🔐 **User Authentication**: Supabase Auth for secure accounts
 - ☁️ **Cloud Sync**: Automatic sync across devices
@@ -56,13 +56,9 @@ npm run build
 
 The built files will be in the `dist` directory.
 
-## PWA Icons
+## Roadmap
 
-Before deploying, you'll need to add PWA icons:
-- `public/pwa-192x192.png` (192x192 pixels)
-- `public/pwa-512x512.png` (512x512 pixels)
-
-You can generate these using tools like [PWA Asset Generator](https://github.com/onderceylan/pwa-asset-generator) or create them manually.
+See `docs/IMPROVEMENT_PLAN.md` for the approved improvement plan.
 
 ## Deployment
 
@@ -151,7 +147,7 @@ To see the app with sample data:
 - **Tailwind CSS** - Styling
 - **React Router** - Routing
 - **Zustand** - State management
-- **Dexie.js** - IndexedDB wrapper
+- **PGlite** - local Postgres (WASM) for offline storage
 - **Supabase** - Auth and cloud database
 - **Chart.js** - Data visualization
 - **React Hook Form** - Form handling
@@ -173,7 +169,7 @@ src/
 └── utils/            # Helper functions and constants
 
 api/
-├── ocr.py            # Main Vercel serverless OCR endpoint
+├── ocr.py            # Vercel serverless OCR endpoint (to be replaced, see plan)
 └── ocr-proxy.js      # Optional OCR proxy endpoint
 ```
 

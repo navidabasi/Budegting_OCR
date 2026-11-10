@@ -1,3 +1,5 @@
+> This pipeline is to be replaced by AI structured extraction; see `docs/IMPROVEMENT_PLAN.md` (Phase 2).
+
 # OCR.Space Integration
 
 This app uses OCR.Space for receipt text extraction.
@@ -63,7 +65,7 @@ OCR.Space returns plain text. The app parses it to extract:
 
 ## Limitations
 
-- Plain text output (no structured receipt data like Veryfi)
+- Plain text output (no structured receipt data)
 - May require manual corrections for complex receipts
 - Rate limits on free tier
 
