@@ -25,3 +25,9 @@ dist-ssr
 
 env.local
 env
+
+# Python / R artifacts
+__pycache__/
+*.pyc
+.Rhistory
+**/.Rhistory
