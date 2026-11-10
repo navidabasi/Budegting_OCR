@@ -761,4 +761,27 @@ export const es = {
         appliesTo: "Se aplica a los {{count}} recibos de {{merchant}}",
     },
     // @i18n:end learning
+    // @i18n:begin categorise
+    categorise: {
+        action: "Categorizar con IA",
+        title: "Categorizar con IA",
+        hint: "Revisa las sugerencias que quieres conservar. Las seguras ya están marcadas.",
+        working: "Consultando a la IA… {{done}} de {{total}}",
+        nothing: "Nada que categorizar.",
+        rowMeta: "{{count}} movimientos · {{pct}}% seguro",
+        pick: "Elegir",
+        apply: "Aplicar a {{count}} movimientos",
+        applied: "{{count}} movimientos categorizados",
+        close: "Cerrar",
+        err: {
+            notConfigured: "La IA aún no está configurada. Añade las claves del modelo en Vercel para activarla.",
+            offline: "Estás sin conexión. Inténtalo de nuevo cuando te conectes.",
+            rateLimit: "Has alcanzado el límite de IA de hoy. Inténtalo mañana.",
+            auth: "Vuelve a iniciar sesión.",
+            server: "El servicio de IA tuvo un problema. Inténtalo de nuevo en un momento.",
+            network: "No se pudo contactar con el servidor. Revisa tu conexión.",
+            invalid: "La solicitud fue rechazada. Inténtalo con menos movimientos.",
+        },
+    },
+    // @i18n:end categorise
 };

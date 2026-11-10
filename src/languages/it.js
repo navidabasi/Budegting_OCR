@@ -874,4 +874,27 @@ export const it = {
         appliesTo: "Vale per tutti i {{count}} scontrini di {{merchant}}",
     },
     // @i18n:end learning
+    // @i18n:begin categorise
+    categorise: {
+        action: "Categorizza con l’IA",
+        title: "Categorizza con l’IA",
+        hint: "Controlla i suggerimenti da mantenere. Quelli sicuri sono già selezionati.",
+        working: "Interrogo l’IA… {{done}} di {{total}}",
+        nothing: "Niente da categorizzare.",
+        rowMeta: "{{count}} movimenti · {{pct}}% sicuro",
+        pick: "Scegli",
+        apply: "Applica a {{count}} movimenti",
+        applied: "{{count}} movimenti categorizzati",
+        close: "Chiudi",
+        err: {
+            notConfigured: "L’IA non è ancora configurata. Aggiungi le chiavi del modello su Vercel per attivarla.",
+            offline: "Sei offline. Riprova quando sei connesso.",
+            rateLimit: "Hai raggiunto il limite di IA di oggi. Riprova domani.",
+            auth: "Accedi di nuovo.",
+            server: "Il servizio IA ha avuto un problema. Riprova tra poco.",
+            network: "Impossibile raggiungere il server. Controlla la connessione.",
+            invalid: "La richiesta è stata rifiutata. Riprova con meno movimenti.",
+        },
+    },
+    // @i18n:end categorise
 };

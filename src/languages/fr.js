@@ -761,4 +761,27 @@ export const fr = {
         appliesTo: "S’applique aux {{count}} reçus de {{merchant}}",
     },
     // @i18n:end learning
+    // @i18n:begin categorise
+    categorise: {
+        action: "Catégoriser avec l’IA",
+        title: "Catégoriser avec l’IA",
+        hint: "Vérifiez les suggestions à conserver. Les plus sûres sont déjà cochées.",
+        working: "Interrogation de l’IA… {{done}} sur {{total}}",
+        nothing: "Rien à catégoriser.",
+        rowMeta: "{{count}} opérations · {{pct}} % sûr",
+        pick: "Choisir",
+        apply: "Appliquer à {{count}} opérations",
+        applied: "{{count}} opérations catégorisées",
+        close: "Fermer",
+        err: {
+            notConfigured: "L’IA n’est pas encore configurée. Ajoutez les clés du modèle dans Vercel pour l’activer.",
+            offline: "Vous êtes hors ligne. Réessayez une fois connecté.",
+            rateLimit: "Vous avez atteint la limite d’IA du jour. Réessayez demain.",
+            auth: "Veuillez vous reconnecter.",
+            server: "Le service d’IA a rencontré un problème. Réessayez dans un instant.",
+            network: "Serveur injoignable. Vérifiez votre connexion.",
+            invalid: "La requête a été refusée. Réessayez avec moins d’opérations.",
+        },
+    },
+    // @i18n:end categorise
 };

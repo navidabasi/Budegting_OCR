@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, Search, Tags, X } from 'lucide-react';
+import { ArrowUpDown, Search, Sparkles, Tags, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Chip, IconButton, Sheet } from '../components/ui';
 import DayGroup from '../components/activity/DayGroup';
 import FilterBar from '../components/activity/FilterBar';
 import MonthStrip from '../components/activity/MonthStrip';
 import PickerSheet from '../components/activity/PickerSheet';
+import CategoriseSheet from '../components/activity/CategoriseSheet';
 import TransactionRow from '../components/activity/TransactionRow';
 import EmptyState from '../components/common/EmptyState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -39,6 +40,7 @@ export default function ActivityPage() {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams();
     const showToast = useAppStore((s) => s.showToast);
+    const currentUserId = useAppStore((s) => s.currentUser?.userId);
     const { transactions, loading } = useTransactions();
     const { accounts } = useAccounts();
     const { defaultCurrency } = useSettings();
@@ -51,6 +53,7 @@ export default function ActivityPage() {
 
     const [searchOpen, setSearchOpen] = useState(!!searchParams.get('q'));
     const [sortOpen, setSortOpen] = useState(false);
+    const [aiOpen, setAiOpen] = useState(false);
     const [categoryFor, setCategoryFor] = useState(null);
     const [hidden, setHidden] = useState(() => new Set()); // swiped-away rows waiting for the undo window to end
     const timers = useRef(new Map());
@@ -197,6 +200,13 @@ export default function ActivityPage() {
                         </Chip>
                     </div>
                 ) : null}
+                {counts.uncategorised > 0 ? (
+                    <div className="pb-2">
+                        <Chip size="sm" tone="suggested" icon={Sparkles} onClick={() => setAiOpen(true)} data-testid="categorise-ai">
+                            {t('categorise.action')}
+                        </Chip>
+                    </div>
+                ) : null}
                 <MonthStrip count={summary.count} income={summary.income} expense={summary.expense} currency={defaultCurrency} />
             </div>
 
@@ -251,6 +261,7 @@ export default function ActivityPage() {
                 </div>
             )}
 
+            <CategoriseSheet open={aiOpen} onClose={() => setAiOpen(false)} transactions={transactions} categoryNames={categoryNames} userId={currentUserId} />
             <PickerSheet
                 open={sortOpen}
                 title={t('activity.sort')}

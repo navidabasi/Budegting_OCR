@@ -1030,4 +1030,27 @@ export const en = {
         appliesTo: "Applies to all {{count}} receipts from {{merchant}}",
     },
     // @i18n:end learning
+    // @i18n:begin categorise
+    categorise: {
+        action: "Categorise with AI",
+        title: "Categorise with AI",
+        hint: "Check the suggestions you want to keep. Confident ones are already ticked.",
+        working: "Asking the AI… {{done}} of {{total}}",
+        nothing: "Nothing to categorise.",
+        rowMeta: "{{count}} transactions · {{pct}}% sure",
+        pick: "Choose",
+        apply: "Apply to {{count}} transactions",
+        applied: "{{count}} transactions categorised",
+        close: "Close",
+        err: {
+            notConfigured: "AI isn’t set up yet. Add the model keys in Vercel to enable this.",
+            offline: "You’re offline. Try again when you’re connected.",
+            rateLimit: "You’ve reached today’s AI limit. Try again tomorrow.",
+            auth: "Please sign in again.",
+            server: "The AI service had a problem. Try again in a moment.",
+            network: "Couldn’t reach the server. Check your connection.",
+            invalid: "The request was rejected. Try again with fewer transactions.",
+        },
+    },
+    // @i18n:end categorise
 };

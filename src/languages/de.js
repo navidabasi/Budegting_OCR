@@ -874,4 +874,27 @@ export const de = {
         appliesTo: "Gilt für alle {{count}} Belege von {{merchant}}",
     },
     // @i18n:end learning
+    // @i18n:begin categorise
+    categorise: {
+        action: "Mit KI kategorisieren",
+        title: "Mit KI kategorisieren",
+        hint: "Prüfe die Vorschläge, die du behalten möchtest. Sichere sind bereits angehakt.",
+        working: "KI wird gefragt… {{done}} von {{total}}",
+        nothing: "Nichts zu kategorisieren.",
+        rowMeta: "{{count}} Buchungen · {{pct}} % sicher",
+        pick: "Wählen",
+        apply: "Auf {{count}} Buchungen anwenden",
+        applied: "{{count}} Buchungen kategorisiert",
+        close: "Schließen",
+        err: {
+            notConfigured: "KI ist noch nicht eingerichtet. Füge die Modell-Schlüssel in Vercel hinzu, um sie zu aktivieren.",
+            offline: "Du bist offline. Versuche es erneut, wenn du verbunden bist.",
+            rateLimit: "Du hast das heutige KI-Limit erreicht. Versuche es morgen erneut.",
+            auth: "Bitte melde dich erneut an.",
+            server: "Der KI-Dienst hatte ein Problem. Versuche es gleich noch einmal.",
+            network: "Server nicht erreichbar. Prüfe deine Verbindung.",
+            invalid: "Die Anfrage wurde abgelehnt. Versuche es mit weniger Buchungen.",
+        },
+    },
+    // @i18n:end categorise
 };
