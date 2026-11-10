@@ -4,7 +4,9 @@ import { useAppStore } from '../store/appStore';
 import {
     useCreateCategory,
     useDeleteCategory,
+    useAccounts,
     useDemoData,
+    useTransactions,
     useSaveSettings,
     useSettings,
     useSyncActions,
@@ -15,7 +17,10 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
-import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown } from 'lucide-react';
+import AccountsManager from '../components/settings/AccountsManager';
+import { buildCsv, downloadCsv } from '../utils/exportCsv';
+import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
+import { LogOut, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
 import {
@@ -24,6 +29,18 @@ import {
     normalizeNotificationPreferences,
     requestNotificationPermission,
 } from '../services/notificationService';
+
+function ToggleRow({ label, hint, checked, onChange }) {
+    return (
+        <label className="flex min-h-[56px] cursor-pointer items-center justify-between gap-3 py-2">
+            <span className="flex flex-col">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{hint}</span>
+            </span>
+            <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-gray-300 transition-colors checked:bg-primary-500 dark:bg-gray-600 relative before:absolute before:left-0.5 before:top-0.5 before:h-5 before:w-5 before:rounded-full before:bg-white before:transition-transform checked:before:translate-x-5" />
+        </label>
+    );
+}
 
 export default function SettingsPage() {
     const { t } = useTranslation();
@@ -42,6 +59,13 @@ export default function SettingsPage() {
             defaultCurrency: 'EUR'
         }
     });
+    const { transactions: allTransactions } = useTransactions();
+    const { accounts: allAccounts } = useAccounts();
+    const [scanPrefs, setScanPrefsState] = useState(getScanPrefs);
+    const handleExportCsv = () => {
+        downloadCsv(`transactions-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(allTransactions, allAccounts));
+        showToast(t('prefs.data.exported'), 'success');
+    };
     const [apiKey, setApiKey] = useState('');
     const [defaultCurrency, setDefaultCurrency] = useState('EUR');
     const [loading, setLoading] = useState(false);
@@ -430,46 +454,24 @@ export default function SettingsPage() {
 
     return (
         <div className="space-y-6">
-            <SettingsCard
-                icon={Key}
-                title={t('settings.ocr.title')}
+                        <SettingsCard
+                icon={LogOut}
+                title={t('prefs.profile.title')}
+                iconColor="text-red-600 dark:text-red-400"
             >
-                <details className="group">
-                    <summary className="flex items-center justify-between min-h-[44px] cursor-pointer select-none text-sm font-medium text-gray-900 dark:text-white">
-                        {t('settings.ocr.advanced')}
-                        <ChevronDown size={16} className="text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-180" />
-                    </summary>
-                    <div className="pt-2">
-                        <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
-                            <Input
-                                label={t('settings.ocr.apiKeyLabel')}
-                                type="text"
-                                placeholder={t('settings.ocr.placeholder')}
-                                {...register('ocrApiKey')}
-                            />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                {t('settings.ocr.hint')}{' '}
-                                <a
-                                    href="https://ocr.space/ocrapi"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary-600 dark:text-primary-400 hover:underline"
-                                >
-                                    ocr.space
-                                </a>
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {t('settings.ocr.note')}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {t('settings.ocr.originHint')}
-                            </p>
-                            <Button type="submit" variant="primary" disabled={loading}>
-                                {loading ? t('settings.ocr.saving') : t('settings.ocr.save')}
-                            </Button>
-                        </form>
-                    </div>
-                </details>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {t('settings.account.signedInAs', { email: currentUser?.email || '' })}
+                </p>
+                <Button variant="danger" onClick={() => setShowLogoutConfirm(true)} className="w-full">
+                    {t('settings.account.logout')}
+                </Button>
+            </SettingsCard>
+
+            <SettingsCard
+                icon={Landmark}
+                title={t('prefs.accounts.title')}
+            >
+                <AccountsManager />
             </SettingsCard>
 
             <SettingsCard
@@ -539,6 +541,47 @@ export default function SettingsPage() {
                     <Button type="button" variant="primary" onClick={onSaveLanguage} disabled={loadingLanguage}>
                         {loadingLanguage ? t('common.states.saving') : t('common.actions.save')}
                     </Button>
+                </div>
+            </SettingsCard>
+
+            <SettingsCard
+                icon={darkMode ? Moon : Sun}
+                title={t('settings.appearance.title')}
+            >
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.appearance.darkMode')}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {darkModeManual === null
+                                    ? t('settings.appearance.followingSystem', {
+                                        mode: getSystemDarkMode() ? t('settings.appearance.systemDark') : t('settings.appearance.systemLight'),
+                                    })
+                                    : darkMode ? t('settings.appearance.manualDark') : t('settings.appearance.manualLight')
+                                }
+                            </p>
+                        </div>
+                        <button
+                            onClick={toggleDarkMode}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${darkMode ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                            role="switch"
+                            aria-checked={darkMode}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+                    {darkModeManual !== null && (
+                        <button
+                            onClick={resetToSystemDarkMode}
+                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                        >
+                            {t('settings.appearance.resetSystem')}
+                        </button>
+                    )}
                 </div>
             </SettingsCard>
 
@@ -675,49 +718,55 @@ export default function SettingsPage() {
             </SettingsCard>
 
             <SettingsCard
-                icon={darkMode ? Moon : Sun}
-                title={t('settings.appearance.title')}
+                icon={Key}
+                title={t('prefs.aiScanning.title')}
             >
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.appearance.darkMode')}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {darkModeManual === null
-                                    ? t('settings.appearance.followingSystem', {
-                                        mode: getSystemDarkMode() ? t('settings.appearance.systemDark') : t('settings.appearance.systemLight'),
-                                    })
-                                    : darkMode ? t('settings.appearance.manualDark') : t('settings.appearance.manualLight')
-                                }
-                            </p>
-                        </div>
-                        <button
-                            onClick={toggleDarkMode}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${darkMode ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
-                                }`}
-                            role="switch"
-                            aria-checked={darkMode}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-                    {darkModeManual !== null && (
-                        <button
-                            onClick={resetToSystemDarkMode}
-                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-                        >
-                            {t('settings.appearance.resetSystem')}
-                        </button>
-                    )}
+                <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">{t('prefs.aiScanning.privacy')}</p>
+                <div className="mb-3 divide-y divide-gray-100 dark:divide-gray-700">
+                    <ToggleRow label={t('prefs.aiScanning.saveImages')} hint={t('prefs.aiScanning.saveImagesHint')} checked={scanPrefs.saveImages} onChange={(v) => setScanPrefsState(setScanPrefs({ saveImages: v }))} />
+                    <ToggleRow label={t('prefs.aiScanning.readItems')} hint={t('prefs.aiScanning.readItemsHint')} checked={scanPrefs.readItems} onChange={(v) => setScanPrefsState(setScanPrefs({ readItems: v }))} />
                 </div>
+                <details className="group">
+                    <summary className="flex items-center justify-between min-h-[44px] cursor-pointer select-none text-sm font-medium text-gray-900 dark:text-white">
+                        {t('settings.ocr.advanced')}
+                        <ChevronDown size={16} className="text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="pt-2">
+                        <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
+                            <Input
+                                label={t('settings.ocr.apiKeyLabel')}
+                                type="text"
+                                placeholder={t('settings.ocr.placeholder')}
+                                {...register('ocrApiKey')}
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                {t('settings.ocr.hint')}{' '}
+                                <a
+                                    href="https://ocr.space/ocrapi"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary-600 dark:text-primary-400 hover:underline"
+                                >
+                                    ocr.space
+                                </a>
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {t('settings.ocr.note')}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {t('settings.ocr.originHint')}
+                            </p>
+                            <Button type="submit" variant="primary" disabled={loading}>
+                                {loading ? t('settings.ocr.saving') : t('settings.ocr.save')}
+                            </Button>
+                        </form>
+                    </div>
+                </details>
             </SettingsCard>
 
             <SettingsCard
                 icon={Cloud}
-                title={t('settings.cloud.title')}
+                title={t('prefs.data.title')}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     {t('settings.cloud.description')}
@@ -742,7 +791,7 @@ export default function SettingsPage() {
                         className="w-full flex items-center justify-center gap-2"
                     >
                         <Database size={18} />
-                        {t('settings.cloud.clearResyncButton')}
+                        {t('prefs.data.clearCache')}
                     </Button>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                         {t('settings.cloud.clearResyncHint')}
@@ -756,40 +805,17 @@ export default function SettingsPage() {
                         </p>
                     )}
                 </div>
-            </SettingsCard>
-
-            <SettingsCard
-                icon={Database}
-                title={t('settings.demo.title')}
-            >
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {t('settings.demo.description')}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                    {demoReceiptCount > 0
-                        ? t('settings.demo.loadedCount', {
-                            count: demoReceiptCount,
-                            suffix: demoReceiptCount !== 1 ? 's' : '',
-                        })
-                        : t('settings.demo.empty')}
-                </p>
-                <div className="flex gap-2">
-                    <Button
-                        variant="secondary"
-                        onClick={() => setShowLoadDemoConfirm(true)}
-                        disabled={loadingDemo || clearingDemo || demoReceiptCount > 0}
-                        className="flex-1"
-                    >
-                        {loadingDemo ? t('settings.demo.loading') : t('settings.demo.loadButton')}
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4 dark:border-gray-700">
+                    <Button variant="secondary" onClick={handleExportCsv} className="w-full flex items-center justify-center gap-2">
+                        <Download size={18} />
+                        {t('prefs.data.exportCsv')}
                     </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={() => setShowClearDemoConfirm(true)}
-                        disabled={loadingDemo || clearingDemo || demoReceiptCount === 0}
-                        className="flex-1"
-                    >
-                        {clearingDemo ? t('settings.demo.clearing') : t('settings.demo.clearButton')}
-                    </Button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('prefs.data.exportHint')}</p>
+                    {demoReceiptCount > 0 && (
+                        <Button variant="secondary" onClick={() => setShowClearDemoConfirm(true)} disabled={clearingDemo} className="w-full">
+                            {clearingDemo ? t('settings.demo.clearing') : t('prefs.data.removeSample', { count: demoReceiptCount })}
+                        </Button>
+                    )}
                 </div>
             </SettingsCard>
 
@@ -918,16 +944,14 @@ export default function SettingsPage() {
             </SettingsCard>
 
             <SettingsCard
-                icon={LogOut}
-                title={t('settings.account.title')}
-                iconColor="text-red-600 dark:text-red-400"
+                icon={Info}
+                title={t('prefs.about.title')}
             >
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {t('settings.account.signedInAs', { email: currentUser?.email || '' })}
-                </p>
-                <Button variant="danger" onClick={() => setShowLogoutConfirm(true)} className="w-full">
-                    {t('settings.account.logout')}
-                </Button>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t('prefs.about.name')}</p>
+                <div className="mt-2 flex gap-4 text-sm">
+                    <a href="/privacy.html" className="inline-flex min-h-[44px] items-center text-primary-600 hover:underline dark:text-primary-400">{t('prefs.about.privacy')}</a>
+                    <a href="/terms.html" className="inline-flex min-h-[44px] items-center text-primary-600 hover:underline dark:text-primary-400">{t('prefs.about.terms')}</a>
+                </div>
             </SettingsCard>
 
             {/* Confirmation Modals */}

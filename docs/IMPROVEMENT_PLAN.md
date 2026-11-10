@@ -450,3 +450,22 @@ Verified by `npm run build` and `npm test` (71 tests incl. outbox, mapper round-
 - `HomePage`/others each mount their own `useTransactions()`; App also loads all transactions for notification checks. Fine for the current size; revisit with month-scoped queries (`useTransactions({ month })` exists) in Phase 5.
 - Two legacy IDs: groups created by the old PGlite code used a default colour `#6366f1` while Supabase defaulted to `#3b82f6`; `repo.createGroup` keeps `#6366f1`.
 - `npm audit` reports vulnerabilities in dev dependencies (not triaged).
+
+### Follow-ups from the Phase 5 UI implementer (P5-T0..T3, P5-T5/T6, P2-T4..T7)
+
+Verified: `npm test`, `npm run build`, and Playwright screenshots at 390x844 (light/dark, plus a Persian RTL pass) in `docs/screenshots/` produced by `scripts/screenshots/*.mjs` against `npm run preview` with a seeded IndexedDB. **Not verified** (no live backend): a real `/api/extract-receipt` round trip, Supabase Storage upload/signed URLs, the service-worker share target on a phone (only the handler logic is unit-tested), PDF rendering in a browser, push of the `counterparty` column to production.
+
+- Category names: the picker still uses the old default list (`Restaurant`, `Gas`, ...) while the categorizer, the extraction endpoint and the v14 migration use the new names. `resolveCategory()` in `src/utils/quickAdd.js` maps new -> old for suggestions; remove it when P3-T1 migrates `constants.js`.
+- `categoryLearning.onCategoryChanged` only updates the transaction. The "Applies to all N Lidl receipts" hint of the Detail design is intentionally not shown until P3-T3 adds rule learning there.
+- Drag-and-drop of receipts onto groups and "drop on receipt to create a group" were removed with `ReceiptsPage` (touch drag never worked well). Groups are assigned in Quick Add / Edit; `/groups` lists, edits, pins and deletes them.
+- Quick Add in edit/duplicate mode keeps item names and prices but gives every item the receipt category (the old form had per-item categories).
+- Non-English language files never had `receipts.card.*`, `receipts.tracking.marking` and `markRecurringSuccess`; they fall back to English. The "planned / unpaid / mark paid" rename was applied to every key that exists.
+- Locale: English UI + EUR uses German-style separators (`1.240,30`, comma keypad) via `localeFor()`; revisit if English-speaking EUR users complain.
+- Settings is only reorganised (Profile, Accounts, Currency, Language, Appearance, Notifications, AI & scanning, Data, Categories, About); its cards still use the legacy gray styling. "Import CSV" under Data is not there because the import UI belongs to P4-T6. The optional OCR key is still under AI & scanning > Advanced and in RegisterPage.
+- Accounts: `counterparty` (debt/receivable) is mapped as an optional column; confirm it exists in production `accounts`, otherwise writes for those rows are parked as failed in the outbox.
+- Offline scans: processed placeholders get `extraction.needsReview = true`, no screen uses it yet (Activity could show a "Check" badge). The pdf.js chunk is cached on first use only, so the first PDF scan needs a connection.
+- `/scan?shared=1` for a signed-out user is redirected to `/login` and the shared file stays in IndexedDB (`wmw-share`) until the next successful `/scan?shared=1`; consider redirecting back after login.
+- Legacy dashboard widgets (HomePage) are untouched and still show all-time totals; they ignore transfers via `shouldIncludeInSpendingTotals`. P5-T4 replaces them.
+- The bottom nav is hidden on `/scan`, `/welcome` and `/receipts/:id` (full-screen flows with thumb-zone actions). The undo toast sits at `bottom-28` and can overlap the Save button on `/scan`.
+- The virtual list in Activity positions rows with `position: absolute` (the standard @tanstack/react-virtual pattern); everything else uses flex/grid.
+- `mappers.test.js` has no explicit `imagePath`/`extraction` round-trip case (the fields are in the mapper list).

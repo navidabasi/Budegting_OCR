@@ -16,6 +16,7 @@ import { getLastAccountId, setLastAccountId } from '../utils/quickAdd';
 import { suggestCategory } from '../services/categorizer';
 import { merchantKey } from '../utils/merchant';
 import { resolveCategory } from '../utils/quickAdd';
+import { getScanPrefs } from '../utils/scanPrefs';
 import { takeSharedFiles } from '../services/sharedFiles';
 
 async function getAccessToken() {
@@ -157,8 +158,9 @@ export default function ScanPage() {
         try {
             const id = newId();
             const r = state.result.receipt;
-            const imagePath = state.file ? await queueImage({ userId: currentUser.userId, transactionId: id, blob: state.file }) : null;
-            const lineItems = form.items
+            const prefs = getScanPrefs();
+            const imagePath = state.file && prefs.saveImages ? await queueImage({ userId: currentUser.userId, transactionId: id, blob: state.file }) : null;
+            const lineItems = (prefs.readItems ? form.items : [])
                 .filter((it) => it.name.trim() && it.price !== '')
                 .map((it) => ({ name: it.name.trim(), quantity: it.quantity || 1, price: parseFloat(String(it.price).replace(',', '.')) || 0, category: it.category || form.category }));
             await createTransaction({

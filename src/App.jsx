@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 function ScrollToTop() {
     const { pathname } = useLocation();
@@ -28,6 +28,7 @@ import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
 import ComingNextPage from './pages/ComingNextPage';
 import ScanPage from './pages/ScanPage';
+import OnboardingPage, { onboardedKey } from './pages/OnboardingPage';
 import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
@@ -53,6 +54,29 @@ import {
 function RedirectKeepQuery({ to }) {
     const { search } = useLocation();
     return <Navigate to={`${to}${search}`} replace />;
+}
+
+/** Sends a brand-new user (no accounts, no transactions, not onboarded yet) to /welcome once the first sync is done. */
+function OnboardingGate() {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+    const userId = useAppStore((state) => state.currentUser?.userId);
+    const sync = useSyncStatus();
+    const { isSuccess: settingsLoaded } = useSettings();
+    const { accounts } = useAccounts();
+    const { transactions } = useTransactions();
+    useEffect(() => {
+        if (!userId || pathname !== '/' || !settingsLoaded) return;
+        if (!sync.attempted && navigator.onLine) return; // wait for the first pull so existing users are never onboarded
+        let done = false;
+        try {
+            done = !!localStorage.getItem(onboardedKey(userId));
+        } catch {
+            done = false;
+        }
+        if (!done && accounts.length === 0 && transactions.length === 0) navigate('/welcome', { replace: true });
+    }, [userId, pathname, settingsLoaded, sync.attempted, accounts.length, transactions.length, navigate]);
+    return null;
 }
 
 function ProtectedRoute({ children }) {
@@ -543,6 +567,7 @@ function App() {
     return (
         <BrowserRouter>
             <ScrollToTop />
+            {isAuthenticated && <OnboardingGate />}
             <div className="min-h-screen bg-ground transition-colors duration-200">
                 {isAuthenticated && storageHealth?.fallbackMode && (
                     <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
@@ -598,6 +623,7 @@ function App() {
                     />
                     <Route path="/receipts" element={<RedirectKeepQuery to="/activity" />} />
                     <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
+                    <Route path="/welcome" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                     <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
                     <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
                     <Route path="/budgets" element={<ProtectedRoute><ComingNextPage kind="budgets" /></ProtectedRoute>} />

@@ -12,7 +12,7 @@ import TransactionRow from '../components/activity/TransactionRow';
 import EmptyState from '../components/common/EmptyState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
-import { useAccounts, useCreateTransaction, useDeleteTransaction, useSettings, useTransactions } from '../data/hooks';
+import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useSettings, useTransactions } from '../data/hooks';
 import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
 import { onCategoryChanged } from '../services/categoryLearning';
@@ -46,6 +46,7 @@ export default function ActivityPage() {
     const deleteTransaction = useDeleteTransaction();
     const createTransaction = useCreateTransaction();
     const { toReceiptDetail } = useReceiptNavigation();
+    const { seedDemoData } = useDemoData();
 
     const [searchOpen, setSearchOpen] = useState(!!searchParams.get('q'));
     const [sortOpen, setSortOpen] = useState(false);
@@ -209,7 +210,14 @@ export default function ActivityPage() {
                                     {t('activity.clearFilters')}
                                 </button>
                             ) : (
-                                <p className="text-sm text-ink-muted">{t('activity.emptyHint')}</p>
+                                <div className="flex flex-col items-center gap-1">
+                                    <p className="text-sm text-ink-muted">{t('activity.emptyHint')}</p>
+                                    {transactions.length === 0 ? (
+                                        <button type="button" onClick={() => seedDemoData()} className="mt-1 h-11 rounded-xl px-4 text-sm font-semibold text-forest-ink">
+                                            {t('activity.trySample')}
+                                        </button>
+                                    ) : null}
+                                </div>
                             )
                         }
                     />

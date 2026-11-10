@@ -131,6 +131,7 @@ const ACCOUNT_FIELDS = [
     F('icon', 'icon'),
     F('isArchived', 'is_archived', { default: false }),
     F('sortOrder', 'sort_order', { default: 0 }),
+    F('counterparty', 'counterparty', { optional: true }), // debt / receivable accounts: who owes whom
     F('createdAt', 'created_at'),
     F('updatedAt', 'updated_at'),
 ];

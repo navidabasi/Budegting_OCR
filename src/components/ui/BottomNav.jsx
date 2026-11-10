@@ -13,7 +13,7 @@ export default function BottomNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
-    if (pathname.startsWith('/scan') || pathname.startsWith('/receipts/')) return null; // full-screen flows with their own thumb-zone actions
+    if (pathname.startsWith('/scan') || pathname.startsWith('/receipts/') || pathname.startsWith('/welcome')) return null; // full-screen flows with their own thumb-zone actions
     const isHome = pathname === '/' || pathname === '/dashboard';
 
     const link = (to, icon, label, active) => {
