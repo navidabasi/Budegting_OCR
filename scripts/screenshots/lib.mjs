@@ -28,7 +28,7 @@ export const DEMO = {
     ],
     groups: [{ id: 'g1', userId: U, name: 'Household', color: '#3b82f6', isPinned: false, isDemo: false, parentGroupId: null, createdAt: now, updatedAt: now }],
     transactions: [
-        tx('t1', 'Bar Roma', 4.72, 'Restaurant', 0, { accountId: 'a2' }),
+        tx('t1', 'Bar Roma', 4.72, 'Dining', 0, { accountId: 'a2' }),
         tx('t2', 'Lidl', 23.47, 'Groceries', 0, { accountId: 'a1', imagePath: 'demo/t2.jpg', groupId: 'g1', groupName: 'Household', groupTags: ['weekly shop'],
             lineItems: [{ name: 'Latte intero 1L', quantity: 1, price: 1.19 }, { name: 'Pane casereccio', quantity: 1, price: 2.49 }, { name: 'Banane 0,812 kg', quantity: 1, price: 1.29 }, { name: 'Uova M 10 pz', quantity: 1, price: 2.79 }, { name: 'Unreadable line', quantity: 1, price: 3.49 }] }),
         tx('t3', 'Lidl', 31.2, 'Groceries', 12, { accountId: 'a1' }),
@@ -36,7 +36,7 @@ export const DEMO = {
         tx('t5', 'Rent', 650, 'Utilities', 1, { accountId: 'a1', trackingData: { isTracked: true, status: 'open' } }),
         tx('t6', 'Q8 Torino Nord', 12.6, 'Other', 1, { accountId: 'a3' }),
         tx('t7', 'Conad City', 41.1, 'Groceries', 3, { accountId: 'a1' }),
-        tx('t8', 'Trenitalia', 27.2, 'Transportation', 3, { accountId: 'a1' }),
+        tx('t8', 'Trenitalia', 27.2, 'Transport', 3, { accountId: 'a1' }),
         tx('t9', 'Salary', 2350, 'Income', 5, { transactionType: 'income', accountId: 'a1' }),
         tx('t10', 'Esselunga', 58.9, 'Groceries', 6, { accountId: 'a1' }),
     ],

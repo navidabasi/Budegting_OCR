@@ -152,3 +152,20 @@ describe('settings and layout', () => {
         expect((await repo.getLayout(USER)).layout).toEqual({ widgets: ['a'], enabled: ['a'] });
     });
 });
+
+describe('v14 category read mapping', () => {
+    it('shows pre-deploy category names with the new names without rewriting the mirror', async () => {
+        const now = new Date().toISOString();
+        await db.transactions.put({ id: 'x1', userId: USER, merchant: 'Old', total: 5, currency: 'EUR', date: '2026-11-01', category: 'Restaurant', lineItems: [{ name: 'a', price: 5, category: 'Gas' }], createdAt: now, updatedAt: now });
+        await db.categories.bulkPut([
+            { id: 'c1', userId: USER, name: 'Healthcare', color: '#111', createdAt: now, updatedAt: now },
+            { id: 'c2', userId: USER, name: 'Stocks', color: '#222', createdAt: now, updatedAt: now },
+        ]);
+        const [tx] = await repo.listTransactions(USER);
+        expect(tx.category).toBe('Dining');
+        expect(tx.lineItems[0].category).toBe('Fuel');
+        expect((await repo.getTransaction('x1')).category).toBe('Dining');
+        expect((await db.transactions.get('x1')).category).toBe('Restaurant');
+        expect((await repo.listCategories(USER)).map((c) => c.name)).toEqual(['Health', 'Stocks']);
+    });
+});

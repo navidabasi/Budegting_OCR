@@ -5,6 +5,7 @@
  * uncat=1, merchant=<name>, q=<text>, sort=date|amount, dir=asc|desc.
  * Legacy dashboard links keep working: month+year (1-based month), category (+filter=category), merchant, type, tracking.
  */
+import { normalizeCategoryName } from './categoryNames';
 import { getTrackingStatus, shouldIncludeInSpendingTotals } from './tracking';
 
 export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
@@ -17,9 +18,9 @@ export function parseFilters(params, now = new Date()) {
     const get = (k) => params.get(k) || '';
     const legacyMonth = get('month');
     const legacyYear = get('year');
-    const categories = (get('cat') ? get('cat').split(',') : []).map((c) => c.trim()).filter(Boolean);
+    const categories = (get('cat') ? get('cat').split(',') : []).map((c) => normalizeCategoryName(c.trim())).filter(Boolean);
     const legacyCategory = get('category');
-    if (legacyCategory && !categories.length) categories.push(decodeURIComponent(legacyCategory));
+    if (legacyCategory && !categories.length) categories.push(normalizeCategoryName(decodeURIComponent(legacyCategory)));
 
     let month = get('m');
     if (!month && /^\d{1,2}$/.test(legacyMonth) && /^\d{4}$/.test(legacyYear)) month = `${legacyYear}-${pad(Number(legacyMonth))}`;

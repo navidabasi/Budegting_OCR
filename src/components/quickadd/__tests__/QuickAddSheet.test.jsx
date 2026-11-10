@@ -45,7 +45,7 @@ describe('QuickAddSheet', () => {
     it('amount-first save: keypad with comma decimal, recent merchant chip, undo toast removes the transaction', async () => {
         await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'it' });
         const today = new Date().toISOString().slice(0, 10);
-        await createTransaction({ userId: 'u1', merchant: 'Bar Roma', total: 3, date: today, category: 'Restaurant' });
+        await createTransaction({ userId: 'u1', merchant: 'Bar Roma', total: 3, date: today, category: 'Restaurant' }); // pre-v14 name, read back as Dining
         await createRow('accounts', 'u1', { name: 'Revolut', kind: 'spending', currency: 'EUR', sortOrder: 0 });
         await createRow('accounts', 'u1', { name: 'Cash', kind: 'cash', currency: 'EUR', sortOrder: 1 });
         const onClose = vi.fn();
@@ -65,7 +65,7 @@ describe('QuickAddSheet', () => {
         const created = rows.find((r) => r.total === 12.4);
         expect(created).toBeTruthy();
         expect(created.merchant).toBe('Bar Roma');
-        expect(created.category).toBe('Restaurant');
+        expect(created.category).toBe('Dining');
         expect(created.transactionType).toBe('expense');
         expect(localStorage.getItem('wmw.lastAccountId')).toBe(created.accountId);
         expect(onClose).toHaveBeenCalled();

@@ -18,12 +18,26 @@ import {
     normalizeTrackingData,
 } from '../utils/tracking';
 import { calculateNextRecurringDate } from '../utils/recurring';
+import { normalizeCategoryName } from '../utils/categoryNames';
 
 const nowIso = () => new Date().toISOString();
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 async function mirrorOk() {
     return openDb();
+}
+
+/**
+ * Read-side category mapping (v14 rename). Mirrors written before the migration was deployed still hold
+ * Restaurant/Healthcare/Transportation/Gas; they are shown with the new names (nothing is written back).
+ */
+export function normalizeTransaction(tx) {
+    if (!tx) return tx;
+    const category = normalizeCategoryName(tx.category);
+    const items = Array.isArray(tx.lineItems) && tx.lineItems.some((it) => it && normalizeCategoryName(it.category) !== it.category)
+        ? tx.lineItems.map((it) => (it && it.category ? { ...it, category: normalizeCategoryName(it.category) } : it))
+        : tx.lineItems;
+    return category === tx.category && items === tx.lineItems ? tx : { ...tx, category, lineItems: items };
 }
 
 const byDateDesc = (a, b) => {
@@ -98,11 +112,11 @@ export async function listTransactions(userId, { month } = {}) {
         rows = await api.fetchSince('transactions', userId, null);
     }
     if (month) rows = rows.filter((r) => String(r.date || '').slice(0, 7) === month);
-    return rows.sort(byDateDesc);
+    return rows.map(normalizeTransaction).sort(byDateDesc);
 }
 
 export async function getTransaction(id) {
-    if (await mirrorOk()) return (await db.transactions.get(id)) || null;
+    if (await mirrorOk()) return normalizeTransaction((await db.transactions.get(id)) || null);
     return null;
 }
 
@@ -196,8 +210,8 @@ export async function seedDemoData(userId) {
     const day = 86400000;
     const demo = [
         { merchant: 'Grocery Store', total: 85.5, category: 'Groceries', date: new Date().toISOString() },
-        { merchant: 'Gas Station', total: 45.0, category: 'Gas', date: new Date(Date.now() - day).toISOString() },
-        { merchant: 'Restaurant', total: 32.75, category: 'Restaurant', date: new Date(Date.now() - 2 * day).toISOString() },
+        { merchant: 'Gas Station', total: 45.0, category: 'Fuel', date: new Date(Date.now() - day).toISOString() },
+        { merchant: 'Restaurant', total: 32.75, category: 'Dining', date: new Date(Date.now() - 2 * day).toISOString() },
         { merchant: 'Amazon', total: 129.99, category: 'Shopping', date: new Date(Date.now() - 3 * day).toISOString() },
         { merchant: 'Electric Company', total: 95.0, category: 'Utilities', date: new Date(Date.now() - 4 * day).toISOString() },
     ];
@@ -288,7 +302,11 @@ export async function listCategories(userId) {
     let rows;
     if (await mirrorOk()) rows = await db.categories.where('userId').equals(userId).toArray();
     else rows = await api.fetchSince('categories', userId, null);
-    return rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const seen = new Set();
+    return rows
+        .map((c) => ({ ...c, name: normalizeCategoryName(c.name) }))
+        .filter((c) => (seen.has(c.name) ? false : seen.add(c.name)))
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
 export async function createCategory(userId, data) {

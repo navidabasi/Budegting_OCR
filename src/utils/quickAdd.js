@@ -68,14 +68,3 @@ export function setLastAccountId(id) {
 }
 
 export const dateKey = (offsetDays = 0, now = new Date()) => format(subDays(now, offsetDays), 'yyyy-MM-dd');
-
-// New category names (plan section 4) -> the names the UI list may still use until the category list is migrated (P3-T1)
-const LEGACY_ALIASES = { Dining: 'Restaurant', Fuel: 'Gas', Transport: 'Transportation', Health: 'Healthcare' };
-
-/** Map a suggested category onto the names the picker offers (canonical first, legacy alias second). */
-export function resolveCategory(name, names) {
-    if (!name) return null;
-    if (names.includes(name)) return name;
-    const alias = LEGACY_ALIASES[name];
-    return alias && names.includes(alias) ? alias : null;
-}

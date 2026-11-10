@@ -15,7 +15,7 @@ import { decimalSeparator, formatMoney, localeFor } from '../utils/format';
 import { getLastAccountId, setLastAccountId } from '../utils/quickAdd';
 import { suggestCategory } from '../services/categorizer';
 import { merchantKey } from '../utils/merchant';
-import { resolveCategory } from '../utils/quickAdd';
+import { normalizeCategoryName } from '../utils/categoryNames';
 import { getScanPrefs } from '../utils/scanPrefs';
 import { takeSharedFiles } from '../services/sharedFiles';
 
@@ -29,7 +29,11 @@ const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUI
 
 function formFromResult(result, { defaultCurrency, sep, accountId, names }) {
     const r = result.receipt;
-    const category = resolveCategory(r.category, names) || resolveCategory(suggestCategory({ merchant: r.merchant, items: r.items }).category, names) || '';
+    const pick = (c) => {
+        const n = normalizeCategoryName(c);
+        return n && names.includes(n) ? n : null;
+    };
+    const category = pick(r.category) || pick(suggestCategory({ merchant: r.merchant, items: r.items }).category) || '';
     return {
         suggested: category,
         merchant: r.merchant || '',

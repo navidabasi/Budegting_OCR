@@ -17,13 +17,13 @@ import {
     useUpdateTransaction,
 } from '../../data/hooks';
 import { useCategories } from '../../hooks/useCategories';
-import { categoryService } from '../../services/categoryService';
+import { DEFAULT_CATEGORY } from '../../utils/constants';
 import { suggestCategory } from '../../services/categorizer';
 import { merchantKey } from '../../utils/merchant';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
-import { categoryForMerchant, resolveCategory, dateKey, getLastAccountId, rankCategories, recentMerchants, setLastAccountId } from '../../utils/quickAdd';
+import { categoryForMerchant, dateKey, getLastAccountId, rankCategories, recentMerchants, setLastAccountId } from '../../utils/quickAdd';
 import { queueImage, requestImageFlush } from '../../data/images';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 
@@ -116,7 +116,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
         const fromHistory = categoryForMerchant(transactions, state.merchant);
         if (fromHistory) return fromHistory;
         const guess = suggestCategory({ merchant: state.merchant, rules: rules.map((r) => ({ merchantKey: r.merchantKey, category: r.category, hitCount: r.hitCount })) });
-        return resolveCategory(guess.category, names);
+        return guess.category && names.includes(guess.category) ? guess.category : null;
     }, [state.merchant, transactions, rules, names]);
     const ranked = useMemo(() => rankCategories({ suggested, transactions, names, limit: 4 }), [suggested, transactions, names]);
     const merchantChips = useMemo(() => recentMerchants(transactions, { type: state.type === 'income' ? 'income' : 'expense' }), [transactions, state.type]);
@@ -162,7 +162,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             date: state.date,
             total,
             currency: more.currency,
-            category: isTransfer ? 'Transfer' : state.type === 'income' ? 'Income' : state.category || categoryService.getDefaultCategory(),
+            category: isTransfer ? 'Transfer' : state.type === 'income' ? 'Income' : state.category || DEFAULT_CATEGORY,
             lineItems: items,
             notes: more.notes,
             transactionType: state.type,
