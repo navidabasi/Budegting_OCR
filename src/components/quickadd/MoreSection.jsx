@@ -12,7 +12,7 @@ const label = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
  * The "More" accordion body of Quick Add: items, notes, group, tags, split, recurring, planned, currency.
  * Pure controlled component; the sheet owns the state.
  */
-export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date }) {
+export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date, hide = [] }) {
     const { t } = useTranslation();
     const [newGroup, setNewGroup] = useState('');
     const [showNewGroup, setShowNewGroup] = useState(false);
@@ -26,6 +26,7 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
 
     return (
         <div className="flex flex-col gap-4 rounded-[18px] bg-surface p-4 dark:ring-1 dark:ring-line" data-testid="quickadd-more">
+            {!hide.includes('items') && (
             <div className="flex flex-col gap-2">
                 <span className={label}>{t('quickAdd.items')}</span>
                 {value.items.map((it, i) => (
@@ -56,6 +57,7 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
                     {t('quickAdd.addItem')}
                 </button>
             </div>
+            )}
 
             <label className="flex flex-col gap-1.5">
                 <span className={label}>{t('quickAdd.notes')}</span>
@@ -150,8 +152,9 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
                 ) : null}
             </div>
 
-            <RecurringManager recurringData={value.recurringData} onChange={(recurringData) => set({ recurringData })} receiptDate={date} />
+            {!hide.includes('recurring') && <RecurringManager recurringData={value.recurringData} onChange={(recurringData) => set({ recurringData })} receiptDate={date} />}
 
+            {!hide.includes('planned') && (
             <label className="flex min-h-[44px] items-start gap-3">
                 <input type="checkbox" className="mt-1 h-5 w-5 accent-[#00573F]" checked={value.planned} onChange={(e) => set({ planned: e.target.checked })} />
                 <span>
@@ -159,7 +162,9 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
                     <span className="block text-xs text-ink-muted">{t('quickAdd.plannedHint')}</span>
                 </span>
             </label>
+            )}
 
+            {!hide.includes('currency') && (
             <label className="flex flex-col gap-1.5">
                 <span className={label}>{t('quickAdd.currency')}</span>
                 <select className={`${field} h-12`} value={value.currency} onChange={(e) => set({ currency: e.target.value })}>
@@ -170,6 +175,7 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
                     ))}
                 </select>
             </label>
+            )}
         </div>
     );
 }

@@ -21,6 +21,7 @@ import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
 import { categoryForMerchant, dateKey, getLastAccountId, rankCategories, recentMerchants, setLastAccountId } from '../../utils/quickAdd';
+import { queueImage, requestImageFlush } from '../../data/images';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
@@ -175,7 +176,11 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                 await updateTransaction(editing.id, record);
                 showToast(t('quickAdd.savedEdit'), 'success');
             } else {
-                const id = await createTransaction({ ...record, userId: currentUser.userId });
+                const attach = preset?.image || null;
+                const newTxId = attach ? (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`) : undefined;
+                const imagePath = attach ? await queueImage({ userId: currentUser.userId, transactionId: newTxId, blob: attach }) : undefined;
+                const id = await createTransaction({ ...record, userId: currentUser.userId, ...(attach ? { id: newTxId, imagePath } : {}) });
+                if (attach) requestImageFlush(currentUser.userId);
                 const money = formatMoney(total, more.currency, locale);
                 const message = isTransfer
                     ? t('quickAdd.addedTransfer', { amount: money, account: accountName(state.toAccountId) })
@@ -255,6 +260,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                 = {formatAmount(typed, { locale })}
                             </p>
                         ) : null}
+
+                        {preset?.image ? <p className="rounded-[14px] bg-mint px-3.5 py-2 text-sm text-forest-ink">{t('quickAdd.photoAttached')}</p> : null}
 
                         {isTransfer ? (
                             accounts.length >= 2 ? (

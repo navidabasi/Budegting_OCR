@@ -12,6 +12,10 @@ import { useAppStore } from './store/appStore';
 import { authService } from './services/authService';
 import { checkStorageHealth, useSaveSettings, useSettings, useSyncStatus, useTransactions } from './data/hooks';
 import { startSync, syncNow } from './data/sync';
+import { processPendingScans } from './services/pendingScans';
+import { buildHints } from './services/receiptScan';
+import { useAccounts } from './data/hooks';
+import { useCategories } from './hooks/useCategories';
 import { notifyDataChanged } from './data/queryClient';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -22,6 +26,7 @@ import ReceiptsPage from './pages/ReceiptsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
 import ComingNextPage from './pages/ComingNextPage';
+import ScanPage from './pages/ScanPage';
 import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
@@ -73,6 +78,33 @@ function App() {
     const syncStatus = useSyncStatus();
     const { transactions: receipts } = useTransactions();
     const showToastRef = useRef(showToast);
+    const { accounts: scanAccounts } = useAccounts();
+    const scanCategories = useCategories();
+    const scanCtxRef = useRef({});
+    scanCtxRef.current = { receipts, accounts: scanAccounts, categories: scanCategories, settings };
+
+    // Offline scans (placeholder + queued photo) are read as soon as we are online and synced
+    useEffect(() => {
+        if (!currentUser?.userId || !syncStatus.lastSyncAt) return;
+        processPendingScans({
+            userId: currentUser.userId,
+            getToken: async () => {
+                const { supabase } = await import('./services/supabaseService');
+                const { data } = (await supabase?.auth.getSession()) || {};
+                return data?.session?.access_token || null;
+            },
+            getHints: () => {
+                const c = scanCtxRef.current;
+                return buildHints({
+                    languageCode: useAppStore.getState().languageCode || 'en',
+                    defaultCurrency: c.settings?.defaultCurrency || 'EUR',
+                    categories: c.categories.map((x) => (typeof x === 'string' ? x : x.name)),
+                    transactions: c.receipts,
+                    accounts: c.accounts,
+                });
+            },
+        }).catch((err) => console.warn('[App] pending scans failed:', err));
+    }, [currentUser?.userId, syncStatus.lastSyncAt]);
     const [isRecoveringStorage, setIsRecoveringStorage] = useState(false);
     const [showNotificationSetupPrompt, setShowNotificationSetupPrompt] = useState(false);
     const [notificationPromptLoading, setNotificationPromptLoading] = useState(false);
@@ -565,6 +597,7 @@ function App() {
                             </ProtectedRoute>
                         }
                     />
+                    <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
                     <Route path="/activity" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />
                     <Route path="/budgets" element={<ProtectedRoute><ComingNextPage kind="budgets" /></ProtectedRoute>} />
                     <Route path="/insights" element={<ProtectedRoute><ComingNextPage kind="insights" /></ProtectedRoute>} />
