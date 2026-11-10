@@ -452,4 +452,30 @@ export const fr = {
         Education: 'Éducation',
         Other: 'Autre',
     },
+    // @i18n:begin nav
+    nav: {
+        main: "Navigation principale",
+        activity: "Activité",
+        budgets: "Budgets",
+        insights: "Analyses",
+    },
+    // @i18n:end nav
+    // @i18n:begin comingNext
+    comingNext: {
+        budgets: {
+            title: "Les budgets arrivent bientôt",
+            body: "Fixez une limite mensuelle et voyez si vous êtes dans les temps. Vos transactions sont déjà collectées.",
+        },
+        insights: {
+            title: "Les analyses arrivent bientôt",
+            body: "Un court bilan mensuel de où est passé votre argent et quoi changer.",
+        },
+    },
+    // @i18n:end comingNext
+    // @i18n:begin ds
+    ds: {
+        close: "Fermer",
+        dragHandle: "Faites glisser vers le bas pour fermer",
+    },
+    // @i18n:end ds
 };

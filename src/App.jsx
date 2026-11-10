@@ -20,7 +20,8 @@ import LandingPage from './pages/LandingPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import ReceiptsPage from './pages/ReceiptsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
-import BottomNav from './components/layout/BottomNav';
+import BottomNav from './components/ui/BottomNav';
+import ComingNextPage from './pages/ComingNextPage';
 import Sidebar from './components/layout/Sidebar';
 import AddReceiptModal from './components/layout/AddReceiptModal';
 import Toast from './components/common/Toast';
@@ -503,7 +504,7 @@ function App() {
     return (
         <BrowserRouter>
             <ScrollToTop />
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+            <div className="min-h-screen bg-ground transition-colors duration-200">
                 {isAuthenticated && storageHealth?.fallbackMode && (
                     <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs sm:text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
                         <div className="flex items-start justify-between gap-3">
@@ -564,6 +565,9 @@ function App() {
                             </ProtectedRoute>
                         }
                     />
+                    <Route path="/activity" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />
+                    <Route path="/budgets" element={<ProtectedRoute><ComingNextPage kind="budgets" /></ProtectedRoute>} />
+                    <Route path="/insights" element={<ProtectedRoute><ComingNextPage kind="insights" /></ProtectedRoute>} />
                     <Route
                         path="/receipts/:id"
                         element={

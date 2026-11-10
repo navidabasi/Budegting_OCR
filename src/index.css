@@ -3,8 +3,62 @@
 @tailwind utilities;
 
 @layer base {
+    :root {
+        --c-ground: 244 246 243;      /* #F4F6F3 */
+        --c-surface: 255 255 255;     /* #FFFFFF */
+        --c-raised: 250 251 249;      /* #FAFBF9 */
+        --c-ink: 16 33 27;            /* #10211B */
+        --c-ink-muted: 92 107 100;    /* #5C6B64 */
+        --c-ink-faint: 154 166 160;   /* #9AA6A0 */
+        --c-line: 228 233 229;        /* #E4E9E5 */
+        --c-line-strong: 214 221 216; /* #D6DDD8 */
+        --c-forest: 0 87 63;          /* #00573F (fills) */
+        --c-forest-ink: 0 87 63;      /* forest as text/icon */
+        --c-mint: 230 240 235;        /* #E6F0EB */
+        --c-tint: 238 241 237;        /* #EEF1ED neutral soft fill */
+        --c-income: 27 127 85;        /* #1B7F55 */
+        --c-savings: 36 88 214;       /* #2458D6 */
+        --c-savings-soft: 227 234 251;/* #E3EAFB */
+        --c-warn: 180 83 9;           /* #B45309 */
+        --c-warn-ink: 138 90 0;       /* #8A5A00 */
+        --c-warn-soft: 255 244 223;   /* #FFF4DF */
+        --c-warn-edge: 231 182 90;    /* #E7B65A */
+        --c-over: 194 65 12;          /* #C2410C */
+        --c-over-ink: 163 58 10;      /* #A33A0A */
+    }
+    .dark {
+        --c-ground: 14 21 18;         /* #0E1512 */
+        --c-surface: 22 32 25;        /* #162019 */
+        --c-raised: 28 42 35;         /* #1C2A23 */
+        --c-ink: 234 242 238;         /* #EAF2EE */
+        --c-ink-muted: 159 176 168;   /* #9FB0A8 */
+        --c-ink-faint: 110 128 119;
+        --c-line: 38 53 45;           /* #26352D */
+        --c-line-strong: 52 70 61;
+        --c-forest: 0 87 63;
+        --c-forest-ink: 79 191 146;   /* #4FBF92 */
+        --c-mint: 24 52 41;
+        --c-tint: 31 44 37;
+        --c-income: 76 196 142;
+        --c-savings: 123 162 255;
+        --c-savings-soft: 30 42 74;
+        --c-warn: 240 160 75;
+        --c-warn-ink: 231 182 90;
+        --c-warn-soft: 58 45 18;
+        --c-warn-edge: 176 128 40;
+        --c-over: 240 121 74;
+        --c-over-ink: 245 154 120;
+    }
+    html { -webkit-tap-highlight-color: transparent; }
+    .mono-num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .lead { flex: 1; border-bottom: 2px dotted currentColor; opacity: 0.3; margin: 0 8px 4px; min-width: 12px; }
+    .no-scrollbar { scrollbar-width: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
     body {
-        @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+        @apply bg-ground text-ink;
         transition: background-color 0.2s, color 0.2s;
     }
 }

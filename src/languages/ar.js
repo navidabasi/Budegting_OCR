@@ -597,4 +597,30 @@ export const ar = {
         Education: 'تعليم',
         Other: 'أخرى',
     },
+    // @i18n:begin nav
+    nav: {
+        main: "التنقل الرئيسي",
+        activity: "النشاط",
+        budgets: "الميزانيات",
+        insights: "رؤى",
+    },
+    // @i18n:end nav
+    // @i18n:begin comingNext
+    comingNext: {
+        budgets: {
+            title: "الميزانيات قادمة قريباً",
+            body: "حدد حداً شهرياً وتحقق من أنك على المسار. معاملاتك تُجمع بالفعل.",
+        },
+        insights: {
+            title: "الرؤى قادمة قريباً",
+            body: "ملخص شهري قصير عن وجهة أموالك وما يجب تغييره.",
+        },
+    },
+    // @i18n:end comingNext
+    // @i18n:begin ds
+    ds: {
+        close: "إغلاق",
+        dragHandle: "اسحب لأسفل للإغلاق",
+    },
+    // @i18n:end ds
 };

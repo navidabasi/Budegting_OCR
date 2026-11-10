@@ -616,4 +616,30 @@ export const fa = {
         Education: 'آموزش',
         Other: 'سایر',
     },
+    // @i18n:begin nav
+    nav: {
+        main: "ناوبری اصلی",
+        activity: "فعالیت",
+        budgets: "بودجه‌ها",
+        insights: "بینش‌ها",
+    },
+    // @i18n:end nav
+    // @i18n:begin comingNext
+    comingNext: {
+        budgets: {
+            title: "بودجه‌ها به‌زودی می‌آیند",
+            body: "سقف ماهانه تعیین کنید و ببینید در مسیر هستید یا نه. تراکنش‌های شما از قبل جمع‌آوری می‌شود.",
+        },
+        insights: {
+            title: "بینش‌ها به‌زودی می‌آیند",
+            body: "خلاصه‌ای کوتاه از اینکه پولتان کجا رفت و چه چیزی را تغییر دهید.",
+        },
+    },
+    // @i18n:end comingNext
+    // @i18n:begin ds
+    ds: {
+        close: "بستن",
+        dragHandle: "برای بستن به پایین بکشید",
+    },
+    // @i18n:end ds
 };
