@@ -7,6 +7,9 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
+            strategies: 'injectManifest',
+            srcDir: 'src',
+            filename: 'sw.js',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-maskable-192x192.png', 'pwa-maskable-512x512.png'],
             manifest: {
                 name: 'Where my money went?',
@@ -19,7 +22,7 @@ export default defineConfig({
                 display: 'standalone',
                 orientation: 'portrait',
                 // Web Share Target: receive receipts (images/PDF) shared from other apps.
-                // The /share handler (service worker) is implemented in plan task P2-T6.
+                // POST /share is handled by the service worker (src/sw.js) and redirects to /scan?shared=1.
                 share_target: {
                     action: '/share',
                     method: 'POST',
@@ -55,10 +58,10 @@ export default defineConfig({
                     }
                 ]
             },
-            workbox: {
+            injectManifest: {
                 globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-                navigateFallback: '/index.html',
-                navigateFallbackDenylist: [/^\/api/]
+                // pdf.js (renderer + worker, ~1.7 MB) is cached on first use by src/sw.js
+                globIgnores: ['**/pdf.worker*', '**/assets/pdf-*']
             }
         })
     ],
