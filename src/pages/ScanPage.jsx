@@ -13,6 +13,9 @@ import { optimizeImage } from '../utils/imageOptimize';
 import { isPdf, renderPdfFirstPage } from '../utils/pdfRender';
 import { decimalSeparator, formatMoney, localeFor } from '../utils/format';
 import { getLastAccountId, setLastAccountId } from '../utils/quickAdd';
+import { suggestCategory } from '../services/categorizer';
+import { merchantKey } from '../utils/merchant';
+import { resolveCategory } from '../utils/quickAdd';
 import { takeSharedFiles } from '../services/sharedFiles';
 
 async function getAccessToken() {
@@ -23,14 +26,16 @@ async function getAccessToken() {
 
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-function formFromResult(result, { defaultCurrency, sep, accountId }) {
+function formFromResult(result, { defaultCurrency, sep, accountId, names }) {
     const r = result.receipt;
+    const category = resolveCategory(r.category, names) || resolveCategory(suggestCategory({ merchant: r.merchant, items: r.items }).category, names) || '';
     return {
+        suggested: category,
         merchant: r.merchant || '',
         date: r.date || new Date().toISOString().slice(0, 10),
         total: r.total === null ? '' : String(r.total).replace('.', sep),
         currency: r.currency || defaultCurrency,
-        category: r.category || '',
+        category,
         items: r.items.map((it) => ({ name: it.name, price: it.price === null ? '' : String(it.price).replace('.', sep), quantity: it.quantity || 1, category: it.category })),
         accountId,
         edited: {},
@@ -98,7 +103,7 @@ export default function ScanPage() {
                 if (cancelled) return;
                 const last = getLastAccountId();
                 const accountId = (accounts.find((a) => a.id === last) || accounts[0])?.id || null;
-                setForm(formFromResult(result, { defaultCurrency, sep, accountId }));
+                setForm(formFromResult(result, { defaultCurrency, sep, accountId, names: categoryNames }));
                 dispatch({ type: 'EXTRACTED', result });
             } catch (err) {
                 if (cancelled) return;
@@ -160,6 +165,7 @@ export default function ScanPage() {
                 id,
                 userId: currentUser.userId,
                 merchant: form.merchant.trim(),
+                merchantKey: form.merchant.trim() ? merchantKey(form.merchant) : null,
                 date: form.date,
                 total,
                 currency: form.currency,

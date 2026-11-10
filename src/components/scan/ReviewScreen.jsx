@@ -38,7 +38,7 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
     const set = (patch, field) => onChange({ ...form, ...patch, edited: field ? { ...edited, [field]: true } : edited });
     const setItem = (i, patch) => set({ items: items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) });
 
-    const ranked = useMemo(() => rankCategories({ suggested: result.receipt.category, transactions, names: categoryNames, limit: 4 }), [result, transactions, categoryNames]);
+    const ranked = useMemo(() => rankCategories({ suggested: form.suggested, transactions, names: categoryNames, limit: 4 }), [form.suggested, transactions, categoryNames]);
     const catChips = allCats ? ranked.all : ranked.top;
     const totalCheckText = items.length > 0 && Math.abs(sum - totalNum) > 0.005 ? t('scan.checkItemsAddUp', { sum: formatAmount(sum, { locale }) }) : t('scan.checkThis');
     const merchant = form.merchant.trim();
