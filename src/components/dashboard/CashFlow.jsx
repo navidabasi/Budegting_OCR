@@ -1,13 +1,13 @@
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { shouldIncludeInSpendingTotals } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
 
 export default function CashFlow({ receipts }) {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
+    const financialReceipts = receipts.filter(shouldIncludeInSpendingTotals);
 
     const handleIncomeClick = () => {
         // Navigate to receipts page with all-time income filter

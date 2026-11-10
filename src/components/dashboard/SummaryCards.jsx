@@ -3,13 +3,13 @@ import SummaryCard from './SummaryCard';
 import CurrencyTotalDisplay from '../common/CurrencyTotalDisplay';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
-import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { shouldIncludeInSpendingTotals } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
 
 export default function SummaryCards({ receipts }) {
     const { t } = useTranslation();
     const nav = useReceiptNavigation();
-    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
+    const financialReceipts = receipts.filter(shouldIncludeInSpendingTotals);
 
     // Separate income and expenses
     const expenses = financialReceipts.filter(r => (r.transactionType || 'expense') === 'expense');

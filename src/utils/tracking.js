@@ -61,8 +61,6 @@ export function buildDoneTrackingData(existingTrackingData = null, completedAt =
 }
 
 export function shouldIncludeInFinancialTotals(receipt) {
-    // Transfers between own accounts are neither spending nor income
-    if (receipt?.transactionType === 'transfer') return false;
     const trackingData = normalizeTrackingData(receipt?.trackingData);
     if (!trackingData?.isTracked) {
         return true;
@@ -92,4 +90,9 @@ export function buildCompletedReceiptFromSource(receipt, completedAt = new Date(
         recurringData: null,
         trackingData: buildDoneTrackingData(sourceTrackingData, completedAt, receipt.id),
     };
+}
+
+/** Legacy dashboard totals: like shouldIncludeInFinancialTotals, but transfers between own accounts are neither spending nor income. */
+export function shouldIncludeInSpendingTotals(receipt) {
+    return receipt?.transactionType !== 'transfer' && shouldIncludeInFinancialTotals(receipt);
 }

@@ -16,7 +16,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
-import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { shouldIncludeInSpendingTotals } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
 
 ChartJS.register(
@@ -47,7 +47,7 @@ export default function ExpenseChart({ receipts }) {
     const [showMobileNav, setShowMobileNav] = useState(false);
     const [navTimeout, setNavTimeout] = useState(null);
     const financialReceipts = useMemo(
-        () => receipts.filter(shouldIncludeInFinancialTotals),
+        () => receipts.filter(shouldIncludeInSpendingTotals),
         [receipts]
     );
 

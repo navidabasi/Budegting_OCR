@@ -1,13 +1,13 @@
 import { getEffectiveAmount, isDateInMonthYear } from '../../utils/helpers';
 import { useReceiptNavigation } from '../../hooks/useNavigation';
 import CurrencyDisplay from '../common/CurrencyDisplay';
-import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { shouldIncludeInSpendingTotals } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
 
 export default function TopExpenses({ receipts }) {
     const { t, localizeCategory, languageCode } = useTranslation();
     const nav = useReceiptNavigation();
-    const financialReceipts = receipts.filter(shouldIncludeInFinancialTotals);
+    const financialReceipts = receipts.filter(shouldIncludeInSpendingTotals);
 
     // Get current month's expenses only
     const thisMonth = new Date().getMonth();

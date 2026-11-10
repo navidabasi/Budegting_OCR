@@ -7,7 +7,7 @@ import {
     Legend
 } from 'chart.js';
 import { formatCurrency, getEffectiveAmount, getMonthKey, parseAppDate } from '../../utils/helpers';
-import { shouldIncludeInFinancialTotals } from '../../utils/tracking';
+import { shouldIncludeInSpendingTotals } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -19,7 +19,7 @@ export default function CategoryChart({ receipts }) {
     const currentMonthKey = getMonthKey(new Date());
     const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
     const financialReceipts = useMemo(
-        () => receipts.filter(shouldIncludeInFinancialTotals),
+        () => receipts.filter(shouldIncludeInSpendingTotals),
         [receipts]
     );
 

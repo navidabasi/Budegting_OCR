@@ -4,6 +4,10 @@
       "runtime": "@vercel/python@4.3.1",
       "memory": 1024,
       "maxDuration": 60
+    },
+    "api/*.js": {
+      "includeFiles": "api/_prompts/**",
+      "maxDuration": 60
     }
   },
   "headers": [
