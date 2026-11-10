@@ -417,4 +417,36 @@ Still open: a PostePay CSV sample (for P4-T6) and the receipt test set (P2-T0).
 
 ## Follow-ups (append while implementing)
 
-- (empty)
+### Done / unverified (Phase 0 and Phase 1, implemented 2026-11-10)
+
+Verified by `npm run build` and `npm test` (71 tests incl. outbox, mapper round-trips, repo offline flows, hook invalidation and an offline App smoke test). **Not verifiable without a live Supabase project, a browser, or Lighthouse:**
+
+- P0-T2 (restore production Supabase) is an owner task and was skipped. `docs/ENVIRONMENT.md` (env var list) was not written because it belongs to P0-T2.
+- P0-T3: the v13 migration file is committed but **not applied** (production is paused). Until it is applied, the app works because every v13 column/table is optional in `src/data/api.js` / `src/data/db.js` (columns are only sent when set; accounts/budgets/goals/rules sync is skipped on "table missing"). The storage-bucket policy is a comment in the migration; the bucket itself must be created in the dashboard.
+- P0-T4: "Lighthouse says installable" and "no 404s on first load" are unverified. The `share_target` points at `/share`, which has no handler yet (POST would fall through to the SPA fallback); it needs the service-worker handler from P2-T6.
+- P1-T2: "airplane mode: add 3 transactions, reconnect, they appear in Supabase" is covered by a unit test against a mocked API (`repo.test.js`), not against real Supabase. The pull query (`gte updated_at` with `range` paging), RLS behaviour of `upsert`, and the `updated_at` triggers were not exercised live.
+- P1-T3: "first load on throttled 4G < 3 s" is unverified (bundle: 15.3 MB -> 1.2 MB in `dist/`, JS gzip 373 KB -> 314 KB).
+
+### Plan corrections found while implementing
+
+- P0-T3 says 12 SQL files; the repo root had **14** (`supabase_electric_setup.sql` and `supabase_fix_foreign_keys.sql` included). All 14 were moved, with 14-digit timestamps for the old files so they sort before `20261110_v13_...` (lexicographic sort; the CLI treats the leading digits as the version).
+- P0-T1 acceptance (`grep -ri dexie *.md` empty) is incompatible with Phase 1: Dexie is the mirror again, so `CLAUDE.md`/`AGENTS.md`/`README.md` mention it after P1-T3 (correctly).
+- P1-T1 lists the Dexie tables `transactions, accounts, budgets, goals, rules, outbox, images, meta`; the app also needs `groups, categories, settings, layouts`, which were added.
+- "Pull since `updated_at`" cannot see hard deletes made on another device; `sync.js` additionally reconciles id lists (at most every 10 minutes and on manual resync).
+- P2-T6 needs a custom service-worker `fetch` handler for `/share`; `vite-plugin-pwa` is currently in `generateSW` mode, which cannot hold custom code. Switch to `strategies: 'injectManifest'` first.
+- Vitest 3+/5 requires Vite >= 6; the repo is on Vite 5, so Vitest 2.1 is used.
+
+### Follow-ups (not done, outside the task scopes)
+
+- Conflict rule compares device-clock entry timestamps with server `updated_at`; a device clock far behind can lose edits. Consider comparing against the `updated_at` last seen for the row (documented in the ADR).
+- No UI for the sync state: `useSyncStatus()` exposes pending/failed outbox counts and `lastError`, but nothing shows "N changes waiting to sync" or lets the user retry/discard `failed` entries.
+- The Dexie mirror stays on the device after logout (as the PGlite DB did). Decide whether logout should clear it (after flushing the outbox).
+- Old PGlite database `receipts-electric-v2` is still present in existing browsers (tens of MB) and is not migrated; add a one-time cleanup once the owner confirms nothing unsynced lives there.
+- `vercel.json` CSP still allows `'unsafe-eval'` and `blob:` scripts (needed by PGlite); tighten it (P2-T7 mentions CSP).
+- `vite.config.js` still has `assetsInclude: ['**/*.sql']` and a rollup `external` for `.sql` from when SQL files lived in the root.
+- i18n keys `errors.offlineReceiptsUnavailable`, `errors.offlineGroupsUnavailable`, `errors.offlineCategoriesUnavailable` are no longer used (IndexedDB reads cannot be "unavailable while offline"). `app.appName` and `public/index-landing.html` still say "Receipt Manager"; the manifest `short_name` is the full name (long for a home-screen label).
+- `src/components/receipts/GroupManager.jsx` is dead code (not imported anywhere); `categoryService.getAllCategories/getCategoryColors` are unused. `RegisterPage` still shows an (optional) OCR key field; consider removing it now that the key lives under Settings > Advanced.
+- `ReceiptsPage.jsx` (1.5k lines) calls `reloadReceipts()/reloadGroups()` after mutations; they are now redundant no-ops over `notifyDataChanged()` and can be removed in P5-T2.
+- `HomePage`/others each mount their own `useTransactions()`; App also loads all transactions for notification checks. Fine for the current size; revisit with month-scoped queries (`useTransactions({ month })` exists) in Phase 5.
+- Two legacy IDs: groups created by the old PGlite code used a default colour `#6366f1` while Supabase defaulted to `#3b82f6`; `repo.createGroup` keeps `#6366f1`.
+- `npm audit` reports vulnerabilities in dev dependencies (not triaged).

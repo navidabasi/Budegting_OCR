@@ -1,4 +1,5 @@
 import React from 'react';
+import { DB_NAME } from '../../data/db';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -44,7 +45,8 @@ class ErrorBoundary extends React.Component {
                             </button>
                             <button
                                 onClick={() => {
-                                    // Clear IndexedDB and reload
+                                    // Clear the local IndexedDB mirror (and the legacy PGlite database) and reload
+                                    indexedDB.deleteDatabase(DB_NAME);
                                     indexedDB.deleteDatabase('receipts-electric-v2');
                                     window.location.reload();
                                 }}

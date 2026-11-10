@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Receipt Manager PWA - A Progressive Web App for managing receipts and expenses with OCR capabilities. Uses a React/Vite frontend with local PGlite (Postgres in WASM, IndexedDB-backed) and Supabase cloud sync. **The storage layer is being replaced (see `docs/IMPROVEMENT_PLAN.md`, Phase 1) by an online-first Supabase design with an offline outbox.**
+Receipt Manager PWA - A Progressive Web App for managing receipts and expenses with OCR capabilities. Uses a React/Vite frontend with an online-first data layer: Supabase is the source of truth, a local IndexedDB mirror (Dexie) serves every read and works offline, and writes go through an offline outbox (see `docs/adr/0001-storage.md`).
 
 **Read `docs/IMPROVEMENT_PLAN.md` first: it is the approved roadmap (design reference linked at its top). Follow its section 0 rules.**
 
@@ -17,15 +17,15 @@ npm run build        # Production build to dist/
 npm run preview      # Preview production build
 ```
 
-Tests: `npm test` (Vitest + jsdom). CI runs build + test (`.github/workflows/ci.yml`).
+Tests: `npm test` (Vitest + jsdom + fake-indexeddb). CI runs build + test (`.github/workflows/ci.yml`).
 
 ## Architecture
 
 ### Data Flow
 ```
-React Components → Zustand Store → Services Layer → Dual Storage
-                                                    ├─ PGlite (electricStorage.js) - local, offline
-                                                    └─ Supabase PostgreSQL - cloud sync
+React Components → hooks (src/data/hooks.js, TanStack Query) → repo.js
+                                                    ├─ Dexie mirror (src/data/db.js) - all reads, works offline
+                                                    └─ outbox → sync.js → Supabase (src/data/api.js)
 ```
 
 ### Key Directories
@@ -33,9 +33,10 @@ React Components → Zustand Store → Services Layer → Dual Storage
 - `src/components/common/` - Reusable UI components (Button, Input, Card, Modal, Toast)
 - `src/components/dashboard/` - Dashboard widgets (charts, summaries, widget customizer)
 - `src/components/receipts/` - Receipt-specific components (ReceiptCard, ReceiptForm, GroupManager)
-- `src/services/` - Backend services (electricStorage.js for PGlite, storage.js legacy facade, supabaseService.js, authService.js, ocrApi.js)
+- `src/data/` - Data layer: `db.js` (Dexie schema), `api.js` (Supabase CRUD + camelCase/snake_case mappers), `sync.js` (outbox flush + pull), `repo.js` (local-first reads/writes), `hooks.js` (React Query hooks)
+- `src/services/` - supabaseService.js (client + auth helpers), authService.js, ocrApi.js, notificationService.js, categoryService.js
 - `src/store/appStore.js` - Zustand global state with localStorage persistence
-- `src/hooks/` - Custom hooks (useReceipts, useGroups, useCategories, useUserLayout)
+- `src/hooks/` - Thin wrappers over the data hooks (useReceipts, useGroups, useCategories, useUserLayout)
 - `api/ocr.py` - Vercel Python serverless OCR endpoint (OCR.Space + regex parsing); `api/ocr-proxy.js` - JS fallback proxy. Both are to be replaced by `api/extract-receipt.js` (plan Phase 2)
 
 ### State Management
@@ -44,17 +45,16 @@ Zustand with localStorage persistence. Access state with selectors:
 const state = useAppStore((state) => state.fieldName)
 ```
 
-### Database (PGlite)
-Local Postgres via `@electric-sql/pglite` in `src/services/electricStorage.js` (tables: receipts, groups, settings, user categories, users). Supabase holds the cloud copy; SQL migrations live in `supabase/migrations/`.
+### Database (Dexie mirror)
+IndexedDB database `wmw-data-v1` (tables: transactions, groups, categories, settings, layouts, accounts, budgets, goals, rules, outbox, images, meta). Supabase SQL migrations live in `supabase/migrations/`. To add a field to a synced table follow section 8 of `docs/IMPROVEMENT_PLAN.md`.
 
 ### Cross-Component Communication
-Custom events for refresh triggers:
-- `refreshDashboard`, `refreshReceipts`, `refreshGroups`, `refreshLayout`
-- Dispatch via `window.dispatchEvent(new Event('eventName'))`
+Data changes propagate through React Query: mutation hooks and the sync engine call `notifyDataChanged()` (`src/data/queryClient.js`), which invalidates every `['data', ...]` query. Do not add `window` custom events for data refresh.
 
 ### Sync Architecture
-- Auto-sync every 5 minutes, on focus/visibility change, on sign-in
-- Currently offline-first with a local PGlite DB; Phase 1 of the plan moves to Supabase as source of truth with an offline outbox
+- Reads come from the Dexie mirror; writes are applied to it and queued in the outbox, flushed immediately when online (FIFO, retry)
+- Pull since `updated_at` on startup, sign-in, online, focus/visibility and every 5 minutes
+- Conflict rule: server `updated_at` wins unless the outbox entry is newer
 
 ## UI Guidelines (from UI_DESIGN_RULES.md)
 

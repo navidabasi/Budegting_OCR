@@ -9,7 +9,7 @@ Try a live demo at: https://budegting-ocr-navidabasis-projects.vercel.app/
 - ✍️ **Manual Entry**: Add receipts manually without OCR
 - 📊 **Analytics Dashboard**: View expense trends, category breakdowns, and top merchants
 - 🏷️ **Smart Categorization**: Automatic category suggestions based on merchant names
-- 💾 **Hybrid Storage**: Local-first with PGlite, cloud sync with Supabase
+- 💾 **Hybrid Storage**: Online-first with a local IndexedDB mirror and offline write queue, cloud sync with Supabase
 - 📱 **PWA Support**: Installable app with offline capabilities
 - 🔐 **User Authentication**: Supabase Auth for secure accounts
 - ☁️ **Cloud Sync**: Automatic sync across devices
@@ -147,7 +147,8 @@ To see the app with sample data:
 - **Tailwind CSS** - Styling
 - **React Router** - Routing
 - **Zustand** - State management
-- **PGlite** - local Postgres (WASM) for offline storage
+- **Dexie.js** - IndexedDB mirror for offline reads and the write outbox
+- **TanStack Query** - data hooks and cache invalidation
 - **Supabase** - Auth and cloud database
 - **Chart.js** - Data visualization
 - **React Hook Form** - Form handling
