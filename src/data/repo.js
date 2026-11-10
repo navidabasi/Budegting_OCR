@@ -10,6 +10,7 @@
 import { db, openDb, STORES } from './db';
 import * as api from './api';
 import { enqueue, requestFlush } from './sync';
+import { removeImage } from './images';
 import {
     buildCompletedReceiptFromSource,
     buildDoneTrackingData,
@@ -140,7 +141,20 @@ export async function updateTransaction(id, updates) {
 }
 
 export async function deleteTransaction(id) {
+    const existing = await getTransaction(id);
     await deleteRecord('transactions', id);
+    // The receipt photo goes with the transaction (queued when offline)
+    if (existing?.imagePath || (await hasQueuedImage(id))) {
+        await removeImage({ userId: existing?.userId, transactionId: id, imagePath: existing?.imagePath || null });
+    }
+}
+
+async function hasQueuedImage(id) {
+    try {
+        return !!(await db.images.get(id));
+    } catch {
+        return false;
+    }
 }
 
 /** Mark a tracked (planned/unpaid) transaction as done; recurring ones roll forward to the next date. */

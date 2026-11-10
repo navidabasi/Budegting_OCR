@@ -326,6 +326,8 @@ export function syncNow(userId, { reason = 'manual', reconcile = false } = {}) {
         try {
             await openDb();
             const push = await flushOutbox(userId); // push first so local changes are never lost
+            // Receipt photos queued offline (a transaction row must exist before its image, so after the outbox)
+            await import('./images').then((m) => m.flushImages(userId)).catch((err) => console.warn('[Sync] image flush failed:', err));
             const pull = await pullAll(userId, { reconcile });
             const errors = [...push.errors, ...pull.errors];
             state.lastSyncAt = nowIso();

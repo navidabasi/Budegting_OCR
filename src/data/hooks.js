@@ -5,13 +5,14 @@
  * instant and work offline. Mutations write mirror + outbox (repo.js) and invalidate every data query,
  * which replaces the old window `refresh*` custom events. Sync (sync.js) invalidates after pulls.
  */
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAppStore } from '../store/appStore';
 import * as repo from './repo';
 import { clearAndResync, getSyncState, subscribeSync, syncNow } from './sync';
 import { getStorageHealth, openDb } from './db';
 import { notifyDataChanged } from './queryClient';
+import { getImageUrl } from './images';
 
 // Stable empty array so consumers' effects/memos do not re-run on every render while a query is pending
 const EMPTY = Object.freeze([]);
@@ -221,4 +222,34 @@ export function useRowMutations(table) {
     const update = useDataMutation((id, patch) => repo.updateRow(table, id, patch));
     const remove = useDataMutation((id) => repo.deleteRow(table, id));
     return useMemo(() => ({ create, update, remove }), [create, update, remove]);
+}
+
+// ---------------------------------------------------------------------------
+// Receipt images
+// ---------------------------------------------------------------------------
+
+/** { url, loading, local } for a transaction's receipt image (local blob while queued, else signed URL). */
+export function useReceiptImage(transaction) {
+    const id = transaction?.id;
+    const path = transaction?.imagePath;
+    const [state, setState] = useState({ url: null, loading: !!path, local: false });
+    useEffect(() => {
+        if (!id || !path) {
+            setState({ url: null, loading: false, local: false });
+            return undefined;
+        }
+        let cancelled = false;
+        let handle = null;
+        setState((s) => ({ ...s, loading: true }));
+        getImageUrl({ transactionId: id, imagePath: path }).then((h) => {
+            handle = h;
+            if (cancelled) h.revoke();
+            else setState({ url: h.url, loading: false, local: h.local });
+        });
+        return () => {
+            cancelled = true;
+            handle?.revoke();
+        };
+    }, [id, path]);
+    return state;
 }
