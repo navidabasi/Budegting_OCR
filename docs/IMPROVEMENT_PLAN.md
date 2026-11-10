@@ -1,6 +1,7 @@
 # Budgeting OCR — Audit & Improvement Plan
 
-Status: **DRAFT v1 — waiting on answers to the "Open decisions" section before implementation starts.**
+Status: **v2 — decisions taken (see §6). Ready for implementation.**
+Design reference (touch-first, 8 screens): https://claude.ai/artifact/EstNe5pd4gpTfuqm74VTMW — the implementer builds Phase 5 screens to match it.
 Audience: the implementer (a cheaper AI model or a developer) and the owner.
 Written: 2026-11-10, from a full read of the codebase on `main` (commit a9af340).
 
@@ -16,7 +17,7 @@ Written: 2026-11-10, from a full read of the codebase on `main` (commit a9af340)
 6. **Never put API keys in the client bundle or in the repo.** Keys live in Vercel environment variables. `VITE_*` variables are public.
 7. New serverless endpoints are **Node (`api/*.js`)**, not Python. The Python OCR function is to be retired (Phase 1).
 8. Any text visible to the user goes through `useTranslation()` and must be added to `src/languages/en.js` **and** every other language file (`it`, `de`, `es`, `fr`, `fa`, `ar`). Machine-translate the non-English ones; keep keys identical.
-9. The storage layer is local-first (PGlite in the browser mirrored to Supabase). Adding a column to `receipts` requires changes in **five** places; see §8 "Adding a field checklist". New small tables (budgets, goals, rules) are **Supabase-only with a localStorage cache** to avoid that cost (decision D10).
+9. Storage becomes **online-first with an offline outbox** in Phase 1 (decision D10). Until Phase 1 is done, do not add columns to the PGlite layer; after it, the §8 checklist applies.
 
 ---
 
@@ -31,7 +32,7 @@ The app has a lot of features but the core loop (scan → correct → categorize
 | Savings | Cannot be tracked | The data model only knows `expense` and `income`. There are no budgets, no savings goals, no "transfer to savings" type, no monthly savings rate. "Net balance" is all-time income minus all-time expenses. |
 | Insights | None | All dashboard widgets are descriptive charts. No LLM, no rules engine. |
 | UX | Too many steps and concepts; key info hidden | Add flow is 3 modals deep ending in a 700-line form. Four overlapping organising concepts (category, group, tag, pin) plus "tracking", "split", "recurring". Dashboard shows all-time totals instead of this month. No date range filter, no sort. |
-| Infra | **Production backend is currently paused** | Both candidate Supabase projects ("navidabasi's Project" = `oorwminabbdyfftdbibn`, referenced in `PRODUCTION_SETUP.md`, and "OCRAPP") are in state INACTIVE. Sign-in and sync cannot work until it is restored. |
+| Infra | **Production backend is currently paused** | The budgeting data lives in the Supabase project "navidabasi's Project" (`oorwminabbdyfftdbibn`, as `PRODUCTION_SETUP.md` says). It is INACTIVE (free-tier auto-pause). "OCRAPP" is an unrelated project. Sign-in and sync cannot work until it is restored. |
 | Quality | No tests, stale docs | `CLAUDE.md` says Dexie; the app uses PGlite (`src/services/electricStorage.js`, 1,900 lines). 12 loose SQL files, no migration tool. PWA icons referenced in `vite.config.js` and `public/manifest.json` do not exist in `public/`, so "install app" is broken and the favicon 404s. |
 
 The plan below fixes these in 6 phases. Phases 1–4 are the ones that change what the app *does*; Phase 5 is the UX overhaul; Phase 0 and 6 are hygiene.
@@ -95,69 +96,89 @@ The plan below fixes these in 6 phases. Phases 1–4 are the ones that change wh
 ## 3. Target architecture (what we are building toward)
 
 ```
-Client (React PWA)
-  ├─ Quick Add sheet ──────────────┐
-  ├─ Scan → /api/extract-receipt ──┼──► Vercel Node functions (api/*.js)
-  ├─ Review screen (image + fields)│      ├─ _lib/llm.js      provider-agnostic chat client (OpenAI-compatible)
-  ├─ Transactions list / Dashboard │      ├─ _lib/ocr.js      OCR.Space text fallback
-  ├─ Budgets & Goals               │      ├─ extract-receipt.js  image|text → structured receipt JSON
-  ├─ Insights card / chat          │      ├─ categorize.js       merchant list → categories (batch)
-  └─ storage: PGlite ⇄ Supabase ◄──┘      └─ insights.js         aggregates → narrative + suggestions
-                                                   │
-                                     DeepSeek / OpenRouter / Gemini / Ollama (env-configured)
-Supabase
-  ├─ receipts (+ image_path, amount_base, extraction, merchant_key, goal_id)
-  ├─ budgets, savings_goals, merchant_rules, insights_cache   (new)
+Client (React PWA, online-first)
+  ├─ Quick Add sheet ─────────────────┐
+  ├─ Scan → /api/extract-receipt ─────┼──► Vercel Node functions (api/*.js)
+  ├─ Review screen (image + fields)   │      ├─ _lib/llm.js        provider-agnostic chat client (OpenAI-compatible)
+  ├─ Activity / Home / Budgets / Plan │      ├─ _lib/ocr.js        OCR.Space text fallback
+  ├─ Insights + chat (last phase)     │      ├─ _lib/auth.js       Supabase JWT check → userId
+  └─ data layer: React Query cache    │      ├─ extract-receipt.js image|pdf|text → structured receipt JSON
+       + IndexedDB mirror (read offline)      ├─ categorize.js      merchant batch → categories
+       + outbox (writes offline, flushed)     ├─ insights.js        aggregates → narrative + actions
+                                              ├─ import-csv.js      Revolut/PostePay rows → transactions (dedupe)
+                                              └─ chat.js            (Phase 7) questions over aggregates
+                                                       │
+                                         DeepSeek / Gemini / OpenRouter / Ollama (env-configured, server keys)
+Supabase ("navidabasi's Project")
+  ├─ receipts (+ account_id, to_account_id, image_path, amount_base, extraction, merchant_key, goal_id, import_ref)
+  ├─ accounts, budgets, savings_goals, merchant_rules, insights_cache, ai_usage      (new)
   └─ Storage bucket "receipts" (private, per-user folder)
 ```
 
-LLM provider abstraction: every model is reached through the OpenAI-compatible Chat Completions API. Configuration is by environment variables only:
+**Storage principle (D10).** Supabase is the source of truth. The client keeps an IndexedDB mirror (Dexie) of the user's transactions, accounts, budgets, goals and rules so every screen opens offline. Writes go to an **outbox** table in IndexedDB first, are applied optimistically to the mirror, and are flushed to Supabase in order when online (with retry and conflict rule "server `updated_at` wins unless the outbox entry is newer"). Receipt images queue the same way. This replaces the 1,900-line PGlite layer and the 12 MB wasm download.
+
+**LLM provider abstraction.** Every model is reached through the OpenAI-compatible Chat Completions API. Keys are server-side only (you are the only user; reuse the keys from your AI assistant project). Configuration by environment variables:
 
 | Variable | Purpose | Example |
 |---|---|---|
-| `LLM_BASE_URL` | Text model endpoint | `https://api.deepseek.com` |
-| `LLM_API_KEY` | Key for it | |
-| `LLM_MODEL` | Model id | `deepseek-chat` |
-| `LLM_VISION_BASE_URL` / `LLM_VISION_API_KEY` / `LLM_VISION_MODEL` | Optional vision-capable model used for receipt images. If unset, OCR.Space text + text model is used. | OpenRouter `google/gemini-2.5-flash`, or Gemini's OpenAI-compatible endpoint |
-| `OCR_SPACE_API_KEY` | Fallback OCR (already exists) | |
-| `AI_DAILY_LIMIT_PER_USER` | Rate limit (default 50) | |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Text model for categorize, insights, chat | `https://api.deepseek.com`, `deepseek-chat` |
+| `LLM_VISION_BASE_URL` / `LLM_VISION_API_KEY` / `LLM_VISION_MODEL` | Vision model for receipt images/PDFs | OpenRouter `google/gemini-2.5-flash`, or Gemini's OpenAI-compatible endpoint |
+| `OCR_SPACE_API_KEY` | Fallback OCR when no vision model is configured | existing |
+| `AI_DAILY_LIMIT_PER_USER` | Per-user daily cap on AI calls (default 100) | |
 
-Note for the implementer: at the time of writing DeepSeek's public API (`deepseek-chat`, `deepseek-reasoner`) is text-only and supports `response_format: { type: 'json_object' }` (the prompt must contain the word "json"). Verify against the current DeepSeek docs before coding. A self-hosted model (Ollama/vLLM) also exposes the same API shape; only the base URL changes.
+Note: at the time of writing DeepSeek's hosted API (`deepseek-chat`, `deepseek-reasoner`) is text-only and supports `response_format: {"type":"json_object"}` (the prompt must contain the word "json"). Verify against current DeepSeek docs before coding. A self-hosted model (Ollama/vLLM) exposes the same API shape; only the base URL changes. Because the owner allowed sending receipts to a reliable model, **extraction uses the vision model**; DeepSeek handles the text-only jobs.
+
+**Multi-user readiness (D2).** Single user today, friends later: every table has `user_id` + RLS, every endpoint checks the JWT and rate-limits per user, AI usage is logged per user in `ai_usage` so subscriptions can be added later without redesign. Nothing is shared between users.
 
 ---
 
-## 4. Data model changes (one migration file, Phase 0)
+## 4. Data model (one migration, applied in Phase 0)
 
-Create `supabase/migrations/20261110_v13_budgets_goals_rules.sql`:
+Create `supabase/migrations/20261110_v13_accounts_budgets_goals.sql`:
 
 ```sql
--- receipts: new columns
+-- Accounts: where money sits. Savings = a transfer INTO an account of kind savings/investment.
+create table if not exists accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  name text not null,                     -- Revolut, PostePay, Cash, Savings account, Investments
+  kind text not null,                     -- spending | savings | investment | cash
+  currency text not null default 'EUR',
+  opening_balance numeric(12,2) default 0,
+  opening_date date default current_date,
+  color text, icon text,
+  is_archived boolean default false,
+  sort_order int default 0,
+  created_at timestamptz default now(), updated_at timestamptz default now(),
+  unique (user_id, name)
+);
+
+-- receipts: new columns (table name stays; UI calls them "transactions")
 alter table receipts
-  add column if not exists image_path text,              -- storage object path, null if none
-  add column if not exists amount_base numeric(12,2),    -- total converted to user's base currency at write time
-  add column if not exists base_currency text,           -- the base currency used for amount_base
-  add column if not exists exchange_rate numeric(14,6),  -- rate used (1 when same currency)
-  add column if not exists merchant_key text,            -- normalised merchant (lowercase, no punctuation/legal suffixes)
-  add column if not exists goal_id uuid,                 -- for transaction_type = 'savings'
-  add column if not exists extraction jsonb;             -- {provider, model, confidence:{merchant,date,total,items}, rawText, durationMs}
+  add column if not exists account_id uuid,            -- money left this account (expense/transfer) or arrived here (income)
+  add column if not exists to_account_id uuid,         -- transfers only
+  add column if not exists image_path text,
+  add column if not exists amount_base numeric(12,2),
+  add column if not exists base_currency text,
+  add column if not exists exchange_rate numeric(14,6),
+  add column if not exists merchant_key text,
+  add column if not exists goal_id uuid,               -- transfers only: which goal this contributes to
+  add column if not exists import_ref text,            -- 'revolut:<hash of row>' for CSV dedupe
+  add column if not exists extraction jsonb;           -- {provider, model, confidence:{merchant,date,total,items}, rawText, durationMs}
+-- transaction_type allowed values: expense | income | transfer   (document; add check constraint after backfill)
 create index if not exists idx_receipts_user_date on receipts(user_id, date desc);
 create index if not exists idx_receipts_merchant_key on receipts(user_id, merchant_key);
-
--- transaction_type now allows 'savings'
--- (no constraint exists today; document the allowed values: expense | income | savings)
+create unique index if not exists idx_receipts_import_ref on receipts(user_id, import_ref) where import_ref is not null;
 
 create table if not exists budgets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
-  category text not null,            -- '*' = overall monthly budget
+  category text not null,                 -- '*' = whole-month budget
   amount numeric(12,2) not null,
-  currency text not null,
-  period text not null default 'monthly',  -- monthly only in v1
-  starts_on date not null default date_trunc('month', now())::date,
-  ends_on date,                      -- null = open ended
-  rollover boolean default false,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
+  currency text not null default 'EUR',
+  starts_on date not null,                -- first day of the month it applies from
+  ends_on date,                           -- null = open ended (copied forward)
+  created_at timestamptz default now(), updated_at timestamptz default now(),
   unique (user_id, category, starts_on)
 );
 
@@ -166,14 +187,13 @@ create table if not exists savings_goals (
   user_id uuid not null,
   name text not null,
   target_amount numeric(12,2) not null,
-  currency text not null,
+  currency text not null default 'EUR',
   target_date date,
-  monthly_contribution numeric(12,2),  -- planned, optional
-  color text,
-  icon text,
+  account_id uuid,                        -- optional: the account that holds this goal's money
+  starting_amount numeric(12,2) default 0,
+  color text, icon text,
   is_archived boolean default false,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  created_at timestamptz default now(), updated_at timestamptz default now()
 );
 
 create table if not exists merchant_rules (
@@ -181,7 +201,8 @@ create table if not exists merchant_rules (
   user_id uuid not null,
   merchant_key text not null,
   category text not null,
-  source text not null default 'user',   -- user | llm | seed
+  display_name text,                      -- "Lidl" for key "lidl"
+  source text not null default 'user',    -- user | llm | seed
   hit_count int default 1,
   updated_at timestamptz default now(),
   unique (user_id, merchant_key)
@@ -190,322 +211,186 @@ create table if not exists merchant_rules (
 create table if not exists insights_cache (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
-  period text not null,                -- 'YYYY-MM'
-  input_hash text not null,            -- hash of the aggregates sent; regenerate when it changes
+  period text not null,                   -- 'YYYY-MM'
+  input_hash text not null,
   payload jsonb not null,
   model text,
   created_at timestamptz default now(),
   unique (user_id, period)
 );
 
--- RLS: same pattern as receipts for all four tables (select/insert/update/delete where auth.uid() = user_id)
--- updated_at triggers: reuse update_updated_at_column()
--- Storage: bucket 'receipts' (private). Policy: authenticated users can read/write objects whose first path segment = auth.uid()::text
+create table if not exists ai_usage (
+  user_id uuid not null,
+  day date not null,
+  kind text not null,                     -- extract | categorize | insights | chat
+  calls int default 0,
+  tokens_in bigint default 0, tokens_out bigint default 0,
+  primary key (user_id, day, kind)
+);
+
+-- RLS on every new table: select/insert/update/delete where auth.uid() = user_id (same pattern as receipts).
+-- updated_at triggers: reuse update_updated_at_column().
+-- Storage: bucket 'receipts' (private); policy: authenticated users read/write objects whose first path segment = auth.uid()::text.
+-- Backfill: insert a default 'Cash' spending account per existing user; set receipts.account_id to it where null.
 ```
 
-Allowed `category` values after Phase 2 (seeded defaults; users may add their own):
-`Groceries, Dining, Fuel, Transport, Housing, Utilities, Subscriptions, Shopping, Health, Personal care, Entertainment, Travel, Education, Insurance, Gifts, Fees, Other, Income, Savings`.
-Migration map from old names: `Restaurant→Dining`, `Gas→Fuel`, `Transportation→Transport`, `Healthcare→Health`. Existing data must be migrated with an `update receipts set category = ... where category = ...` block in the same migration and the i18n keys renamed.
+**Savings semantics (D6).** A transfer from a spending account to a `savings` or `investment` account is "saving". Monthly `saved` = sum of such transfers in the month minus transfers back out. `savings rate` = saved / income (hidden when income is 0). Goal progress = `starting_amount` + transfers with that `goal_id` (or, when `account_id` is set and no goal_id is used, the account balance). Account balance = opening balance + income − expenses − transfers out + transfers in. This removes the need to log savings as fake "income".
+
+**Categories after Phase 2** (seeded defaults; users may add their own):
+`Groceries, Dining, Fuel, Transport, Housing, Utilities, Subscriptions, Shopping, Health, Personal care, Entertainment, Travel, Education, Insurance, Gifts, Fees, Other` plus the system types `Income` and `Transfer` (not user-pickable as expense categories). Old → new: `Restaurant→Dining`, `Gas→Fuel`, `Transportation→Transport`, `Healthcare→Health`.
 
 ---
 
 ## 5. Phases and tasks
 
+Order matters: Phase 1 (storage) comes before OCR because every later feature adds tables, and adding them to the PGlite layer would be wasted work.
+
 ### Phase 0 — Foundations (exit: app signs in, installs as PWA, tests run)
 
-**P0-T1 (S) Fix the docs that will mislead the implementer.**
-Files: `CLAUDE.md`, `AGENTS.md`, `README.md`, `OCR_SETUP.md`.
-- Replace the Dexie description with PGlite (`src/services/electricStorage.js`), note `api/ocr.py` is the active OCR endpoint until Phase 1, link to this plan.
-- Remove `Veryfi` mentions.
-Acceptance: `grep -ri dexie CLAUDE.md AGENTS.md` returns nothing.
+**P0-T1 (S) Fix the docs that mislead the implementer.** `CLAUDE.md`, `AGENTS.md`, `README.md`, `OCR_SETUP.md`, `PRODUCTION_SETUP.md`: describe the real stack, point at this plan and the design link, remove Veryfi/Dexie-era text. Acceptance: `grep -ri "dexie\|veryfi" *.md` returns nothing.
 
-**P0-T2 (S) Restore / choose the Supabase project and record it.**
-Owner task, not implementer: unpause the production project (decision D1) and add its URL/anon key to Vercel. Implementer: add `docs/ENVIRONMENT.md` listing every env var in §3 and where it is set.
-Acceptance: login works on the deployed URL.
+**P0-T2 (owner, S) Restore the production Supabase project** "navidabasi's Project" (`oorwminabbdyfftdbibn`) and confirm Vercel's `VITE_SUPABASE_URL` points at it. Consider the paid tier to stop auto-pausing. Implementer: add `docs/ENVIRONMENT.md` listing every env var in §3 and where it is set.
 
-**P0-T3 (S) Consolidate SQL into `supabase/migrations/`.**
-Move the 12 root SQL files into `supabase/migrations/` with date-prefixed names in the order they were written (setup, v4, v5, v5_parent, v6, v7, v8, v9, v10, v11, v12, fix_rls, electric_setup). Add the v13 file from §4. Do not edit their content. Delete `api/__pycache__`, `.Rhistory`, `TypeScript-Claude/.Rhistory`; add them to `.gitignore`.
-Acceptance: `ls *.sql` at root is empty; `supabase/migrations` has 14 files; v13 applied to the project.
+**P0-T3 (S) Consolidate SQL** into `supabase/migrations/` (date-prefixed, original order, content untouched) and add the v13 file from §4; apply it. Delete `api/__pycache__`, `.Rhistory` files; add to `.gitignore`.
 
-**P0-T4 (S) PWA assets and naming.**
-Files: `public/`, `index.html`, `vite.config.js`, `public/manifest.json`.
-- Generate `pwa-192x192.png`, `pwa-512x512.png`, maskable variants, `apple-touch-icon.png`, `favicon.ico`, `mask-icon.svg` from `wallet icon.svg` (use `sharp` in a one-off script, then delete the script or keep under `scripts/`). Move the source SVG to `src/assets/`.
-- One name everywhere (decision D13; default "Where my money went?").
-- Delete `public/manifest.json` (vite-plugin-pwa generates it) or make it identical.
-- Replace the "Loading React App..." placeholder in `index.html` with a centred logo + spinner that matches the theme color.
-Acceptance: Lighthouse PWA audit on the preview build shows installable; no 404 in the network tab on first load.
+**P0-T4 (S) PWA assets and naming.** Generate the icon set from `wallet icon.svg` into `public/`; one app name everywhere ("Where my money went?"); remove the duplicate `public/manifest.json`; replace the "Loading React App..." placeholder with a themed splash. Add `share_target` to the manifest (needed for e-receipts in P2-T6). Acceptance: Lighthouse says installable; no 404s on first load.
 
-**P0-T5 (M) Add Vitest and the first tests.**
-Files: `package.json`, `vitest.config.js`, `src/**/__tests__/`.
-- `npm run test` runs Vitest with jsdom.
-- Tests for: `parseLocalNumber`, `extractDateFromText` (helpers.js), `getEffectiveAmount`, `normalizeTrackingData`, `calculateNextRecurringDate`.
-Acceptance: `npm test` green; CI step added to a `.github/workflows/ci.yml` running `npm ci && npm run build && npm test`.
+**P0-T5 (M) Vitest + CI.** `npm test` with jsdom; tests for `parseLocalNumber`, `extractDateFromText`, `getEffectiveAmount`, `normalizeTrackingData`, `calculateNextRecurringDate`; `.github/workflows/ci.yml` runs build + test.
 
-**P0-T6 (S) Remove the "premium" gate.**
-Files: `src/components/layout/AddReceiptModal.jsx`, `src/components/receipts/ReceiptUpload.jsx`, `src/pages/SettingsPage.jsx`, `src/languages/*.js`.
-- Camera/upload are always enabled. The per-user OCR key field moves under Settings → "AI & scanning → Advanced" as optional "Use my own OCR.Space key". All `premium*` strings removed.
-Acceptance: a fresh account can scan without entering a key when the server has `OCR_SPACE_API_KEY`.
+**P0-T6 (S) Remove the "premium" gate.** Camera/upload always enabled; delete all `premium*` strings; per-user OCR key becomes an optional "Advanced" setting.
 
-### Phase 1 — OCR v2: AI structured extraction (exit: ≥ 90 % correct merchant/date/total on the owner's sample set)
+### Phase 1 — Storage: online-first with offline outbox (exit: app works offline, adds sync when back online, PGlite gone)
 
-**P1-T0 (owner, S) Provide a test set.** 20–30 real receipt photos (various stores, some blurry, at least one PDF, one restaurant bill) with the expected merchant/date/total written in `test-receipts/expected.json`. Keep images out of git if private (add folder to `.gitignore`), but keep `expected.json`.
+**P1-T1 (M) ADR + data layer skeleton.** Write `docs/adr/0001-storage.md` (decision D10). Add `@tanstack/react-query` and `dexie`. Create `src/data/db.js` (Dexie schema: `transactions`, `accounts`, `budgets`, `goals`, `rules`, `outbox`, `images`, `meta`), `src/data/api.js` (thin Supabase CRUD per table with the camelCase↔snake_case mappers moved out of `supabaseService.js`), `src/data/sync.js` (pull-since-`updated_at` per table into Dexie; flush outbox FIFO with retry; `online`/`focus`/interval triggers), `src/data/hooks.js` (`useTransactions(month)`, `useAccounts()`, `useBudgets(month)`, `useGoals()`, `useRules()`, `useMutation*` that write outbox + mirror and invalidate queries).
+Acceptance: unit tests for the outbox (enqueue → flush → conflict rule) with a mocked API.
 
-**P1-T1 (M) `api/_lib/llm.js` — provider-agnostic client.**
-```js
-// chat({ messages, json: true, images?: [{ mime, base64 }], maxTokens, temperature, vision: false })
-// - picks LLM_* or LLM_VISION_* env set based on `vision`
-// - POST {base}/v1/chat/completions (OpenAI shape); images sent as image_url data URLs (only when vision=true)
-// - response_format json_object when json=true; strips ``` fences; JSON.parse; throws LlmError{status, provider, body}
-// - 25 s timeout, 1 retry on 429/5xx with backoff
-// - returns { data, usage, model, durationMs }
-```
-Also `api/_lib/auth.js`: verify the Supabase JWT from the `Authorization: Bearer` header using `SUPABASE_URL` + `SUPABASE_ANON_KEY` (`supabase.auth.getUser(token)`); return `userId`. Every new endpoint requires it. Also `api/_lib/ratelimit.js`: per-user daily counter in `insights_cache`-style table or in-memory (serverless best effort) — use a small `ai_usage` table (`user_id, day, count`) to make it real.
-Acceptance: unit test with a mocked fetch; endpoint returns 401 without token.
+**P1-T2 (L) Migrate screens to the new hooks.** Replace every `storageService`/`electricStorage` call in pages, components and `App.jsx` with the hooks; delete the `window.dispatchEvent('refresh*')` pattern (React Query invalidation replaces it). Keep behaviour identical.
+Acceptance: all existing flows (add, edit, delete, pin, groups, categories, settings, mark paid, recurring) work online and offline (airplane mode: add 3 transactions, reconnect, they appear in Supabase).
 
-**P1-T2 (M) `api/_lib/ocr.js` — OCR.Space text fallback in Node.**
-Port the multipart call from `api/ocr-proxy.js` (engine 2, overlay off, `scale=true`, `detectOrientation=true`, language from the user's app language). Single call, no language scoring loops. Return `{ text, durationMs }`.
-Acceptance: returns text for a sample image within 15 s.
+**P1-T3 (S) Remove PGlite.** Delete `src/services/electricStorage.js`, `src/services/storage.js`, `supabase_electric_setup.sql` usage, the wasm precache settings in `vite.config.js`, the `@electric-sql/pglite` dependency. Acceptance: bundle size drops by > 10 MB; first load on a throttled 4G profile < 3 s.
 
-**P1-T3 (L) `api/extract-receipt.js` — the new endpoint.**
-Input: `{ image: base64, mime, fileName, hints: { language, defaultCurrency, categories: [..], knownMerchants: [..top 50 merchant names of the user..] } }`.
-Pipeline:
-1. Auth + rate limit.
-2. If `LLM_VISION_MODEL` is set → send the image to the vision model with the extraction prompt. Else → `ocr.js` text → text model with the same prompt plus the raw text.
-3. Validate the JSON against the schema below (use `zod`). Compute `confidence` per field: vision/text model returns its own 0–1 confidence; additionally set `total.confidence = min(given, 0.5)` when `|sum(items) − total| > 0.02 × total` and items are non-empty; `date.confidence = 0` if the date is in the future or > 2 years old.
-4. Return `{ receipt, extraction: { provider, model, usedOcrFallback, rawText, durationMs, confidence } }`.
+### Phase 2 — OCR v2: AI structured extraction (exit: ≥ 90 % correct merchant/date/total, ≥ 70 % item-level on the owner's sample set)
 
+**P2-T0 (owner, S) Test set.** 20–30 real receipts (several chains, a restaurant bill, a blurry one, a long one, a PDF e-receipt, one non-Italian) with expected merchant/date/total/item count in `test-receipts/expected.json`. Images stay out of git.
+
+**P2-T1 (M) `api/_lib/llm.js`, `api/_lib/auth.js`, `api/_lib/ratelimit.js`.**
+`chat({ messages, json, images, vision, maxTokens, temperature })` → OpenAI-shaped POST to `{base}/v1/chat/completions`; images as `image_url` data URLs when `vision`; `response_format json_object` when `json`; strip fences, parse, validate with `zod`; 25 s timeout, one retry on 429/5xx; returns `{ data, usage, model, durationMs }`. Auth verifies the Supabase JWT (`supabase.auth.getUser(token)`), rate limit increments `ai_usage` and refuses over `AI_DAILY_LIMIT_PER_USER`. Acceptance: unit tests with mocked fetch; 401 without token; 429 over limit.
+
+**P2-T2 (S) `api/_lib/ocr.js`** — single OCR.Space call in Node (engine 2, `scale`, `detectOrientation`), returns `{ text }`. Used only when no vision model is configured.
+
+**P2-T3 (L) `api/extract-receipt.js`.** Input `{ file: base64, mime (image/* or application/pdf), hints: { language, defaultCurrency, categories, knownMerchants[≤50], accounts[] } }`. PDF: render page 1 to PNG client-side with `pdfjs-dist` before upload (keeps the function small). Pipeline: auth → rate limit → vision model with the prompt in `api/_prompts/extract-receipt.md` (or OCR text + text model) → zod validation → derived confidence (`total` ≤ 0.5 when |Σitems − total| > 2 %; `date` = 0 when future or > 2 years old) → `{ receipt, extraction }`.
 Output schema (the only shape the client accepts):
 ```json
-{
-  "merchant": "Lidl",
-  "merchantRaw": "LIDL ITALIA SRL",
-  "date": "2026-11-08",
-  "time": "18:42",
-  "total": 23.47,
-  "currency": "EUR",
-  "paymentMethod": "card|cash|unknown",
-  "category": "Groceries",
+{ "merchant": "Lidl", "merchantRaw": "LIDL ITALIA S.R.L.", "date": "2026-11-08", "time": "18:42",
+  "total": 23.47, "currency": "EUR", "paymentMethod": "card|cash|unknown", "category": "Groceries",
   "items": [{ "name": "Latte intero 1L", "quantity": 1, "unitPrice": 1.19, "price": 1.19, "category": "Groceries" }],
-  "tax": 2.11,
-  "confidence": { "merchant": 0.95, "date": 0.9, "total": 0.98, "items": 0.7 },
-  "notes": "short free text only if something is odd (e.g. 'total unreadable, estimated from items')"
-}
+  "tax": 2.11, "confidence": { "merchant": 0.95, "date": 0.9, "total": 0.98, "items": 0.7 },
+  "notes": "only when something is odd" }
 ```
-Prompt (store in `api/_prompts/extract-receipt.md`, load at runtime):
-- System: "You extract structured data from retail receipts. Return only JSON matching the schema. Use ISO dates. Decimal point. The `merchant` is the consumer-facing brand (e.g. 'Lidl', not 'Lidl Italia S.r.l.'). Pick `category` from the provided list only. Items: skip weights, VAT lines, unit prices, subtotals, change ('RESTO'), loyalty lines. If a value is unreadable, set it to null and lower its confidence. Known merchants of this user: … (prefer these spellings)."
-- User: the image (vision) or "OCR text:\n…" (text).
-Acceptance: run `scripts/eval-extraction.mjs` (write it) over the P1-T0 set and print a table: field, accuracy. Target ≥ 90 % for merchant/date/total, ≥ 60 % item-level. Record results in `docs/OCR_EVAL.md`.
+Prompt essentials: consumer brand as merchant (not legal name); ISO date; decimal point; category only from the given list; skip weights/VAT/unit-price/subtotal/change/loyalty lines; null + low confidence when unreadable; prefer the user's known merchant spellings; handle Italian, German, French, Spanish, Dutch receipts.
+Acceptance: `scripts/eval-extraction.mjs` prints per-field accuracy over the test set; results recorded in `docs/OCR_EVAL.md`; targets met. **Gate on items:** if item-level accuracy < 70 %, items stay extracted but the review screen shows them collapsed with a "check" badge (as in the design); if < 50 %, hide items by default behind a setting.
 
-**P1-T4 (M) Store the receipt image.**
-Files: `src/services/receiptImageService.js` (new), `src/services/supabaseService.js`, `electricStorage.js`, `ReceiptUpload.jsx`.
-- After a successful save, upload the optimised JPEG to bucket `receipts` at `${userId}/${receiptId}.jpg`; set `image_path`. Generate signed URLs (1 h) for display. Delete the object when the receipt is deleted.
-- Offline: queue the upload (store the blob in PGlite as bytea or IndexedDB) and flush on sync. If too complex, v1 may require being online to scan (decision D9).
-Acceptance: receipt detail shows the image; deleting the receipt removes the file.
+**P2-T4 (M) Store the receipt image.** `src/data/images.js`: after save, upload the optimised JPEG/PNG to bucket `receipts` at `${userId}/${transactionId}.jpg`; set `image_path`; signed URLs (1 h) for display; queue in the Dexie `images` table when offline; delete the object with the transaction. Acceptance: detail page shows the image online; offline scan saves and uploads later.
 
-**P1-T5 (L) Review screen replaces "OCR result → giant form".**
-Files: `src/components/receipts/ScanReviewSheet.jsx` (new), `ReceiptUpload.jsx`, `ReceiptForm.jsx`.
-- Layout (mobile): image on top (pinch-zoom via CSS `touch-action` + a simple zoom library or native `<img>` in a scrollable container), below it the four primary fields: merchant (with autocomplete from the user's merchants), date, total, category chips. Fields with `confidence < 0.7` get an amber left border and a "Check this" hint.
-- "Items (n)" collapsed section; "More" expands notes/group/tags/split/recurring.
-- Primary button "Save"; secondary "Rescan"; link "Enter manually instead".
-- Save path: same `createReceipt` as today plus `extraction` and image upload.
-Acceptance: scanning a receipt and saving takes ≤ 3 taps when the extraction is right.
+**P2-T5 (L) Scan review screen** = design screen 3. Image on top (tap to zoom), merchant/date/total/category, amber edge + "Check this" on fields with confidence < 0.7, items collapsed with count and sum, "More" for account/group/tags/split/notes, big "Save 23,47 € at Lidl" button in the thumb zone, "Enter manually instead". Acceptance: a correct scan saves in ≤ 3 taps.
 
-**P1-T6 (S) Retire the old OCR code.**
-Delete `api/ocr.py`, `api/templates/`, `api/requirements.txt`, `api/ocr-proxy.js`, the Python runtime entry in `vercel.json`, and the parsing functions in `src/services/ocrApi.js` (keep `fileToBase64`). Update CSP `connect-src` (no direct `api.ocr.space` from the client).
-Acceptance: build passes; scan still works end-to-end on the preview deployment.
+**P2-T6 (M) E-receipts.** (a) PDF upload path through P2-T3. (b) Web Share Target: manifest `share_target` (POST, multipart, `files` accepting image/* and application/pdf) + service-worker `fetch` handler that stores the shared file in Dexie and opens `/scan?shared=1`, so a receipt PDF can be shared from Mail/Gmail straight into the app. (c) Optional later: an inbound email address (Resend/Postmark inbound → Supabase Edge Function). Acceptance: sharing a PDF from the phone's mail app lands on the review screen.
 
-### Phase 2 — Categorization v2 (exit: ≥ 85 % of new transactions get the right category without manual change)
+**P2-T7 (S) Retire the old OCR code.** Delete `api/ocr.py`, `api/templates/`, `api/requirements.txt`, `api/ocr-proxy.js`, the Python runtime in `vercel.json`, the regex parsers in `src/services/ocrApi.js`; tighten CSP.
 
-**P2-T1 (M) New category list + migration.**
-Files: `src/utils/constants.js`, `src/languages/*.js`, migration v13 (§4), `categoryService.js`.
-- Replace `CATEGORIES`/`DEFAULT_CATEGORIES` with the §4 list (names, colors, lucide icon names instead of emoji).
-- SQL update for existing receipts (old → new names) in v13; same mapping applied client-side on pull for old local rows.
-Acceptance: existing receipts show the new names; category chart colours stable in light/dark.
+### Phase 3 — Categorization v2 (exit: ≥ 85 % of new transactions need no manual category)
 
-**P2-T2 (M) `merchantKey()` normaliser + rule engine.**
-Files: `src/utils/merchant.js` (new), `src/services/categoryService.js`, tests.
-- `merchantKey("LIDL ITALIA S.R.L. - FIL. 0231")` → `"lidl"`. Steps: lowercase, strip accents, remove legal suffixes (`s.r.l., srl, s.p.a., spa, snc, sas, ltd, gmbh, inc, llc, sa`), remove store numbers / "fil." / "punto vendita" / addresses after a dash, keep the first 2 significant words.
-- Resolution order in `suggestCategory({ merchant, items })`:
-  1. `merchant_rules` for this user by `merchant_key` (exact), then by prefix (first word).
-  2. Seed rules (`src/data/merchantSeeds.it.json` + `.en.json`): ~150 Italian/EU merchants and keywords with **word-boundary** regex (`\bconad\b`, `\besselunga\b`, `\beurospin\b`, `\bcoop\b`, `\bcarrefour\b`, `\bmd\b`, `\bpam\b`, `\btigros\b`, `\bdespar\b`, `\bfarmacia\b`, `\bparafarmacia\b`, `\btabacch`, `\beni\b|\bagip\b|\bq8\b|\besso\b|\btamoil\b|\bip\b`, `\btrenitalia\b|\bitalo\b|\batm\b|\batac\b|\bgtt\b`, `\benel\b|\bedison\b|\ba2a\b|\bhera\b|\biren\b|\bsorgenia\b`, `\btim\b|\bvodafone\b|\bwindtre\b|\biliad\b|\bfastweb\b`, `\bamazon\b|\bzalando\b|\bikea\b|\bleroy merlin\b|\bmediaworld\b|\bunieuro\b|\bdecathlon\b`, `\bnetflix\b|\bspotify\b|\bdisney\b|\bdazn\b|\bsky\b|\bprime video\b`, `\bmcdonald|\bburger king\b|\bautogrill\b|\bpizzeria\b|\bristorante\b|\btrattoria\b|\bosteria\b|\bbar\b|\bcaff[eè]\b`, …). Word boundaries are mandatory; add a test proving `busta` ≠ Transport and `gastronomia` ≠ Fuel.
-  3. Item keywords (only when no merchant match), word-boundary, Italian + English.
-  4. Return `{ category, source: 'rule|seed|item|none', confidence }`.
-Acceptance: unit tests for ≥ 40 merchants incl. the false-positive cases above.
+**P3-T1 (M) New category list + migration** (names, colours, lucide icons; SQL update for old names; i18n keys).
 
-**P2-T3 (S) Learn from corrections.**
-Files: `electricStorage.js` (`createReceipt`/`updateReceipt`), `src/services/merchantRulesService.js` (new, Supabase-only + localStorage cache).
-- Whenever a receipt is saved with a category different from the suggestion, or the user edits the category, upsert `merchant_rules(user_id, merchant_key, category, source='user', hit_count+1)`.
-- Offer "Apply to all 12 receipts from Lidl?" via a toast action when a rule changes (uses the existing `showToast` with an action button; add action support to `Toast.jsx`).
-Acceptance: categorise "Conad" once; next "CONAD CITY" receipt is suggested as Groceries.
+**P3-T2 (M) `merchantKey()` + rule engine** in `src/utils/merchant.js` and `src/services/categorizer.js`: normalise (lowercase, strip accents, legal suffixes `s.r.l./srl/s.p.a./spa/snc/sas/gmbh/ag/sarl/sas/ltd/bv`, store numbers, addresses), then resolve in order: user `merchant_rules` (exact key, then first-word prefix) → seed rules (`src/data/merchantSeeds.json`, ~250 entries covering Italian and major EU chains, **word-boundary regex only**) → item keywords → `none`. Also used for Revolut/PostePay descriptions (`"LIDL 0231 TORINO"`, `"PAGAMENTO POS ESSELUNGA"`). Tests must include false-positive cases (`busta`, `gastronomia`, `bpm`).
 
-**P2-T4 (M) `api/categorize.js` — LLM fallback for unknown merchants (batch).**
-- Input: `{ merchants: [{ key, raw, sampleItems: [..≤5] }], categories }` (≤ 50 per call). Output: `{ results: [{ key, category, confidence }] }`.
-- Client calls it (a) after a scan when the rule engine returned `none`, (b) from a "Categorise uncategorised" button on the Transactions page which batches all `Other` receipts. Results with confidence ≥ 0.8 are stored as `merchant_rules(source='llm')`; lower ones are only suggested.
-Acceptance: a receipt from an unseen merchant gets a non-"Other" category within 3 s; the "Other" count on the owner's data drops below 10 %.
+**P3-T3 (S) Learn from corrections.** Any category change on a transaction upserts a user rule and offers "Apply to all N receipts from Lidl?" via a toast action (as in the design's detail screen).
 
-**P2-T5 (S) Fix the form behaviour.**
-Files: `ReceiptForm.jsx`, `ScanReviewSheet.jsx`.
-- Re-suggest when the merchant changes (any mode) unless the user has already touched the category field (track `categoryTouched`).
-- Line items default to the receipt category; item-level suggestion only via explicit "auto" chip.
-- Remove the client-side override in `ocrApi.postProcessResult` (Phase 1 deleted it; verify nothing reintroduces a US map).
-Acceptance: manual test on both paths.
+**P3-T4 (M) `api/categorize.js`** batch LLM fallback (≤ 50 merchants per call, with sample items and, for imports, the raw bank description). Confidence ≥ 0.8 → stored as `source='llm'` rule. "Categorise uncategorised" button on Activity when the "Uncategorised" chip count > 0.
 
-### Phase 3 — Budgets, savings goals, monthly view (exit: the owner can answer "how much did I save this month and am I on track?")
+**P3-T5 (S) Form behaviour fixes** (re-suggest on merchant change unless the category was touched; items default to the receipt category).
 
-**P3-T1 (M) `savings` transaction type + base-currency amounts.**
-Files: `ReceiptForm.jsx`/Quick Add, `electricStorage.js`, `supabaseService.js` (`transformReceiptToSupabase` + reverse), `src/utils/money.js` (new), `src/utils/tracking.js`.
-- Transaction type selector gets a third option "Savings" (icon piggy bank). A savings transaction is excluded from expenses and income, included in goal progress.
-- On every create/update compute `amount_base`, `base_currency`, `exchange_rate` using the user's default currency (`exchangeRateService`, cached per day in localStorage; if offline and no cached rate, set rate=null and recompute on next sync). All dashboard math uses `amount_base` when present, falling back to `total` when currency equals base.
-- Backfill: a one-off client routine "Recalculate base amounts" under Settings → Advanced.
-Acceptance: dashboard totals no longer flicker; a USD receipt contributes its EUR value.
+### Phase 4 — Accounts, budgets, savings, imports (exit: "how much did I save this month and am I on track?" answered on one screen)
 
-**P3-T2 (M) Budgets service + UI.**
-Files: `src/services/budgetService.js` (new, Supabase-only with localStorage cache), `src/pages/BudgetsPage.jsx` (new), route `/budgets`, nav entry, `src/components/budgets/BudgetBar.jsx`.
-- CRUD monthly budgets per category and one overall budget. Copy last month's budgets automatically when a new month starts (lazy: on first load in a month).
-- Budget math in `src/utils/budgetMath.js` (pure, tested): `spent`, `remaining`, `pacePct = spent / (budget × dayOfMonth / daysInMonth)`, `projectedEndOfMonth`, status `ok | warning (pace > 1.1) | over`.
-- BudgetsPage: month switcher, list of category bars (spent / budget, remaining, projected), tap → transactions filtered by category+month, "+ Add budget" sheet with suggested amount = 3-month average for that category.
-Acceptance: unit tests for budgetMath; bars render correctly for current and previous months.
+**P4-T1 (M) Accounts + transfers.** `useAccounts`, Settings → Accounts (create Revolut, PostePay, Cash, Savings account, Investments with opening balances), transaction type segmented control Expense / Income / Transfer, account chip on Quick Add (defaults to the last used), transfer picker (from → to, optional goal). Balances computed in `src/utils/money.js` (tested). Acceptance: accounts list shows correct balances after a mix of expenses, income and transfers.
 
-**P3-T3 (M) Savings goals service + UI.**
-Files: `src/services/goalsService.js` (new), `src/pages/GoalsPage.jsx` (or a section inside Budgets page, decision D6), `src/components/goals/GoalCard.jsx`.
-- CRUD goals; progress = sum of `savings` transactions with `goal_id` (+ optional manual "starting balance" field on the goal). Show: saved / target, % ring, months left at current average contribution, "needed per month to hit the date".
-- Quick action on a goal: "Add contribution" → creates a `savings` transaction prefilled.
-Acceptance: creating a goal, adding two contributions, progress and projection update.
+**P4-T2 (S) Base-currency amounts.** Compute `amount_base`/`exchange_rate` at write time (rate cached per day); all totals use `amount_base`; one-off "Recalculate" under Settings → Advanced. Removes the render-time conversion flicker.
 
-**P3-T4 (M) Monthly summary + savings rate on the dashboard.**
-Files: `SummaryCards.jsx` → `MonthSummary.jsx`, `HomePage.jsx` month selector in `PageHeader`, `src/utils/monthMath.js`.
-- Replace the four all-time KPI cards with the selected month: **Spent** (vs budget), **Income**, **Saved** (savings transactions + optionally `income − spent − saved` as "unallocated"), **Savings rate** = saved / income (hidden when income is 0 with hint "log your income to see your savings rate"). Tap → filtered list.
-- "Safe to spend today" (optional widget): `(overallBudget − spent) / daysRemaining`.
-- All widgets receive the selected month from a `useSelectedMonth()` hook (URL param `?m=YYYY-MM`) instead of each computing its own.
-Acceptance: switching month updates every widget; previous-month comparison arrow on Spent.
+**P4-T3 (M) Budgets** = design screen 5. `budgetMath.js` (tested): spent, remaining, pace tick at today's position, projected end of month, status ok/warning/over, "slow down to X €/day". Whole-month budget + per-category; copy forward on month start; "Add budget" suggests the 3-month average.
 
-**P3-T5 (S) Recurring → planned bills clean-up.**
-Files: `RecurringPayments.jsx`, `RecurringManager.jsx`, `tracking.js`, languages.
-- Rename "Tracking / Mark as done" to "Planned (unpaid)" / "Mark paid" everywhere in copy. Planned-but-unpaid amounts are shown as "Upcoming this month: €X" on the dashboard and included in the budget projection.
-Acceptance: no occurrence of the word "tracked" in `en.js` user-facing strings.
+**P4-T4 (M) Savings & goals** = design screen 6. Saved-this-month card with savings rate and 3-month average; goals with ring, months-to-target at current pace, needed-per-month; "Add contribution" opens Quick Add preset to Transfer with the goal selected; accounts list with balances and total.
 
-### Phase 4 — AI insights (exit: a monthly insight card that says something true and useful about the owner's data)
+**P4-T5 (M) Home month summary** = design screen 1. The "month as a receipt" card (spent vs budget with pace tick, income, saved, upcoming bills, safe-to-spend per day), budgets strip, insight card, upcoming unpaid bills with "Paid" buttons. All widgets read the selected month from a `useSelectedMonth()` hook (URL `?m=YYYY-MM`). Rename "tracking / mark as done" to "planned / unpaid / mark paid" everywhere.
 
-**P4-T1 (M) Deterministic insights engine (no LLM).**
-Files: `src/services/insightsEngine.js` (pure functions, tested), `src/utils/stats.js`.
-Input: receipts (last 6 months), budgets, goals, selected month. Output: array of `{ id, type, severity: info|warning|good, title, body, amount?, category?, merchant?, link? }` for:
-- `category_change`: category spend vs 3-month average, |Δ| ≥ 25 % and ≥ €20.
-- `budget_pace`: projected over budget by end of month.
-- `unusual_transaction`: amount > mean + 2σ for that merchant or category (min 5 samples).
-- `new_subscription`: same merchant_key, amount within 5 %, ~30 ± 3 days apart, ≥ 2 occurrences, not already marked recurring → suggest marking recurring.
-- `savings_rate`: this month vs last 3 months average.
-- `top_merchant_share`: one merchant > 30 % of the month.
-- `no_income_logged`: income = 0 for the month while expenses > 0 (nudge, info).
-Acceptance: unit tests with synthetic data for every rule.
+**P4-T6 (L) CSV import (Revolut, PostePay).** `src/import/parsers/revolut.js` (columns `Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance`; `TRANSFER`/`TOPUP` rows between own accounts become transfers; `CARD_PAYMENT` → expense; negative/positive sign by `Amount`; skip `REVERTED`), `postepay.js` (ask the owner for one export to pin the columns; build a generic column-mapper UI as fallback). Flow: Settings → Accounts → Import CSV → pick account → preview table (date, description, amount, suggested category, "duplicate of scanned receipt?" when same amount within ±1 day) → import. `import_ref` = `provider:sha1(row)` guarantees idempotent re-imports. After import, run P3-T4 on unknown descriptions. Acceptance: importing the same file twice adds nothing; a scanned Lidl receipt and its Revolut row merge into one transaction (the receipt keeps the items and image, the row supplies the account).
 
-**P4-T2 (M) `api/insights.js` — LLM narrative + suggestions.**
-- Client builds `aggregates` (no raw receipts, no notes): monthly totals by category for 6 months, top 10 merchants (merchant_key, count, sum), budgets vs actual, goals progress, savings rate series, recurring list, and the deterministic findings from P4-T1. Hash it; if `insights_cache[period].input_hash` matches, return the cached payload.
-- Prompt (`api/_prompts/insights.md`): "You are a frank personal-finance coach. Based only on the JSON provided, write for the month {period}: `headline` (≤ 15 words), `summary` (≤ 80 words), `wins` (≤ 3), `concerns` (≤ 3, each with a concrete number), `actions` (≤ 3, each specific and measurable, e.g. 'cap Dining at €150, you are at €212'), `questions` (≤ 2 things you would ask the user to clarify). Currency {currency}. Language {language}. Return JSON." Temperature 0.4.
-- Output validated with zod; stored in `insights_cache`; returned with `generatedAt` and `model`.
-Acceptance: endpoint returns within 10 s; second call for the same month hits the cache.
+### Phase 5 — UX overhaul to the design (exit: manual add ≤ 5 taps; screens match the canvas)
 
-**P4-T3 (M) Insights card + page.**
-Files: `src/components/dashboard/InsightsCard.jsx` (new widget in `WidgetRegistry.js`, default on, order 1), `src/pages/InsightsPage.jsx` (route `/insights`).
-- Card: headline + first concern + first action, "See all" → page. Page: deterministic findings as a list (each tappable to the filtered transactions), then the LLM narrative, "Regenerate" button (rate-limited), timestamp, model name, and a privacy note "Only monthly totals are sent, never receipt contents".
-- Empty state when < 10 transactions: explain what is needed.
-Acceptance: works offline with the deterministic findings only (LLM section shows "Connect to generate").
+Use the `frontend-design` skill and the design canvas for every task. Tokens in `tailwind.config.js`: ground `#F4F6F3`, surface `#FFFFFF`, ink `#10211B`, ink-muted `#5C6B64`, line `#E4E9E5`, forest `#00573F`, mint `#E6F0EB`, income `#1B7F55`, savings `#2458D6`, warn `#B45309` / `#8A5A00` text, over `#C2410C` / `#A33A0A` text. Fonts: Bricolage Grotesque (display), Albert Sans (body), IBM Plex Mono (all amounts, `font-variant-numeric: tabular-nums`). Amount rows use the dotted-leader pattern (`.lead`). Dark mode: invert ground/surface to `#0E1512`/`#162019`, keep forest/savings hues, raise text contrast; every token gets a dark value.
 
-**P4-T4 (L, optional) "Ask about my spending" chat.**
-- `api/insights-chat.js`: same aggregates + last 12 months category totals as context; conversation kept client-side (last 10 turns); streaming not required.
-- UI: simple thread at the bottom of InsightsPage with 3 suggested questions ("Where can I cut €100/month?", "Am I on track for {goal}?", "What changed since last month?").
-Acceptance: answers reference actual numbers from the aggregates.
+**P5-T1 (L) Quick Add bottom sheet** = screen 2. Amount-first with in-app keypad, Expense/Income/Transfer control, camera + gallery shortcuts, merchant input with recent chips, category chips (suggested first), Today/Yesterday/Pick, account chips, "More" accordion (items, notes, group, tags, split, recurring, planned). Undo toast after save.
+**P5-T2 (L) Activity** = screen 4. Split `ReceiptsPage.jsx` into `ActivityPage`, `TransactionRow`, `DayGroup`, `FilterBar`; groups management moves to `/groups`. Day groups with totals, month strip, chips (month, type, category, account, Unpaid, Uncategorised), search by merchant/notes/amount, sort, swipe actions, virtualised list.
+**P5-T3 (M) Detail** = screen 8. Inline category chips with "applies to all N" hint, details rows, items with unreadable lines flagged, Duplicate/Edit/Delete in the thumb zone.
+**P5-T4 (M) Home + bottom nav** = screen 1. Five-slot nav (Home, Activity, +, Budgets, Insights); Budgets tab hosts the Budgets / Savings & accounts segments. Lazy-load chart.js.
+**P5-T5 (S) Settings** clean-up: Profile · Accounts · Currency & language · Appearance · Notifications · AI & scanning (toggles, privacy text) · Data (import CSV, export CSV, clear local cache) · About. Demo data moves to the empty-state "Try with sample data".
+**P5-T6 (S) Onboarding**: currency + language, create accounts (Revolut/PostePay/Cash preselected), set a whole-month budget or skip.
 
-### Phase 5 — UX overhaul (exit: adding a transaction manually ≤ 4 taps; owner's satisfaction)
+### Phase 6 — Insights (exit: one true, actionable insight per month on the owner's data)
 
-Use the `frontend-design` skill for every task in this phase. Keep the existing green brand (`#00573f`) but define tokens in `tailwind.config.js` (`surface`, `surface-raised`, `ink`, `ink-muted`, `accent`, `positive`, `negative`, `warning`) and migrate components to them as they are touched.
+**P6-T1 (M) Deterministic engine** `src/services/insightsEngine.js` (pure, tested): category change vs 3-month average (≥ 25 % and ≥ 20 €), budget pace projection, unusual transaction (> mean + 2σ, min 5 samples), new subscription (same merchant_key, amount ±5 %, ~30 ± 3 days, ≥ 2 times, not recurring), savings rate vs average, top merchant share > 30 %, no income logged, uncategorised count. Output `{ id, type, severity, title, body, amount, category, merchant, link }`.
+**P6-T2 (M) `api/insights.js`.** Client sends aggregates only (6 months by category, top merchants by key, budgets vs actual, goals, savings series, recurring, engine findings); hash → `insights_cache`; prompt in `api/_prompts/insights.md` returns `{ headline, summary, wins[], concerns[], actions[], questions[] }` with concrete numbers, in the user's language.
+**P6-T3 (M) Insights screen** = screen 7 without the chat row: narrative card (with "made from monthly totals only · model · time"), findings list linking to filtered Activity/Budgets, Refresh (rate-limited), offline shows findings only.
 
-**P5-T1 (L) Quick Add bottom sheet.**
-Files: `src/components/add/QuickAddSheet.jsx` (new), `BottomNav.jsx`, `AddReceiptModal.jsx` (delete).
-- Tapping "+" opens a bottom sheet (not a centred modal): amount field focused with numeric keyboard, type segmented control (Expense / Income / Savings), merchant input with autocomplete (recent + frequent merchants), category chips (suggested first, then the rest, "+" for more), date chip (Today / Yesterday / pick), "More" accordion for items, notes, group, tags, split, recurring, planned.
-- Two icon buttons in the sheet header: Camera (opens camera immediately) and Gallery.
-- Save closes the sheet with an undo toast ("Added €12.40 at Bar Roma — Undo").
-Acceptance: manual add of an expense = tap +, type amount, tap merchant suggestion, tap category, tap Save (≤ 5 taps including the FAB).
+### Phase 7 — Chat about your money (last, per owner's request)
 
-**P5-T2 (L) Transactions list rewrite.**
-Files: split `ReceiptsPage.jsx` into `TransactionsPage.jsx`, `components/transactions/TransactionRow.jsx`, `DayGroup.jsx`, `FilterBar.jsx`, `GroupsPage.jsx` (group management moves to `/groups`).
-- Grouped by day with a day total; sticky month header with month total and a month switcher.
-- Filter chips: type, category (multi), date range (This month / Last month / Custom), group, "Unpaid", "Uncategorised". Sort: date, amount. Search matches merchant, notes, amount (`12.4`, `12,40`).
-- Row: category icon in a colored circle, merchant, category · group tag, amount right-aligned (income green with +, savings blue), small camera icon when an image exists, swipe left → delete (with undo), swipe right → change category.
-- Virtualised list (`@tanstack/react-virtual`) replacing the manual "load more".
-Acceptance: 2,000 synthetic receipts scroll at 60 fps on a mid-range phone; filters persist in the URL.
+**P7-T1 (L) `api/chat.js` + chat row on Insights** = bottom of screen 7. Context = the same aggregates plus 12 months of category totals and the goals; conversation kept client-side (last 10 turns); suggested questions ("Where can I cut 100 €?", "On track for Japan?", "What changed vs October?"); answers must cite numbers from the aggregates; tool-style follow-ups allowed later (e.g. "set Dining budget to 180" → opens the prefilled budget sheet, never writes directly).
 
-**P5-T3 (M) Transaction detail page.**
-Files: `ReceiptDetailPage.jsx`, `ReceiptDetail.jsx`.
-- Image (if any) with tap-to-zoom; fields editable inline (tap a value to edit); items table; "Was this category right?" quick chips when `extraction.confidence.category < 0.8`; actions: Mark paid, Duplicate, Delete.
-Acceptance: editing the category from the detail page creates/updates a merchant rule.
+### Phase 8 — Hygiene (any time after Phase 1)
 
-**P5-T4 (M) Dashboard layout.**
-Files: `HomePage.jsx`, widgets.
-- Order: month header with switcher → MonthSummary (P3-T4) → Budgets strip (top 3 categories closest to limit, "See all") → InsightsCard → Category donut (same month) → Spending trend (daily cumulative line for this month vs last month instead of the raw 30-day spikes) → Upcoming bills → Goals strip.
-- Widget names/descriptions translated. Keep the customiser.
-Acceptance: first paint shows the month summary without waiting for charts (lazy-load chart.js with `React.lazy`).
-
-**P5-T5 (S) Settings clean-up.**
-- Sections: Profile, Currency & language, Appearance, Notifications, AI & scanning (toggle "Use AI to read receipts", "Use AI insights", privacy text, optional own keys), Data (export CSV, import CSV — see P6-T3, clear local cache), About (version, privacy, terms). Demo data moves to the empty state of the dashboard ("Try with sample data").
-Acceptance: no "premium", no "Veryfi", no "Electric" wording visible.
-
-**P5-T6 (S) Onboarding.**
-- First run: 3 screens (what the app does, pick currency + language, set a monthly budget or skip). Then the empty dashboard with two big buttons: "Scan a receipt", "Add manually".
-Acceptance: shown once per account; skippable.
-
-### Phase 6 — Tech debt and nice-to-haves (do after 1–5, in any order)
-
-**P6-T1 (L) Decide on the local-first layer (decision D10).** Options: (a) keep PGlite; (b) replace with Dexie + a simple outbox (~400 lines instead of 1,900, no 12 MB wasm); (c) online-first with a React Query cache. Recommendation: (b) if offline entry matters, (c) otherwise. Write an ADR in `docs/adr/0001-storage.md` before touching code.
-
-**P6-T2 (M) Push notifications** for planned bills via Supabase Edge Function + Web Push (VAPID) so reminders work when the app is closed.
-
-**P6-T3 (M) CSV import** (bank/card export): map columns (date, description, amount), run the rule engine + `api/categorize.js` on descriptions, de-duplicate against existing receipts (same date ± 1 day, same amount). This is the single biggest lever for "track savings properly" because most spending is card payments without a paper receipt.
-
-**P6-T4 (S) Lint + format**: ESLint (react, hooks) + Prettier, `npm run lint` in CI.
-
-**P6-T5 (S) Remove dead code**: `src/services/storage.js` wrapper methods never called, `getUserByEmail/createUser/getUserById` stubs, `seedDemoData` duplicates in `electricStorage`.
+Push notifications for unpaid bills (Supabase Edge Function + Web Push); ESLint + Prettier in CI; delete dead code (`storage.js` stubs, demo seeding duplicates); translate `WidgetRegistry` names; remove `console.log` noise.
 
 ---
 
-## 6. Open decisions (owner must answer before Phase 1)
+## 6. Decisions taken (from the owner, 2026-11-10)
 
-| ID | Question | Default if unanswered |
-|---|---|---|
-| D1 | Which Supabase project is production, and will you unpause it (free tier pauses after inactivity) or upgrade? | `oorwminabbdyfftdbibn`, unpause. |
-| D2 | Who uses the app: only you, family, public? Who pays for AI calls? | Personal/family; owner pays; server-side keys; per-user daily limit 50. |
-| D3 | AI provider for **extraction**: DeepSeek is text-only, so receipts would go OCR.Space → DeepSeek. A vision model (Gemini 2.5 Flash via OpenRouter or Google's OpenAI-compatible endpoint, GPT-4o-mini, Claude Haiku) reads the image directly and is far more accurate. Which do you allow? Do you have a self-hosted DeepSeek (Ollama/vLLM) or the hosted API? | Vision model for extraction, DeepSeek for categorise/insights. |
-| D4 | Privacy: is sending receipt images/text and monthly aggregates to a third-party model acceptable? Any region constraint? | Yes; aggregates only for insights. |
-| D5 | Receipts: mostly Italian supermarkets? Any PDFs/e-receipts/emails? Do you need **line items** at all, or merchant + total + date + category? (Items are the hardest and most expensive part.) | Items optional, collapsed, lower accuracy accepted. |
-| D6 | Savings: how do you actually save? (automatic transfer to another account, % of salary, irregular). Do you log income in the app? Do you want budgets, goals, savings rate, all three? Should goals live on the Budgets page or their own tab? | All three; goals as a section on Budgets page; income logged monthly. |
-| D7 | Categories: accept the new list in §4 and the migration of old names? Add/remove any? Subcategories needed? | Accept; no subcategories in v1. |
-| D8 | Groups, tags, split, recurring, planned: which do you really use? Anything we can delete to simplify? | Keep all, demote to "More". |
-| D9 | Store receipt images (Supabase Storage, 1 GB free)? Must scanning work offline? | Store images; scanning requires online. |
-| D10 | Keep PGlite local-first, or simplify (Phase 6 options)? New small tables Supabase-only? | Keep PGlite for receipts for now; new tables Supabase-only + cache. |
-| D11 | CSV/bank import wanted (P6-T3)? Which bank formats? | Yes, generic CSV mapper. |
-| D12 | Multi-currency really needed? | Keep, but store base amounts. |
-| D13 | App name: "Where my money went?", "Money Tracker", or "Receipt Manager"? | "Where my money went?" |
-| D14 | Implementer budget: which model, how many hours/sessions? (Phases 1–4 ≈ 25–35 h of focused work for a capable model; Phase 5 ≈ 20 h.) | — |
+| ID | Decision |
+|---|---|
+| D1 | Production Supabase = "navidabasi's Project" (`oorwminabbdyfftdbibn`); owner restores it. "OCRAPP" is a different app. |
+| D2 | Single user now, friends maybe later. Server-side AI keys reused from the owner's AI assistant project. Strict per-user isolation (RLS, per-user rate limits, `ai_usage`); subscriptions later. |
+| D3/D4 | Receipts may be sent to a reliable model. Vision model for extraction; DeepSeek (or any OpenAI-compatible text model) for categorize/insights/chat. |
+| D5 | Line items wanted if reliable; gated by the eval in P2-T3 (collapsed < 70 %, hidden by default < 50 %). E-receipts: PDF upload + share-to-app; inbound email optional later. Italy first, rest of Europe supported (seeds + prompt). |
+| D6 | Savings = transfers into savings/investment accounts (accounts model), not "income with a title". Budgets, goals and savings rate all built. Goals live on the Budgets tab's second segment. |
+| D7 | New category list accepted; old names migrated. |
+| D8 | Groups, tags, split, recurring, planned are kept and demoted under "More". |
+| D9/D11 | Images stored; Revolut CSV import first, PostePay once a sample export is provided. |
+| D10 | Online-first with an IndexedDB mirror and an offline outbox (Phase 1). PGlite removed. |
+| D12 | Multi-currency kept; base amounts stored at write time. |
+| D13 | App name: "Where my money went?" |
+| D14 | Chat is the last phase (Phase 7). |
+
+Still open: a PostePay CSV sample (for P4-T6) and the receipt test set (P2-T0).
 
 ---
 
 ## 7. Definition of done for the whole plan
 
-- Owner's 20–30 receipt test set: merchant/date/total ≥ 90 % correct, no manual category needed in ≥ 85 % of scans.
-- Dashboard answers in one screen: spent vs budget this month, income, saved, savings rate, next bills.
-- At least one true and actionable insight per month on the owner's data.
+- Test set: merchant/date/total ≥ 90 %, items ≥ 70 % (or gated as in P2-T3); ≥ 85 % of scans and imports need no manual category.
+- Works offline: open the app, add transactions, scan (queued), reconnect → everything in Supabase.
+- Home answers in one screen: spent vs budget with pace, income, saved, savings rate, safe-to-spend, next bills.
+- Revolut CSV imported idempotently, deduplicated against scanned receipts.
+- At least one true and actionable insight per month; chat answers cite real numbers.
 - Manual add ≤ 5 taps; scan-to-saved ≤ 3 taps when extraction is right.
-- `npm test` ≥ 60 tests green; CI on every push; Lighthouse PWA installable; no console errors on first load.
+- `npm test` ≥ 80 tests green; CI on every push; Lighthouse installable; bundle < 1.5 MB gzipped; no console errors on first load.
 
 ---
 
-## 8. Adding a field to `receipts` — checklist (local-first plumbing)
+## 8. Adding a field to a synced table — checklist (after Phase 1)
 
 1. Supabase migration (`supabase/migrations/…`).
-2. PGlite `createSchema()` in `src/services/electricStorage.js` (both `CREATE TABLE` and an `ALTER TABLE ADD COLUMN IF NOT EXISTS` for existing installs).
-3. `createReceipt`, `updateReceipt` (column lists + param arrays) and `pullFromSupabase` (`INSERT … ON CONFLICT … DO UPDATE SET`) in `electricStorage.js`.
-4. `transformReceiptToSupabase` / `transformReceiptFromSupabase` (or equivalent mapping) in `src/services/supabaseService.js`.
-5. `field_timestamps` key list (v8 migration comment) if the field should merge per-field.
-6. A test that round-trips the field through the transform functions.
+2. Dexie schema version bump in `src/data/db.js` (indexes only if queried).
+3. Mapper in `src/data/api.js` (camelCase ↔ snake_case) in both directions.
+4. Outbox payload: make sure `sync.js` sends the field on create and update.
+5. A round-trip test for the mapper.
 
 ---
 
