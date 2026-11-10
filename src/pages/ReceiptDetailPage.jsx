@@ -88,12 +88,12 @@ export default function ReceiptDetailPage() {
     };
 
     return (
-        <PageLayout className="pt-6 md:pt-4 pb-32">
+        <div>
             <ReceiptDetail
                 receipt={receipt}
                 onUpdate={() => notifyDataChanged()}
                 onDelete={handleDelete}
             />
-        </PageLayout>
+        </div>
     );
 }

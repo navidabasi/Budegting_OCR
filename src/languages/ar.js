@@ -767,4 +767,26 @@ export const ar = {
         empty: "لا توجد مجموعات بعد. أنشئ واحدة لتجميع المعاملات المرتبطة.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "حصتك {{amount}}",
+        splitEqual: "مقسم بالتساوي بين {{people}}",
+        splitCustom: "تقسيم مخصص، {{count}} أشخاص",
+        moreActions: "إجراءات أخرى",
+        openPhoto: "فتح صورة الإيصال",
+        pendingRead: "بانتظار القراءة. الصورة محفوظة وستُقرأ عند عودة الاتصال.",
+        readFailed: "تعذرت قراءة هذا الإيصال. عدّل التفاصيل يدوياً.",
+        otherCategory: "أخرى…",
+        repeats: "يتكرر",
+        status: "الحالة",
+        paid: "مدفوع",
+        addNote: "إضافة ملاحظة",
+        itemsCount: "البنود · {{count}}",
+        unreadableLine: "سطر غير مقروء",
+        markPaid: "تحديد كمدفوع",
+        duplicate: "تكرار",
+        pin: "تثبيت في الأعلى",
+        unpin: "إلغاء التثبيت",
+    },
+    // @i18n:end detail
 };

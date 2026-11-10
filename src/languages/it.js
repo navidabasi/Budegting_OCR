@@ -736,4 +736,26 @@ export const it = {
         empty: "Ancora nessun gruppo. Creane uno per raccogliere transazioni correlate.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "La tua quota {{amount}}",
+        splitEqual: "diviso equamente tra {{people}}",
+        splitCustom: "divisione personalizzata, {{count}} persone",
+        moreActions: "Altre azioni",
+        openPhoto: "Apri la foto dello scontrino",
+        pendingRead: "In attesa di lettura. La foto è salvata e verrà letta quando tornerai online.",
+        readFailed: "Impossibile leggere questo scontrino. Modifica i dati a mano.",
+        otherCategory: "Altra…",
+        repeats: "Si ripete",
+        status: "Stato",
+        paid: "pagato",
+        addNote: "Aggiungi una nota",
+        itemsCount: "Voci · {{count}}",
+        unreadableLine: "Riga illeggibile",
+        markPaid: "Segna come pagato",
+        duplicate: "Duplica",
+        pin: "Fissa in alto",
+        unpin: "Rimuovi dall’alto",
+    },
+    // @i18n:end detail
 };

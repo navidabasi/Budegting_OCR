@@ -622,4 +622,26 @@ export const fr = {
         empty: "Aucun groupe pour le moment. Créez-en un pour regrouper des transactions liées.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "Votre part {{amount}}",
+        splitEqual: "partagé à parts égales entre {{people}}",
+        splitCustom: "partage personnalisé, {{count}} personnes",
+        moreActions: "Plus d’actions",
+        openPhoto: "Ouvrir la photo du reçu",
+        pendingRead: "En attente de lecture. La photo est enregistrée et sera lue dès que vous serez en ligne.",
+        readFailed: "Ce reçu n’a pas pu être lu. Modifiez les détails à la main.",
+        otherCategory: "Autre…",
+        repeats: "Récurrence",
+        status: "Statut",
+        paid: "payé",
+        addNote: "Ajouter une note",
+        itemsCount: "Articles · {{count}}",
+        unreadableLine: "Ligne illisible",
+        markPaid: "Marquer comme payé",
+        duplicate: "Dupliquer",
+        pin: "Épingler en haut",
+        unpin: "Désépingler",
+    },
+    // @i18n:end detail
 };

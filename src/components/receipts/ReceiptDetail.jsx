@@ -1,277 +1,270 @@
-import { useState } from 'react';
-import { Edit, Trash2, ArrowLeft, CheckCircle2, Clock3 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, ChevronLeft, Copy, Edit3, MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { formatDate, formatCurrency, resolveReceiptBackTarget } from '../../utils/helpers';
-import Button from '../common/Button';
-import Modal from '../common/Modal';
-import ReceiptForm from './ReceiptForm';
-import CurrencyDisplay from '../common/CurrencyDisplay';
-import { useDeleteTransaction, useMarkTransactionDone, useUpdateTransaction } from '../../data/hooks';
+import { Chip, ChipRow, IconButton, Sheet } from '../ui';
+import Amount from '../ui/Amount';
+import LeaderRow from '../ui/LeaderRow';
+import ImageViewer from '../scan/ImageViewer';
+import { resolveReceiptBackTarget } from '../../utils/helpers';
+import { useAccounts, useDeleteTransaction, useMarkTransactionDone, useReceiptImage, useTransactions, useUpdateTransaction } from '../../data/hooks';
+import { useCategories } from '../../hooks/useCategories';
 import { useAppStore } from '../../store/appStore';
 import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
+import { getEffectiveAmount } from '../../utils/helpers';
+import { onCategoryChanged } from '../../services/categoryLearning';
+import { isUnreadable } from '../../services/receiptScan';
+import { rankCategories, dateKey } from '../../utils/quickAdd';
+import { currencySymbol, localeFor, formatAmount } from '../../utils/format';
+import { categoryVisual } from '../../utils/categoryVisual.jsx';
 import { useTranslation } from '../../languages/useTranslation';
 
+const card = 'rounded-[18px] bg-surface shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line';
+const cap = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
+
+function Kv({ label, children, last }) {
+    return (
+        <div className={`flex min-h-[44px] items-baseline gap-3 py-2.5 text-[15px] text-ink ${last ? '' : 'border-b border-line'}`}>
+            <span className="min-w-[84px] shrink-0 text-[13px] text-ink-muted">{label}</span>
+            <span className="min-w-0 flex-1 break-words">{children}</span>
+        </div>
+    );
+}
+
+/** Transaction detail (docs/design/Detail.dc.html). */
 export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
-    const { t, localizeCategory } = useTranslation();
+    const { t, languageCode, localizeCategory } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
-    const showToast = useAppStore((state) => state.showToast);
+    const showToast = useAppStore((s) => s.showToast);
+    const openQuickAdd = useAppStore((s) => s.openQuickAdd);
     const updateReceipt = useUpdateTransaction();
     const deleteReceipt = useDeleteTransaction();
-    const markReceiptAsDone = useMarkTransactionDone();
-    const [isEditing, setIsEditing] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [isMarkingDone, setIsMarkingDone] = useState(false);
+    const markDone = useMarkTransactionDone();
+    const { accounts } = useAccounts();
+    const { transactions } = useTransactions();
+    const categoryList = useCategories();
+    const image = useReceiptImage(receipt);
+    const [viewer, setViewer] = useState(false);
+    const [menu, setMenu] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [allCategories, setAllCategories] = useState(false);
+    const [busy, setBusy] = useState(false);
 
-    const trackingStatus = getTrackingStatus(receipt);
-    const showDoneAction = isTrackedReceipt(receipt);
-    const returnTo = location.state?.returnTo || '/activity';
-    const backTarget = resolveReceiptBackTarget(receipt.id, returnTo);
+    const type = receipt.transactionType || 'expense';
+    const status = getTrackingStatus(receipt);
+    const locale = localeFor(languageCode, receipt.currency);
+    const backTarget = resolveReceiptBackTarget(receipt.id, location.state?.returnTo || '/activity');
+    const account = accounts.find((a) => a.id === receipt.accountId);
+    const toAccount = accounts.find((a) => a.id === receipt.toAccountId);
+    const names = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
+    const ranked = useMemo(() => rankCategories({ suggested: receipt.category, transactions, names, limit: 4 }), [receipt.category, transactions, names]);
+    const items = receipt.lineItems || [];
+    const { Icon: CatIcon } = categoryVisual(receipt.category, type);
 
-    const handleUpdate = async (receiptData) => {
+    const dateText = (() => {
+        const d = new Date(`${String(receipt.date).slice(0, 10)}T00:00:00`);
+        if (Number.isNaN(d.getTime())) return '';
+        return new Intl.DateTimeFormat(languageCode, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+    })();
+    const subtitle = [dateText, receipt.extraction?.time, type === 'transfer' ? [account?.name, toAccount?.name].filter(Boolean).join(' → ') : account?.name].filter(Boolean).join(' · ');
+
+    const split = receipt.splitData
+        ? `${t('detail.yourShare', { amount: `${formatAmount(getEffectiveAmount(receipt), { locale })} ${currencySymbol(receipt.currency, locale)}` })} · ${
+              receipt.splitData.method === 'equal' ? t('detail.splitEqual', { people: receipt.splitData.people }) : t('detail.splitCustom', { count: receipt.splitData.users?.length || 0 })
+          }`
+        : null;
+
+    const changeCategory = async (category) => {
         try {
-            await updateReceipt(receipt.id, receiptData);
-            onUpdate();
-            setIsEditing(false);
-            showToast(t('receipts.form.updateSuccess'), 'success');
-        } catch (err) {
-            showToast(t('receipts.form.updateFailed'), 'error');
+            await onCategoryChanged(receipt, category);
+            onUpdate?.();
+        } catch {
+            showToast(t('quickAdd.saveFailed'), 'error');
         }
     };
 
-    const handleDelete = async () => {
+    const remove = async () => {
+        setBusy(true);
         try {
             await deleteReceipt(receipt.id);
             showToast(t('receipts.detail.deleteSuccess'), 'success');
-            navigate(backTarget);
-            onDelete();
-        } catch (err) {
+            navigate(backTarget, { replace: true });
+            onDelete?.();
+        } catch {
             showToast(t('receipts.detail.deleteFailed'), 'error');
+            setBusy(false);
         }
     };
 
-    const handleMarkAsDone = async () => {
-        setIsMarkingDone(true);
-
+    const markPaid = async () => {
+        setBusy(true);
         try {
-            await markReceiptAsDone(receipt.id);
-            onUpdate();
-            showToast(
-                receipt.recurringData?.isActive
-                    ? t('receipts.tracking.markRecurringSuccess')
-                    : t('receipts.tracking.markSuccess'),
-                'success'
-            );
+            await markDone(receipt.id);
+            onUpdate?.();
+            showToast(receipt.recurringData?.isActive ? t('receipts.tracking.markRecurringSuccess') : t('receipts.tracking.markSuccess'), 'success');
         } catch (err) {
             showToast(err.message || t('receipts.tracking.markFailed'), 'error');
         } finally {
-            setIsMarkingDone(false);
+            setBusy(false);
         }
     };
 
+    const duplicate = () => {
+        const { id, createdAt, updatedAt, imagePath, extraction, importRef, trackingData, ...rest } = receipt;
+        openQuickAdd({ initial: { ...rest, date: dateKey(0), trackingData: null } });
+    };
+
+    const actionBtn = 'flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-line-strong bg-surface text-sm font-semibold text-ink active:opacity-80';
 
     return (
-        <div className="max-w-2xl mx-auto pb-8">
-            <div className="mb-4">
-                <button
-                    onClick={() => navigate(backTarget)}
-                    className="flex items-center gap-2 text-gray-600 dark:text-white hover:text-gray-900 dark:hover:text-gray-200"
-                >
-                    <ArrowLeft size={20} />
-                    {t('receipts.detail.backToReceipts')}
-                </button>
+        <div className="mx-auto flex min-h-[100dvh] max-w-xl flex-col">
+            <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),12px)]">
+                <IconButton label={t('common.actions.back')} icon={ChevronLeft} size={22} onClick={() => navigate(backTarget)} />
+                <span className="text-[13px] font-semibold uppercase tracking-wider text-ink-muted">{type === 'income' ? t('quickAdd.income') : type === 'transfer' ? t('quickAdd.transfer') : t('quickAdd.expense')}</span>
+                <IconButton label={t('detail.moreActions')} icon={MoreHorizontal} onClick={() => setMenu(true)} />
             </div>
 
-            <div className="card">
-                <div className="flex items-start justify-between mb-6">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{receipt.merchant}</h1>
-                            {trackingStatus === 'open' && (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                    <Clock3 size={12} />
-                                    {t('receipts.tracking.open')}
-                                </span>
-                            )}
-                            {trackingStatus === 'done' && (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
-                                    <CheckCircle2 size={12} />
-                                    {t('receipts.tracking.done')}
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-300">{formatDate(receipt.date)}</p>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                            <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
-                        </div>
-                        {receipt.category && (
-                            <span className="inline-block px-3 py-1 text-sm rounded primary-bg primary-color">
-                                {localizeCategory(receipt.category)}
-                            </span>
-                        )}
+            <div className="flex items-center gap-3.5 px-5 pb-3 pt-1.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <h1 className="break-words font-display text-[26px] font-bold leading-tight tracking-tight text-ink">{receipt.merchant}</h1>
+                    <span className="text-[13px] text-ink-muted">{subtitle}</span>
+                    <div className="mt-1.5 flex items-baseline gap-1.5" dir="ltr">
+                        <Amount value={receipt.total} className="text-4xl font-semibold leading-none tracking-tight" tone={status === 'open' ? 'muted' : type === 'income' ? 'income' : type === 'transfer' ? 'savings' : 'default'} />
+                        <span className="font-mono text-base text-ink-muted">{currencySymbol(receipt.currency, locale)}</span>
                     </div>
                 </div>
+                {image.url ? (
+                    <button type="button" onClick={() => setViewer(true)} aria-label={t('detail.openPhoto')} className="flex h-[108px] w-[84px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-tint">
+                        <img src={image.url} alt={t('scan.receiptPhoto')} className="h-full w-full object-cover" />
+                    </button>
+                ) : null}
+            </div>
 
-                {receipt.lineItems && receipt.lineItems.length > 0 && (
-                    <div className="mb-6">
-                        <h2 className="text-lg font-semibold mb-3 dark:text-white">{t('receipts.detail.lineItems')}</h2>
-                        <div className="space-y-2">
-                            {receipt.lineItems.map((item, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                                >
-                                    <div className="flex-1">
-                                        <p className="font-medium text-gray-900 dark:text-gray-100">{item.name}</p>
-                                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                            <span>{t('receipts.detail.qtyLabel', { quantity: item.quantity })}</span>
-                                            {item.category && (
-                                                <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-0.5 rounded">
-                                                    {localizeCategory(item.category)}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                        {formatCurrency(parseFloat(item.price || 0) * parseFloat(item.quantity || 1), receipt.currency || 'USD')}
-                                    </p>
-                                </div>
-                            ))}
+            <div className="flex flex-1 flex-col gap-3 px-5 pb-4">
+                {receipt.extraction?.pending ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('detail.pendingRead')}</p> : null}
+                {receipt.extraction?.failed ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('detail.readFailed')}</p> : null}
+
+                {type === 'expense' ? (
+                    <section className={`${card} flex flex-col gap-2 px-4 py-3`}>
+                        <div className="flex items-baseline justify-between">
+                            <span className={cap}>{t('quickAdd.categoryLabel').split(' · ')[0]}</span>
                         </div>
-                    </div>
-                )}
-
-                {receipt.notes && (
-                    <div className="mb-6">
-                        <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('receipts.detail.notes')}</h2>
-                        <p className="text-gray-700 dark:text-white">{receipt.notes}</p>
-                    </div>
-                )}
-
-                {receipt.splitData && (
-                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
-                        <h2 className="text-lg font-semibold mb-3 dark:text-white">
-                            {t('receipts.detail.splitDetails')}
-                        </h2>
-                        {receipt.splitData.method === 'equal' ? (
-                            <div>
-                                <p className="text-sm text-gray-700 dark:text-white">
-                                    {t('receipts.detail.splitEqualSummary', {
-                                        people: receipt.splitData.people,
-                                        suffix: receipt.splitData.people !== 1 ? 's' : '',
-                                    })}
-                                </p>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
-                                    {t('receipts.detail.splitEachPerson', {
-                                        amount: formatCurrency(receipt.total / receipt.splitData.people, receipt.currency || 'EUR'),
-                                    })}
-                                </p>
+                        {allCategories ? (
+                            <div className="flex flex-wrap gap-2">
+                                {names.map((n) => (
+                                    <Chip key={n} size="sm" selected={receipt.category === n} onClick={() => changeCategory(n)}>
+                                        {localizeCategory(n)}
+                                    </Chip>
+                                ))}
                             </div>
                         ) : (
-                            <div className="space-y-2">
-                                <p className="text-sm text-gray-700 dark:text-white mb-2">
-                                    {t('receipts.detail.splitCustomSummary', {
-                                        people: receipt.splitData.people,
-                                        suffix: receipt.splitData.people !== 1 ? 's' : '',
-                                    })}
-                                </p>
-                                {receipt.splitData.users && receipt.splitData.users.length > 0 && (
-                                    <div className="space-y-1">
-                                        {receipt.splitData.users.map((user, index) => (
-                                            <div key={index} className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-700 dark:text-white">
-                                                    {user.name || t('receipts.detail.personName', { index: index + 1 })}
-                                                </span>
-                                                <span className="font-semibold text-gray-900 dark:text-white">
-                                                    {formatCurrency(user.amount, receipt.currency || 'EUR')} ({user.percentage.toFixed(1)}%)
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                            <ChipRow className="!-mx-4 !px-4">
+                                {[...new Set([receipt.category, ...ranked.top])].filter(Boolean).slice(0, 4).map((n) => (
+                                    <Chip key={n} size="sm" selected={receipt.category === n} onClick={() => changeCategory(n)}>
+                                        {localizeCategory(n)}
+                                    </Chip>
+                                ))}
+                                <Chip size="sm" onClick={() => setAllCategories(true)}>
+                                    {t('detail.otherCategory')}
+                                </Chip>
+                            </ChipRow>
                         )}
-                    </div>
-                )}
+                    </section>
+                ) : null}
 
-                <div className="flex gap-2 pt-4 border-t">
-                    <Button
-                        variant="primary"
-                        onClick={() => setIsEditing(true)}
-                        className="flex-1 flex items-center justify-center gap-2"
-                    >
-                        <Edit size={18} />
-                        {t('common.actions.edit')}
-                    </Button>
-                    <Button
-                        variant="danger"
-                        onClick={() => setIsDeleting(true)}
-                        className="flex-1 flex items-center justify-center gap-2"
-                    >
-                        <Trash2 size={18} />
-                        {t('common.actions.delete')}
-                    </Button>
-                </div>
+                <section className={`${card} px-4`}>
+                    {account || toAccount ? <Kv label={t('scan.account')}>{type === 'transfer' ? [account?.name, toAccount?.name].filter(Boolean).join(' → ') : account?.name}</Kv> : null}
+                    <Kv label={t('quickAdd.group')}>{receipt.groupName || <span className="text-ink-faint">{t('receipts.form.noGroup')}</span>}</Kv>
+                    <Kv label={t('quickAdd.tags')}>{receipt.groupTags?.length ? receipt.groupTags.join(', ') : <span className="text-ink-faint">—</span>}</Kv>
+                    {split ? <Kv label={t('receipts.split.title')}>{split}</Kv> : null}
+                    {receipt.recurringData?.isActive ? <Kv label={t('detail.repeats')}>{t(`receipts.recurring.${receipt.recurringData.frequency}`)}</Kv> : null}
+                    {status ? <Kv label={t('detail.status')}>{status === 'open' ? t('activity.unpaid') : t('detail.paid')}</Kv> : null}
+                    <Kv label={t('quickAdd.notes')} last>
+                        {receipt.notes ? receipt.notes : (
+                            <button type="button" onClick={() => openQuickAdd({ transaction: receipt })} className="min-h-[32px] text-ink-faint">
+                                {t('detail.addNote')}
+                            </button>
+                        )}
+                    </Kv>
+                </section>
 
-                {showDoneAction && trackingStatus === 'open' && (
-                    <Button
-                        variant="secondary"
-                        onClick={handleMarkAsDone}
-                        disabled={isMarkingDone}
-                        className="w-full mt-3 flex items-center justify-center gap-2"
-                    >
-                        <CheckCircle2 size={18} />
-                        {isMarkingDone ? t('receipts.tracking.marking') : t('receipts.tracking.markAsDone')}
-                    </Button>
-                )}
-
-                {showDoneAction && trackingStatus === 'done' && (
-                    <Button
-                        variant="secondary"
-                        disabled={true}
-                        className="w-full mt-3 flex items-center justify-center gap-2"
-                    >
-                        <CheckCircle2 size={18} />
-                        {t('receipts.tracking.doneState')}
-                    </Button>
-                )}
+                {items.length > 0 ? (
+                    <section className={`${card} flex flex-col gap-0.5 px-4 py-3`}>
+                        <div className="mb-1 flex items-baseline justify-between">
+                            <span className={cap}>{t('detail.itemsCount', { count: items.length })}</span>
+                            <button type="button" onClick={() => openQuickAdd({ transaction: receipt })} className="h-11 px-2 text-[13px] font-semibold text-forest-ink">
+                                {t('common.actions.edit')}
+                            </button>
+                        </div>
+                        {items.map((it, i) => {
+                            const bad = isUnreadable({ ...it, price: it.price === '' ? null : it.price });
+                            return (
+                                <LeaderRow
+                                    key={i}
+                                    className={`py-1.5 text-sm ${bad ? 'text-warn-ink' : ''}`}
+                                    label={String(it.name || '').trim() ? it.name : t('detail.unreadableLine')}
+                                    value={it.price === null || it.price === undefined || it.price === '' ? <span className="font-mono">?</span> : <Amount value={Number(it.price) * (Number(it.quantity) > 1 ? Number(it.quantity) : 1)} />}
+                                />
+                            );
+                        })}
+                        <LeaderRow className="mt-1 border-t border-line pt-2 text-sm font-semibold" label={t('receipts.form.total')} value={<Amount value={receipt.total} />} />
+                    </section>
+                ) : null}
             </div>
 
-            {isEditing && (
-                <Modal
-                    isOpen={isEditing}
-                    onClose={() => setIsEditing(false)}
-                    title={t('receipts.detail.editTitle')}
-                    size="lg"
-                >
-                    <ReceiptForm
-                        initialData={receipt}
-                        onSave={handleUpdate}
-                        onClose={() => setIsEditing(false)}
-                    />
-                </Modal>
-            )}
+            <div className="sticky bottom-0 flex flex-col gap-2 bg-ground px-5 pt-2.5" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
+                {status === 'open' ? (
+                    <button type="button" disabled={busy} onClick={markPaid} className="flex h-14 items-center justify-center gap-2 rounded-[18px] bg-forest text-base font-semibold text-white active:scale-[0.98] disabled:opacity-50">
+                        <Check size={20} strokeWidth={2.4} aria-hidden="true" />
+                        {t('detail.markPaid')}
+                    </button>
+                ) : null}
+                <div className="flex gap-2">
+                    <button type="button" className={actionBtn} onClick={duplicate}>
+                        <Copy size={16} aria-hidden="true" />
+                        {t('detail.duplicate')}
+                    </button>
+                    <button type="button" className={actionBtn} onClick={() => openQuickAdd({ transaction: receipt })}>
+                        <Edit3 size={16} aria-hidden="true" />
+                        {t('common.actions.edit')}
+                    </button>
+                    <button type="button" className={`${actionBtn} !flex-none w-14 !text-over-ink`} aria-label={t('common.actions.delete')} onClick={() => setConfirmDelete(true)}>
+                        <Trash2 size={18} aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
 
-            {isDeleting && (
-                <Modal
-                    isOpen={isDeleting}
-                    onClose={() => setIsDeleting(false)}
-                    title={t('receipts.detail.deleteTitle')}
-                >
-                    <p className="mb-4">{t('receipts.detail.deleteConfirmMessage')}</p>
-                    <div className="flex gap-2">
-                        <Button variant="danger" onClick={handleDelete} className="flex-1">
-                            {t('common.actions.delete')}
-                        </Button>
-                        <Button variant="secondary" onClick={() => setIsDeleting(false)} className="flex-1">
-                            {t('common.actions.cancel')}
-                        </Button>
-                    </div>
-                </Modal>
-            )}
+            {viewer && image.url ? <ImageViewer src={image.url} alt={t('scan.receiptPhoto')} onClose={() => setViewer(false)} /> : null}
 
+            <Sheet open={menu} onClose={() => setMenu(false)} label={t('detail.moreActions')}>
+                <div className="flex flex-col px-3 pb-2">
+                    <button
+                        type="button"
+                        className="flex min-h-[48px] items-center gap-3 rounded-xl px-3 text-[15px] text-ink active:bg-line"
+                        onClick={async () => {
+                            setMenu(false);
+                            await updateReceipt(receipt.id, { isPinned: !receipt.isPinned });
+                            onUpdate?.();
+                        }}
+                    >
+                        {receipt.isPinned ? <PinOff size={18} aria-hidden="true" /> : <Pin size={18} aria-hidden="true" />}
+                        {receipt.isPinned ? t('detail.unpin') : t('detail.pin')}
+                    </button>
+                </div>
+            </Sheet>
+
+            <Sheet open={confirmDelete} onClose={() => setConfirmDelete(false)} label={t('receipts.detail.deleteTitle')}>
+                <div className="flex flex-col gap-3 px-5 pb-2">
+                    <h2 className="font-display text-lg font-bold text-ink">{t('receipts.detail.deleteTitle')}</h2>
+                    <p className="text-sm text-ink-muted">{t('receipts.detail.deleteConfirmMessage')}</p>
+                    <button type="button" disabled={busy} onClick={remove} className="h-14 rounded-[18px] bg-over text-base font-semibold text-white disabled:opacity-50" data-autofocus>
+                        {t('common.actions.delete')}
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(false)} className="h-12 rounded-[18px] text-sm font-semibold text-ink-muted">
+                        {t('common.actions.cancel')}
+                    </button>
+                </div>
+            </Sheet>
         </div>
     );
 }

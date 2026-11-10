@@ -891,4 +891,26 @@ export const en = {
         empty: "No groups yet. Create one to collect related transactions.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "Your share {{amount}}",
+        splitEqual: "split equally between {{people}}",
+        splitCustom: "custom split, {{count}} people",
+        moreActions: "More actions",
+        openPhoto: "Open receipt photo",
+        pendingRead: "Waiting to be read. The photo is saved and will be read when you’re back online.",
+        readFailed: "This receipt couldn’t be read. Edit the details by hand.",
+        otherCategory: "Other…",
+        repeats: "Repeats",
+        status: "Status",
+        paid: "paid",
+        addNote: "Add a note",
+        itemsCount: "Items · {{count}}",
+        unreadableLine: "Unreadable line",
+        markPaid: "Mark paid",
+        duplicate: "Duplicate",
+        pin: "Pin to top",
+        unpin: "Unpin",
+    },
+    // @i18n:end detail
 };

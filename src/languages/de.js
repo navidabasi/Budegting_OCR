@@ -736,4 +736,26 @@ export const de = {
         empty: "Noch keine Gruppen. Lege eine an, um zusammengehörige Transaktionen zu sammeln.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "Dein Anteil {{amount}}",
+        splitEqual: "gleichmäßig auf {{people}} aufgeteilt",
+        splitCustom: "individuelle Aufteilung, {{count}} Personen",
+        moreActions: "Weitere Aktionen",
+        openPhoto: "Belegfoto öffnen",
+        pendingRead: "Wartet aufs Lesen. Das Foto ist gespeichert und wird gelesen, sobald du wieder online bist.",
+        readFailed: "Dieser Beleg konnte nicht gelesen werden. Bearbeite die Angaben manuell.",
+        otherCategory: "Andere…",
+        repeats: "Wiederholt",
+        status: "Status",
+        paid: "bezahlt",
+        addNote: "Notiz hinzufügen",
+        itemsCount: "Positionen · {{count}}",
+        unreadableLine: "Unleserliche Zeile",
+        markPaid: "Als bezahlt markieren",
+        duplicate: "Duplizieren",
+        pin: "Oben anheften",
+        unpin: "Lösen",
+    },
+    // @i18n:end detail
 };

@@ -786,4 +786,26 @@ export const fa = {
         empty: "هنوز گروهی نیست. یکی بسازید تا تراکنش‌های مرتبط را جمع کنید.",
     },
     // @i18n:end groups
+    // @i18n:begin detail
+    detail: {
+        yourShare: "سهم شما {{amount}}",
+        splitEqual: "تقسیم مساوی بین {{people}} نفر",
+        splitCustom: "تقسیم سفارشی، {{count}} نفر",
+        moreActions: "اقدامات بیشتر",
+        openPhoto: "باز کردن عکس رسید",
+        pendingRead: "در انتظار خواندن. عکس ذخیره شده و هنگام اتصال دوباره خوانده می‌شود.",
+        readFailed: "این رسید خوانده نشد. جزئیات را دستی ویرایش کنید.",
+        otherCategory: "دیگر…",
+        repeats: "تکرار",
+        status: "وضعیت",
+        paid: "پرداخت‌شده",
+        addNote: "افزودن یادداشت",
+        itemsCount: "اقلام · {{count}}",
+        unreadableLine: "سطر ناخوانا",
+        markPaid: "علامت‌گذاری به‌عنوان پرداخت‌شده",
+        duplicate: "تکثیر",
+        pin: "سنجاق در بالا",
+        unpin: "برداشتن سنجاق",
+    },
+    // @i18n:end detail
 };
