@@ -61,7 +61,7 @@ describe('App smoke (offline, local mirror)', () => {
         await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'en' });
         await createTransaction({ userId: 'u1', merchant: 'Esselunga Smoke', total: 42.1, date: '2026-11-08', category: 'Groceries' });
 
-        const { el, root } = await renderApp('/receipts');
+        const { el, root } = await renderApp('/activity');
         expect(el.textContent).toContain('Esselunga Smoke');
         await act(async () => root.unmount());
     });

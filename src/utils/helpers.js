@@ -147,11 +147,11 @@ export const formatMonthYearLabel = (monthIndex, year) => {
 };
 
 export const buildReturnToPath = (location) => {
-    if (!location || !location.pathname) return '/receipts';
+    if (!location || !location.pathname) return '/activity';
     return `${location.pathname}${location.search || ''}`;
 };
 
-export const resolveReceiptBackTarget = (receiptId, returnTo, fallback = '/receipts') => {
+export const resolveReceiptBackTarget = (receiptId, returnTo, fallback = '/activity') => {
     if (!returnTo) return fallback;
     const receiptPath = `/receipts/${receiptId}`;
     return returnTo === receiptPath ? fallback : returnTo;

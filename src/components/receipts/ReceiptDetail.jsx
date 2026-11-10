@@ -25,7 +25,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
     const trackingStatus = getTrackingStatus(receipt);
     const showDoneAction = isTrackedReceipt(receipt);
-    const returnTo = location.state?.returnTo || '/receipts';
+    const returnTo = location.state?.returnTo || '/activity';
     const backTarget = resolveReceiptBackTarget(receipt.id, returnTo);
 
     const handleUpdate = async (receiptData) => {

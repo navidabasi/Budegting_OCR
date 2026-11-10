@@ -20,7 +20,7 @@ export default function ReceiptDetailPage() {
     const initialReceipt = incomingReceipt && String(incomingReceipt.id) === String(id)
         ? incomingReceipt
         : null;
-    const returnTo = location.state?.returnTo || '/receipts';
+    const returnTo = location.state?.returnTo || '/activity';
     const backTarget = resolveReceiptBackTarget(id, returnTo);
     const { data: liveReceipt, isLoading, error: queryError } = useTransaction(id);
     const syncStatus = useSyncStatus();
@@ -50,7 +50,7 @@ export default function ReceiptDetailPage() {
         const candidate = initialReceipt?.date ? parseAppDate(initialReceipt.date) : new Date();
         const base = candidate || new Date();
         showToast(t('receipts.detail.unableOpen'), 'warning');
-        navigate(`/receipts?filter=month&month=${base.getMonth() + 1}&year=${base.getFullYear()}`, { replace: true });
+        navigate(`/activity?filter=month&month=${base.getMonth() + 1}&year=${base.getFullYear()}`, { replace: true });
     }, [id, loading, receipt, queryError, initialReceipt, navigate, showToast, backTarget, t]);
 
     if (loading) {

@@ -11,12 +11,12 @@ export default function CashFlow({ receipts }) {
 
     const handleIncomeClick = () => {
         // Navigate to receipts page with all-time income filter
-        navigate('/receipts?type=income');
+        navigate('/activity?type=income');
     };
 
     const handleExpenseClick = () => {
         // Navigate to receipts page with all-time expense filter
-        navigate('/receipts?type=expense');
+        navigate('/activity?type=expense');
     };
     // Separate income and expenses
     const expenses = financialReceipts.filter(r => (r.transactionType || 'expense') === 'expense');

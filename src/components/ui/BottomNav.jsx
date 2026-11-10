@@ -34,7 +34,7 @@ export default function BottomNav() {
         >
             <div className="mx-auto flex max-w-[520px] items-center justify-between">
                 {link('/', Home, t('navigation.home'), isHome)}
-                {link('/activity', ListFilter, t('nav.activity'), pathname.startsWith('/activity') || pathname.startsWith('/receipts'))}
+                {link('/activity', ListFilter, t('nav.activity'), pathname.startsWith('/activity') || pathname.startsWith('/activity'))}
                 <button
                     type="button"
                     onClick={() => setAddReceiptModalOpen(true)}

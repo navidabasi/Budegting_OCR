@@ -22,7 +22,8 @@ import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
-import ReceiptsPage from './pages/ReceiptsPage';
+import ActivityPage from './pages/ActivityPage';
+import GroupsPage from './pages/GroupsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
 import ComingNextPage from './pages/ComingNextPage';
@@ -47,6 +48,12 @@ import {
     shouldShowNotificationSetupPrompt,
     shouldTriggerDailyExpenseReminder,
 } from './services/notificationService';
+
+/** Old /receipts links (dashboard widgets, bookmarks) keep their query string. */
+function RedirectKeepQuery({ to }) {
+    const { search } = useLocation();
+    return <Navigate to={`${to}${search}`} replace />;
+}
 
 function ProtectedRoute({ children }) {
     const isAuthenticated = useAppStore((state) => state.isAuthenticated);
@@ -589,16 +596,10 @@ function App() {
                             </ProtectedRoute>
                         }
                     />
-                    <Route
-                        path="/receipts"
-                        element={
-                            <ProtectedRoute>
-                                <ReceiptsPage />
-                            </ProtectedRoute>
-                        }
-                    />
+                    <Route path="/receipts" element={<RedirectKeepQuery to="/activity" />} />
+                    <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
                     <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
-                    <Route path="/activity" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />
+                    <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
                     <Route path="/budgets" element={<ProtectedRoute><ComingNextPage kind="budgets" /></ProtectedRoute>} />
                     <Route path="/insights" element={<ProtectedRoute><ComingNextPage kind="insights" /></ProtectedRoute>} />
                     <Route

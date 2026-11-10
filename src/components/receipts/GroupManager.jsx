@@ -187,7 +187,7 @@ export default function GroupManager({ receipts, onUpdate }) {
 
     const handleGroupClick = (group) => {
         const groupIdToUse = group.supabaseId || group.id;
-        navigate(`/receipts?group=${groupIdToUse}`);
+        navigate(`/activity?group=${groupIdToUse}`);
     };
 
     const pinnedGroups = groups.filter(g => g.isPinned);

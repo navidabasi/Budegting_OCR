@@ -170,7 +170,7 @@ export default function RecurringPayments({ receipts }) {
 
             {recurringPayments.length > 5 && (
                 <button
-                    onClick={() => navigate('/receipts')}
+                    onClick={() => navigate('/activity')}
                     className="w-full mt-3 text-sm text-primary-600 dark:text-primary-400 hover:underline"
                 >
                     {t('dashboard.recurring.viewAll', { count: recurringPayments.length })}
