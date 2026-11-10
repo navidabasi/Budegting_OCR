@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Insights — November and chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Albert+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#F4F6F3;color:#10211B;font-family:'Albert Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#00573F;text-decoration:none}a:hover{color:#003D2C}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.disp{font-family:'Bricolage Grotesque','Albert Sans',sans-serif}
+.f{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #EEF1ED;color:#10211B}
+.tag{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:8px;flex-shrink:0;margin-top:2px}
+.q{height:38px;padding:0 12px;border-radius:19px;border:1px solid #D6DDD8;background:#FFFFFF;font:inherit;font-size:13px;font-weight:500;color:#10211B;white-space:nowrap}
+.navbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:64px;height:56px;border-radius:16px;font-size:11px;font-weight:600;color:#5C6B64}
+.navbtn.on{color:#00573F}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F4F6F3; overflow: hidden">
+
+  <!-- Header -->
+  <div style="padding: 56px 20px 10px; display: flex; align-items: flex-end; justify-content: space-between">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #5C6B64">Insights</span>
+      <h1 class="disp" style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em">November so far</h1>
+    </div>
+    <button style="height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid #D6DDD8; background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; color: #00573F">Refresh</button>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 0 20px">
+
+    <!-- Narrative (AI) -->
+    <div style="background: #10211B; color: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+      <span class="disp" style="font-size: 19px; font-weight: 700; line-height: 1.25">Groceries are fine. Dining and a new subscription are what’s pushing you over.</span>
+      <span style="font-size: 14px; line-height: 1.45; opacity: .88">You’ve spent 1.240 € in 10 days, 38% faster than your usual pace. Dining (212 €) is already past its 180 € cap, mostly 9 small visits to Bar Roma. A 12,99 € charge from DAZN on the 3rd looks like a new subscription. Rent is still to come. Keep dining under 10 €/day and you finish the month 150 € under budget.</span>
+      <span style="font-size: 11px; opacity: .6">Made from your monthly totals only · deepseek-chat · 10 Nov 09:12</span>
+    </div>
+
+    <!-- Findings -->
+    <div style="background: #FFFFFF; border-radius: 20px; padding: 2px 16px; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(16,33,27,.06)">
+      <a href="Budgets.dc.html" class="f">
+        <span class="tag" style="background: #FDE7DB; color: #A33A0A">Over</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 15px; font-weight: 600">Dining 32 € over its budget</span><span style="font-size: 13px; color: #5C6B64">212 € on 9 visits · set a 180 € cap or raise it</span></div>
+      </a>
+      <a href="Detail.dc.html" class="f">
+        <span class="tag" style="background: #FFF4DF; color: #8A5A00">New</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 15px; font-weight: 600">DAZN 12,99 € looks like a subscription</span><span style="font-size: 13px; color: #5C6B64">Same amount on 3 Oct and 3 Nov · mark as recurring?</span></div>
+      </a>
+      <a href="Activity.dc.html" class="f">
+        <span class="tag" style="background: #E6F0EB; color: #00573F">Good</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 15px; font-weight: 600">Groceries 18% below your average</span><span style="font-size: 13px; color: #5C6B64">318 € vs 388 € · Lidl replaced two Esselunga trips</span></div>
+      </a>
+      <a href="Activity.dc.html" class="f" style="border-bottom: 0">
+        <span class="tag" style="background: #EEF1ED; color: #5C6B64">Check</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 15px; font-weight: 600">4 transactions have no category</span><span style="font-size: 13px; color: #5C6B64">Q8, Tabacchi Via Po and 2 more · categorise with AI</span></div>
+      </a>
+    </div>
+
+    <!-- Ask -->
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-bottom: 8px">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #5C6B64">Ask about your money</span>
+      <div style="display: flex; gap: 8px; overflow: hidden">
+        <button class="q">Where can I cut 100 €?</button>
+        <button class="q">On track for Japan?</button>
+        <button class="q">What changed vs October?</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center">
+        <input type="text" placeholder="Ask anything about your spending…" aria-label="Ask about your spending" style="flex: 1; height: 48px; border-radius: 16px; border: 1px solid #D6DDD8; background: #FFFFFF; padding: 0 14px; font: inherit; font-size: 15px; color: #10211B">
+        <button aria-label="Send" style="width: 48px; height: 48px; border-radius: 16px; border: 0; background: #00573F; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div style="padding: 8px 12px 24px; background: rgba(244,246,243,.96); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #E4E9E5">
+    <a href="Main.dc.html" class="navbtn" aria-label="Home"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path></svg>Home</a>
+    <a href="Activity.dc.html" class="navbtn" aria-label="Activity"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>Activity</a>
+    <a href="QuickAdd.dc.html" aria-label="Add transaction" style="width: 60px; height: 60px; border-radius: 30px; background: #00573F; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,87,63,.35); margin-top: -28px"><svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></a>
+    <a href="Budgets.dc.html" class="navbtn" aria-label="Budgets"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"></path><path d="M12 3v9h9"></path></svg>Budgets</a>
+    <a href="Insights.dc.html" class="navbtn on" aria-label="Insights"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg>Insights</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

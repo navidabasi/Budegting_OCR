@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Activity — all transactions</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Albert+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#F4F6F3;color:#10211B;font-family:'Albert Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#00573F;text-decoration:none}a:hover{color:#003D2C}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.disp{font-family:'Bricolage Grotesque','Albert Sans',sans-serif}
+.lead{flex:1;border-bottom:2px dotted currentColor;opacity:.3;margin:0 8px 4px}
+.chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid #D6DDD8;background:#FFFFFF;font:inherit;font-size:13px;font-weight:500;color:#10211B;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.chip.on{background:#10211B;border-color:#10211B;color:#FFFFFF}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;color:#10211B;border-bottom:1px solid #EEF1ED}
+.ic{width:40px;height:40px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.day{display:flex;align-items:baseline;padding:14px 2px 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5C6B64}
+.navbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:64px;height:56px;border-radius:16px;font-size:11px;font-weight:600;color:#5C6B64}
+.navbtn.on{color:#00573F}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F4F6F3; overflow: hidden">
+
+  <!-- Header -->
+  <div style="padding: 56px 20px 8px; display: flex; align-items: center; justify-content: space-between">
+    <h1 class="disp" style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em">Activity</h1>
+    <div style="display: flex; gap: 8px">
+      <button aria-label="Search" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(16,33,27,.08)"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10211B" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></button>
+      <button aria-label="Sort" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(16,33,27,.08)"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10211B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M4 12h8M4 18h4M18 9v10M15 16l3 3 3-3"></path></svg></button>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div style="display: flex; gap: 8px; padding: 6px 20px 10px; overflow: hidden">
+    <button class="chip on">November</button>
+    <button class="chip">All types</button>
+    <button class="chip">Category</button>
+    <button class="chip">Account</button>
+    <button class="chip" style="color: #8A5A00; border-color: #E7B65A">Unpaid · 3</button>
+    <button class="chip">Uncategorised · 4</button>
+  </div>
+
+  <!-- Month summary strip -->
+  <div style="margin: 0 20px; padding: 10px 14px; border-radius: 14px; background: #FFFFFF; display: flex; align-items: baseline; font-size: 13px; box-shadow: 0 1px 2px rgba(16,33,27,.06)">
+    <span style="font-weight: 600">47 transactions</span><span class="lead"></span>
+    <span style="color: #1B7F55; margin-right: 10px" class="mono">+2.350,00</span>
+    <span class="mono">−1.240,30</span>
+  </div>
+
+  <!-- List -->
+  <div style="flex: 1; overflow: hidden; padding: 0 20px">
+    <div class="day"><span>Today · Mon 10</span><span class="lead"></span><span class="mono" style="text-transform: none; letter-spacing: 0">28,19</span></div>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #FFF4DF"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 0 1 0 8h-1M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"></path><path d="M6 2v2M10 2v2M14 2v2"></path></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Bar Roma</span><span style="font-size: 12px; color: #5C6B64">Dining · Cash</span></div>
+      <span class="mono" style="font-size: 15px">4,72</span>
+    </a>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #E6F0EB"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00573F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11.5a2 2 0 0 0 2 1.5h8.2a2 2 0 0 0 2-1.5L21 8H6"></path><circle cx="9" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Lidl</span><span style="font-size: 12px; color: #5C6B64; display: flex; align-items: center; gap: 4px">Groceries · Revolut <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9AA6A0" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle></svg></span></div>
+      <span class="mono" style="font-size: 15px">23,47</span>
+    </a>
+
+    <div class="day"><span>Yesterday · Sun 9</span><span class="lead"></span><span class="mono" style="text-transform: none; letter-spacing: 0">412,60</span></div>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #E3EAFB"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2458D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"></path><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M3 12h18"></path></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">To Savings account</span><span style="font-size: 12px; color: #5C6B64">Emergency fund · from Revolut</span></div>
+      <span class="mono" style="font-size: 15px; color: #2458D6">400,00</span>
+    </a>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #EEF1ED"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6B64" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Rent</span><span style="font-size: 12px; color: #8A5A00">Housing · unpaid · due 12 Nov</span></div>
+      <span class="mono" style="font-size: 15px; color: #9AA6A0">650,00</span>
+    </a>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #EEF1ED"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6B64" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Q8 Torino Nord</span><span style="font-size: 12px; color: #8A5A00">Uncategorised · PostePay</span></div>
+      <span class="mono" style="font-size: 15px">12,60</span>
+    </a>
+
+    <div class="day"><span>Fri 7</span><span class="lead"></span><span class="mono" style="text-transform: none; letter-spacing: 0">68,30</span></div>
+    <a href="Detail.dc.html" class="row">
+      <div class="ic" style="background: #E6F0EB"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00573F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11.5a2 2 0 0 0 2 1.5h8.2a2 2 0 0 0 2-1.5L21 8H6"></path><circle cx="9" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Conad City</span><span style="font-size: 12px; color: #5C6B64">Groceries · Revolut</span></div>
+      <span class="mono" style="font-size: 15px">41,10</span>
+    </a>
+    <a href="Detail.dc.html" class="row" style="border-bottom: 0">
+      <div class="ic" style="background: #E3EAFB"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2458D6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10M2 16h20l-2 4H4z"></path></svg></div>
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Trenitalia</span><span style="font-size: 12px; color: #5C6B64">Transport · Revolut</span></div>
+      <span class="mono" style="font-size: 15px">27,20</span>
+    </a>
+  </div>
+
+  <!-- Bottom nav -->
+  <div style="padding: 8px 12px 24px; background: rgba(244,246,243,.96); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #E4E9E5">
+    <a href="Main.dc.html" class="navbtn" aria-label="Home"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path></svg>Home</a>
+    <a href="Activity.dc.html" class="navbtn on" aria-label="Activity"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>Activity</a>
+    <a href="QuickAdd.dc.html" aria-label="Add transaction" style="width: 60px; height: 60px; border-radius: 30px; background: #00573F; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,87,63,.35); margin-top: -28px"><svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></a>
+    <a href="Budgets.dc.html" class="navbtn" aria-label="Budgets"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"></path><path d="M12 3v9h9"></path></svg>Budgets</a>
+    <a href="Insights.dc.html" class="navbtn" aria-label="Insights"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg>Insights</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

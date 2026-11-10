@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trip — Lisbon, 4 days</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Albert+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#F4F6F3;color:#10211B;font-family:'Albert Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#00573F;text-decoration:none}a:hover{color:#003D2C}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.disp{font-family:'Bricolage Grotesque','Albert Sans',sans-serif}
+.lead{flex:1;border-bottom:2px dotted currentColor;opacity:.3;margin:0 8px 4px}
+.cat{display:flex;flex-direction:column;gap:6px;padding:9px 0;border-bottom:1px solid #EEF1ED;color:#10211B}
+.row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #EEF1ED;color:#10211B}
+.day{width:40px;height:40px;border-radius:14px;background:#EEF1ED;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:600;color:#5C6B64;line-height:1.1}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F4F6F3; overflow: hidden">
+
+  <!-- Top bar -->
+  <div style="padding: 52px 12px 4px; display: flex; align-items: center; justify-content: space-between">
+    <a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 22px"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10211B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></a>
+    <span style="font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #5C6B64">Trip · active</span>
+    <button style="height: 40px; padding: 0 12px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #00573F">End trip</button>
+  </div>
+
+  <!-- Trip hero -->
+  <div style="margin: 4px 20px 12px; background: #1F4E79; color: #FFFFFF; border-radius: 24px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <h1 class="disp" style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.05">Lisbon</h1>
+        <span style="font-size: 13px; opacity: .85">Thu 6 – Sun 9 Nov · day 3 of 4 · with Marta</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 10px; background: rgba(255,255,255,.16)">EUR</span>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 6px">
+      <span class="mono" style="font-size: 42px; font-weight: 600; line-height: 1; letter-spacing: -.02em">612,40</span>
+      <span class="mono" style="font-size: 16px; opacity: .85">of 900 €</span>
+    </div>
+    <div style="height: 8px; border-radius: 4px; background: rgba(255,255,255,.2); position: relative; overflow: visible">
+      <div style="width: 68%; height: 100%; background: #FFFFFF; border-radius: 4px"></div>
+      <div style="position: absolute; left: 75%; top: -3px; width: 2px; height: 14px; background: #FFD88A"></div>
+    </div>
+    <div style="display: flex; align-items: baseline; font-size: 13px; opacity: .92"><span>Per day</span><span class="lead" style="opacity: .5"></span><span class="mono">204,13 · budget 225</span></div>
+    <div style="display: flex; align-items: baseline; font-size: 13px; opacity: .92"><span>Your share (split 50/50)</span><span class="lead" style="opacity: .5"></span><span class="mono">306,20</span></div>
+    <div style="display: flex; align-items: baseline; font-size: 13px; opacity: .92"><span>Kept out of November budgets</span><span class="lead" style="opacity: .5"></span><span>yes</span></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 0 20px">
+
+    <!-- Auto-attach notice -->
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: #E3EAFB; color: #1F4E79; font-size: 13px">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+      <span style="flex: 1">New transactions join this trip automatically until Sun 9 Nov.</span>
+    </div>
+
+    <!-- By category -->
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 4px 16px; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(16,33,27,.06)">
+      <div class="cat">
+        <div style="display: flex; align-items: baseline; font-size: 14px"><span style="font-weight: 500">Housing · Airbnb</span><span class="lead"></span><span class="mono">280,00</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #EEF1ED; overflow: hidden"><div style="width: 46%; height: 100%; background: #1F4E79"></div></div>
+      </div>
+      <div class="cat">
+        <div style="display: flex; align-items: baseline; font-size: 14px"><span style="font-weight: 500">Dining</span><span class="lead"></span><span class="mono">168,90</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #EEF1ED; overflow: hidden"><div style="width: 28%; height: 100%; background: #1F4E79"></div></div>
+      </div>
+      <div class="cat">
+        <div style="display: flex; align-items: baseline; font-size: 14px"><span style="font-weight: 500">Transport</span><span class="lead"></span><span class="mono">121,50</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #EEF1ED; overflow: hidden"><div style="width: 20%; height: 100%; background: #1F4E79"></div></div>
+      </div>
+      <div class="cat" style="border-bottom: 0">
+        <div style="display: flex; align-items: baseline; font-size: 14px"><span style="font-weight: 500">Entertainment</span><span class="lead"></span><span class="mono">42,00</span></div>
+        <div style="height: 6px; border-radius: 3px; background: #EEF1ED; overflow: hidden"><div style="width: 7%; height: 100%; background: #1F4E79"></div></div>
+      </div>
+    </div>
+
+    <!-- Latest -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px">
+      <span class="disp" style="font-size: 17px; font-weight: 700">Latest</span>
+      <a href="Activity.dc.html" style="font-size: 13px; font-weight: 600">All 14</a>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 2px 16px; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(16,33,27,.06)">
+      <a href="Detail.dc.html" class="row"><div class="day"><span>SAT</span><span style="font-size: 14px; color: #10211B">8</span></div><div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Time Out Market</span><span style="font-size: 12px; color: #5C6B64">Dining · Revolut · split</span></div><span class="mono" style="font-size: 15px">38,50</span></a>
+      <a href="Detail.dc.html" class="row"><div class="day"><span>SAT</span><span style="font-size: 14px; color: #10211B">8</span></div><div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Metro Lisboa</span><span style="font-size: 12px; color: #5C6B64">Transport · Revolut</span></div><span class="mono" style="font-size: 15px">6,80</span></a>
+      <a href="Detail.dc.html" class="row" style="border-bottom: 0"><div class="day"><span>FRI</span><span style="font-size: 14px; color: #10211B">7</span></div><div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 15px; font-weight: 500">Pastéis de Belém</span><span style="font-size: 12px; color: #5C6B64">Dining · Cash</span></div><span class="mono" style="font-size: 15px">11,20</span></a>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="padding: 10px 20px 28px; display: flex; gap: 8px; background: #F4F6F3">
+    <a href="QuickAdd.dc.html" style="flex: 1; height: 52px; border-radius: 16px; background: #00573F; color: #FFFFFF; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 600"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add to trip</a>
+    <a href="Insights.dc.html" style="flex: 0 0 120px; height: 52px; border-radius: 16px; border: 1px solid #D6DDD8; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #10211B">Summary</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
