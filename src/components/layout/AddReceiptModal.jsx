@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Camera, Upload, FileText } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
-import { storageService } from '../../services/storage';
+import { useCreateTransaction } from '../../data/hooks';
 import Modal from '../common/Modal';
 import ReceiptForm from '../receipts/ReceiptForm';
 import ReceiptUpload from '../receipts/ReceiptUpload';
@@ -14,6 +14,7 @@ export default function AddReceiptModal() {
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
+    const createReceipt = useCreateTransaction();
     const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
     const [selectedFile, setSelectedFile] = useState(null);
     const fileInputRef = useRef(null);
@@ -28,15 +29,12 @@ export default function AddReceiptModal() {
         if (!currentUser) return;
 
         try {
-            await storageService.createReceipt({
+            await createReceipt({
                 ...receiptData,
                 userId: currentUser.userId
             });
             showToast(t('receipts.addModal.saveSuccess'), 'success');
             handleClose();
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast(t('receipts.addModal.saveFailed'), 'error');
         }

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useTransaction, useSyncStatus } from '../data/hooks';
+import { notifyDataChanged } from '../data/queryClient';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
 import ReceiptDetail from '../components/receipts/ReceiptDetail';
 import PageLayout from '../components/common/PageLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -14,7 +15,6 @@ export default function ReceiptDetailPage() {
     const { id } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
-    const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const incomingReceipt = location.state?.initialReceipt || null;
     const initialReceipt = incomingReceipt && String(incomingReceipt.id) === String(id)
@@ -22,96 +22,36 @@ export default function ReceiptDetailPage() {
         : null;
     const returnTo = location.state?.returnTo || '/receipts';
     const backTarget = resolveReceiptBackTarget(id, returnTo);
-    const [receipt, setReceipt] = useState(initialReceipt);
-    const [loading, setLoading] = useState(!initialReceipt);
-    const [loadError, setLoadError] = useState(null);
-    const [reloadKey, setReloadKey] = useState(0);
+    const { data: liveReceipt, isLoading, error: queryError } = useTransaction(id);
+    const syncStatus = useSyncStatus();
+    const hadReceiptRef = useRef(false);
+
+    // Live data from the local mirror; the navigation state gives an instant first render.
+    const receipt = liveReceipt || initialReceipt || null;
+    const loadError = queryError?.message || null;
+    // The mirror may still be empty on a fresh device until the first pull finishes
+    const waitingForFirstPull = !receipt && !syncStatus.attempted && navigator.onLine;
+    const loading = !receipt && (isLoading || waitingForFirstPull);
 
     useEffect(() => {
-        let active = true;
+        if (liveReceipt) hadReceiptRef.current = true;
+    }, [liveReceipt]);
 
-        // Optimistic render from navigation state when available
-        setReceipt(initialReceipt || null);
-        setLoadError(null);
+    useEffect(() => {
+        if (!id) {
+            showToast(t('receipts.detail.unableOpen'), 'warning');
+            navigate(backTarget, { replace: true });
+            return;
+        }
 
-        const getFallbackMonthYear = () => {
-            const candidate = initialReceipt?.date ? parseAppDate(initialReceipt.date) : new Date();
-            if (!candidate) {
-                const now = new Date();
-                return {
-                    month: now.getMonth() + 1,
-                    year: now.getFullYear()
-                };
-            }
+        // A receipt that disappears after being shown was deleted here: ReceiptDetail navigates away itself.
+        if (loading || receipt || queryError || hadReceiptRef.current) return;
 
-            return {
-                month: candidate.getMonth() + 1,
-                year: candidate.getFullYear()
-            };
-        };
-
-        const loadReceipt = async () => {
-            if (!id) {
-                showToast(t('receipts.detail.unableOpen'), 'warning');
-                navigate(backTarget, { replace: true });
-                return;
-            }
-
-            const shouldShowSpinner = !initialReceipt;
-            if (shouldShowSpinner) {
-                setLoading(true);
-            }
-
-            try {
-                let receiptData = await storageService.getReceiptById(id);
-
-                // Fallback strategy: if direct fetch fails to resolve an item, refresh from list.
-                if (!receiptData && currentUser?.userId) {
-                    const userReceipts = await storageService.getReceiptsByUserId(currentUser.userId);
-                    receiptData = userReceipts.find((item) => item.id === id) || null;
-                }
-
-                if (!active) return;
-
-                if (!receiptData) {
-                    throw new Error(t('receipts.page.noReceipts'));
-                }
-
-                setReceipt(receiptData);
-            } catch (err) {
-                if (!active) return;
-                console.error(`Failed to load receipt (${id}):`, err);
-                const message = err?.message || t('receipts.detail.deleteFailed');
-                const isNotFound = /not found|invalid receipt|missing receipt/i.test(message.toLowerCase());
-
-                if (isNotFound) {
-                    const { month, year } = getFallbackMonthYear();
-                    showToast(t('receipts.detail.unableOpen'), 'warning');
-                    navigate(`/receipts?filter=month&month=${month}&year=${year}`, { replace: true });
-                    return;
-                }
-
-                setLoadError(message);
-                if (initialReceipt) {
-                    setReceipt(initialReceipt);
-                    showToast(t('receipts.detail.unableOpen'), 'warning');
-                } else {
-                    setReceipt(null);
-                    showToast(t('receipts.detail.deleteFailed'), 'error');
-                }
-            } finally {
-                if (active) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        loadReceipt();
-
-        return () => {
-            active = false;
-        };
-    }, [id, initialReceipt, navigate, reloadKey, showToast, currentUser?.userId, backTarget]);
+        const candidate = initialReceipt?.date ? parseAppDate(initialReceipt.date) : new Date();
+        const base = candidate || new Date();
+        showToast(t('receipts.detail.unableOpen'), 'warning');
+        navigate(`/receipts?filter=month&month=${base.getMonth() + 1}&year=${base.getFullYear()}`, { replace: true });
+    }, [id, loading, receipt, queryError, initialReceipt, navigate, showToast, backTarget, t]);
 
     if (loading) {
         return <LoadingSpinner className="pb-20" />;
@@ -125,7 +65,7 @@ export default function ReceiptDetailPage() {
                     action={
                         <div className="flex justify-center gap-2">
                             <button
-                                onClick={() => setReloadKey((prev) => prev + 1)}
+                                onClick={() => notifyDataChanged()}
                                 className="btn btn-primary"
                             >
                                 {t('common.messages.tryAgain')}
@@ -151,7 +91,7 @@ export default function ReceiptDetailPage() {
         <PageLayout className="pt-6 md:pt-4 pb-32">
             <ReceiptDetail
                 receipt={receipt}
-                onUpdate={() => setReloadKey((prev) => prev + 1)}
+                onUpdate={() => notifyDataChanged()}
                 onDelete={handleDelete}
             />
         </PageLayout>

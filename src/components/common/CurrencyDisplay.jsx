@@ -1,24 +1,12 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../../utils/helpers';
-import { storageService } from '../../services/storage';
+import { useSettings } from '../../data/hooks';
 import { exchangeRateService } from '../../services/exchangeRateService';
-import { useAppStore } from '../../store/appStore';
 
 export default function CurrencyDisplay({ amount, currency: receiptCurrency }) {
-    const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
+    const { defaultCurrency } = useSettings();
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        const loadDefaultCurrency = async () => {
-            if (currentUser) {
-                const currency = await storageService.getDefaultCurrency(currentUser.userId);
-                setDefaultCurrency(currency);
-            }
-        };
-        loadDefaultCurrency();
-    }, [currentUser]);
 
     useEffect(() => {
         const convertAmount = async () => {

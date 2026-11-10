@@ -1,5 +1,5 @@
 import { MERCHANT_CATEGORY_MAP, CATEGORIES, DEFAULT_CATEGORY } from '../utils/constants';
-import { storageService } from './storage';
+import { listCategories } from '../data/repo';
 
 export const categoryService = {
     suggestCategory(merchantName, itemName = '') {
@@ -83,7 +83,7 @@ export const categoryService = {
         
         if (userId) {
             try {
-                const customCats = await storageService.getUserCategories(userId);
+                const customCats = await listCategories(userId);
                 const customNames = customCats.map(cat => cat.name);
                 // Merge custom categories, avoiding duplicates
                 customNames.forEach(name => {
@@ -119,7 +119,7 @@ export const categoryService = {
         
         if (userId) {
             try {
-                const customCats = await storageService.getUserCategories(userId);
+                const customCats = await listCategories(userId);
                 customCats.forEach(cat => {
                     if (cat.color) {
                         colors[cat.name] = cat.color;

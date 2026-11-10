@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { authService } from '../services/authService';
-import { storageService } from '../services/storage';
+import { syncNow } from '../data/sync';
 import { useAppStore } from '../store/appStore';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
@@ -44,12 +44,13 @@ export default function LoginPage() {
             
             // Force sync from cloud on login
             try {
-                const result = await storageService.syncAllFromCloud(user.userId);
-                if (result.synced > 0) {
+                const result = await syncNow(user.userId, { reason: 'login' });
+                const synced = result.downloaded + result.updated;
+                if (synced > 0) {
                     showToast(
                         t('auth.login.syncFromCloud', {
-                            count: result.synced,
-                            suffix: result.synced > 1 ? 's' : '',
+                            count: synced,
+                            suffix: synced > 1 ? 's' : '',
                         }),
                         'success'
                     );

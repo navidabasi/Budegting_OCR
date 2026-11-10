@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { X, Plus, Tag, Edit2, Trash2, Pin, PinOff } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import ColorPicker from '../common/ColorPicker';
 import ConfirmationModal from '../common/ConfirmationModal';
-import { storageService } from '../../services/storage';
+import { useCreateGroup, useDeleteGroup, useGroupsData, useUpdateGroup, useUpdateTransaction } from '../../data/hooks';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,7 +12,11 @@ export default function GroupManager({ receipts, onUpdate }) {
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
     const navigate = useNavigate();
-    const [groups, setGroups] = useState([]);
+    const { groups: allGroups } = useGroupsData();
+    const createGroup = useCreateGroup();
+    const updateGroup = useUpdateGroup();
+    const deleteGroup = useDeleteGroup();
+    const updateReceipt = useUpdateTransaction();
     const [selectedReceipts, setSelectedReceipts] = useState(new Set());
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
@@ -22,52 +26,25 @@ export default function GroupManager({ receipts, onUpdate }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [groupToDelete, setGroupToDelete] = useState(null);
 
-    useEffect(() => {
-        loadGroups();
-    }, [currentUser, receipts]);
+    // Groups with receipt counts (pinned first, then by name)
+    const groups = useMemo(() => {
+        const groupsWithCounts = allGroups.map(group => {
+            const groupReceipts = receipts.filter(r => r.groupId && String(r.groupId) === String(group.id));
+            return {
+                ...group,
+                receiptCount: groupReceipts.length,
+                receipts: groupReceipts
+            };
+        });
 
-    const loadGroups = async () => {
-        if (!currentUser?.userId) return;
-        
-        try {
-            const allGroups = await storageService.getAllGroups(currentUser.userId);
-            
-            // Count receipts per group - match by groupId (UUID) only
-            const groupsWithCounts = allGroups.map(group => {
-                // Use supabaseId if available, otherwise use local id
-                const groupIdToMatch = group.supabaseId || group.id;
-                
-                const groupReceipts = receipts.filter(r => {
-                    // Match by exact groupId (UUID) - be strict about matching
-                    if (!r.groupId) return false;
-                    
-                    // Convert both to strings for comparison
-                    const receiptGroupId = String(r.groupId);
-                    const targetGroupId = String(groupIdToMatch);
-                    
-                    return receiptGroupId === targetGroupId;
-                });
-                
-                return {
-                    ...group,
-                    receiptCount: groupReceipts.length,
-                    receipts: groupReceipts
-                };
-            });
-            
-            // Sort: pinned first, then by name
-            groupsWithCounts.sort((a, b) => {
-                if (a.isPinned && !b.isPinned) return -1;
-                if (!a.isPinned && b.isPinned) return 1;
-                return a.name.localeCompare(b.name);
-            });
-            
-            setGroups(groupsWithCounts);
-        } catch (error) {
-            console.error('Failed to load groups:', error);
-            showToast('Failed to load groups', 'error');
-        }
-    };
+        groupsWithCounts.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return groupsWithCounts;
+    }, [allGroups, receipts]);
 
     const handleCreateGroup = async () => {
         if (!newGroupName.trim()) {
@@ -78,22 +55,19 @@ export default function GroupManager({ receipts, onUpdate }) {
 
         try {
             // Create group in groups table
-            const groupId = await storageService.createGroup(currentUser.userId, {
+            const createdGroup = await createGroup({
                 name: newGroupName.trim(),
                 color: newGroupColor,
                 isPinned: newGroupPinned
             });
-
-            // Get the created group to get its ID
-            const createdGroup = await storageService.getGroupById(groupId);
-            const groupIdToUse = createdGroup?.id || groupId;
-            const groupNameToUse = createdGroup?.name || newGroupName.trim();
+            const groupIdToUse = createdGroup.id;
+            const groupNameToUse = createdGroup.name || newGroupName.trim();
 
             // Update selected receipts to reference this group
             for (const receiptId of selectedReceipts) {
                 const receipt = receipts.find(r => r.id === receiptId);
                 if (receipt) {
-                    await storageService.updateReceipt(receiptId, {
+                    await updateReceipt(receiptId, {
                         groupId: groupIdToUse,
                         groupName: groupNameToUse
                     });
@@ -101,7 +75,6 @@ export default function GroupManager({ receipts, onUpdate }) {
             }
             
             await onUpdate();
-            await loadGroups();
             setShowCreateGroup(false);
             setNewGroupName('');
             setNewGroupColor('#3b82f6');
@@ -115,11 +88,11 @@ export default function GroupManager({ receipts, onUpdate }) {
 
     const handleUpdateGroup = async (groupId, updates) => {
         try {
-            await storageService.updateGroup(groupId, updates);
+            await updateGroup(groupId, updates);
             
             // If name changed, update all receipts in this group
             if (updates.name) {
-                const group = await storageService.getGroupById(groupId);
+                const group = allGroups.find(g => g.id === groupId);
                 const groupReceipts = receipts.filter(r => 
                     r.groupId === group.id || 
                     r.groupId === group.supabaseId ||
@@ -127,14 +100,13 @@ export default function GroupManager({ receipts, onUpdate }) {
                 );
                 
                 for (const receipt of groupReceipts) {
-                    await storageService.updateReceipt(receipt.id, {
+                    await updateReceipt(receipt.id, {
                         groupName: updates.name
                     });
                 }
             }
             
             await onUpdate();
-            await loadGroups();
             setEditingGroup(null);
             showToast('Group updated', 'success');
         } catch (err) {
@@ -152,9 +124,8 @@ export default function GroupManager({ receipts, onUpdate }) {
         if (!groupToDelete) return;
 
         try {
-            await storageService.deleteGroup(groupToDelete.id);
+            await deleteGroup(groupToDelete.id);
             await onUpdate();
-            await loadGroups();
             showToast('Group deleted', 'success');
             setShowDeleteConfirm(false);
             setGroupToDelete(null);
@@ -167,10 +138,9 @@ export default function GroupManager({ receipts, onUpdate }) {
 
     const handleTogglePin = async (groupId, currentPinned) => {
         try {
-            await storageService.updateGroup(groupId, {
+            await updateGroup(groupId, {
                 isPinned: !currentPinned
             });
-            await loadGroups();
             showToast(currentPinned ? 'Group unpinned' : 'Group pinned', 'success');
         } catch (err) {
             showToast(`Failed to ${currentPinned ? 'unpin' : 'pin'} group: ${err.message}`, 'error');
@@ -187,14 +157,13 @@ export default function GroupManager({ receipts, onUpdate }) {
             for (const receiptId of selectedReceipts) {
                 const receipt = receipts.find(r => r.id === receiptId);
                 if (receipt) {
-                    await storageService.updateReceipt(receiptId, {
+                    await updateReceipt(receiptId, {
                         groupId: groupIdToUse,
                         groupName: group.name
                     });
                 }
             }
             await onUpdate();
-            await loadGroups();
             setSelectedReceipts(new Set());
             showToast('Receipts added to group', 'success');
         } catch (err) {
@@ -204,13 +173,12 @@ export default function GroupManager({ receipts, onUpdate }) {
 
     const handleRemoveFromGroup = async (receiptId) => {
         try {
-            await storageService.updateReceipt(receiptId, {
+            await updateReceipt(receiptId, {
                 groupId: null,
                 groupName: null,
                 groupTags: []
             });
             await onUpdate();
-            await loadGroups();
             showToast('Receipt removed from group', 'success');
         } catch (err) {
             showToast(`Failed to remove: ${err.message}`, 'error');

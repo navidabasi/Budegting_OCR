@@ -7,7 +7,7 @@ import SplitManager from './SplitManager';
 import RecurringManager from './RecurringManager';
 import { categoryService } from '../../services/categoryService';
 import { formatCurrency, getDateKey } from '../../utils/helpers';
-import { storageService } from '../../services/storage';
+import { useCreateGroup, useGroupsData, useSettings } from '../../data/hooks';
 import { exchangeRateService } from '../../services/exchangeRateService';
 import { useAppStore } from '../../store/appStore';
 import { useCategories } from '../../hooks/useCategories';
@@ -17,12 +17,13 @@ import { useTranslation } from '../../languages/useTranslation';
 export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     const { t, localizeCategory } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
+    const { defaultCurrency, isSuccess: settingsLoaded } = useSettings();
+    const { groups } = useGroupsData();
+    const createGroup = useCreateGroup();
     const [selectedCurrency, setSelectedCurrency] = useState('EUR');
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [converting, setConverting] = useState(false);
     const categories = useCategories();
-    const [groups, setGroups] = useState([]);
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const [showSplitManager, setShowSplitManager] = useState(false);
@@ -72,44 +73,18 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
     }, [initialData]);
 
     useEffect(() => {
-        const loadDefaultCurrency = async () => {
-            if (currentUser) {
-                try {
-                    const currency = await storageService.getDefaultCurrency(currentUser.userId);
-                    setDefaultCurrency(currency);
-                    if (!initialData) {
-                        setSelectedCurrency(currency);
-                        setValue('currency', currency);
-                    } else if (initialData.currency) {
-                        setSelectedCurrency(initialData.currency);
-                        setValue('currency', initialData.currency);
-                    } else {
-                        setSelectedCurrency(currency);
-                        setValue('currency', currency);
-                    }
-                } catch (error) {
-                    console.error('Failed to load default currency:', error);
-                }
-            }
-        };
-        loadDefaultCurrency();
-    }, [currentUser, initialData, setValue]);
-
-    useEffect(() => {
-        loadGroups();
-    }, [currentUser]);
-
-    const loadGroups = async () => {
-        if (currentUser) {
-            try {
-                const allGroups = await storageService.getAllGroups(currentUser.userId);
-                setGroups(allGroups);
-                console.log('[ReceiptForm] Loaded groups:', allGroups);
-            } catch (error) {
-                console.error('Failed to load groups:', error);
-            }
+        if (!currentUser || !settingsLoaded) return;
+        if (!initialData) {
+            setSelectedCurrency(defaultCurrency);
+            setValue('currency', defaultCurrency);
+        } else if (initialData.currency) {
+            setSelectedCurrency(initialData.currency);
+            setValue('currency', initialData.currency);
+        } else {
+            setSelectedCurrency(defaultCurrency);
+            setValue('currency', defaultCurrency);
         }
-    };
+    }, [currentUser, settingsLoaded, defaultCurrency, initialData, setValue]);
 
     const currencies = [
         { code: 'EUR', name: 'Euro' },
@@ -573,21 +548,15 @@ export default function ReceiptForm({ initialData = null, onSave, onClose }) {
                                     
                                     try {
                                         // Create group in groups table
-                                        const groupId = await storageService.createGroup(currentUser.userId, {
+                                        const createdGroup = await createGroup({
                                             name: newGroupName.trim(),
                                             color: '#3b82f6',
                                             isPinned: false
                                         });
-                                        
-                                        // Get the created group
-                                        const createdGroup = await storageService.getGroupById(groupId);
-
-                                        // Reload groups to ensure consistency
-                                        await loadGroups();
 
                                         // Set form values with validation flags
-                                        const groupIdToUse = createdGroup?.id || groupId;
-                                        const groupNameToUse = createdGroup?.name || newGroupName.trim();
+                                        const groupIdToUse = createdGroup.id;
+                                        const groupNameToUse = createdGroup.name || newGroupName.trim();
                                         setValue('groupId', groupIdToUse, { shouldValidate: true, shouldDirty: true });
                                         setValue('groupName', groupNameToUse, { shouldValidate: true, shouldDirty: true });
                                         setValue('groupTags', [], { shouldValidate: true, shouldDirty: true });

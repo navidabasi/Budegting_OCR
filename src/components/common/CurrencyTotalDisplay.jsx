@@ -1,25 +1,13 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
-import { storageService } from '../../services/storage';
+import { useSettings } from '../../data/hooks';
 import { exchangeRateService } from '../../services/exchangeRateService';
-import { useAppStore } from '../../store/appStore';
 
 // Component to display totals that may come from receipts with different currencies
 export default function CurrencyTotalDisplay({ receipts, amount }) {
-    const currentUser = useAppStore((state) => state.currentUser);
-    const [defaultCurrency, setDefaultCurrency] = useState('EUR');
+    const { defaultCurrency } = useSettings();
     const [convertedAmount, setConvertedAmount] = useState(null);
     const [hasMultipleCurrencies, setHasMultipleCurrencies] = useState(false);
-
-    useEffect(() => {
-        const loadDefaultCurrency = async () => {
-            if (currentUser) {
-                const currency = await storageService.getDefaultCurrency(currentUser.userId);
-                setDefaultCurrency(currency);
-            }
-        };
-        loadDefaultCurrency();
-    }, [currentUser]);
 
     useEffect(() => {
         const checkAndConvert = async () => {

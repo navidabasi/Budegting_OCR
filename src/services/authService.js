@@ -1,4 +1,3 @@
-import { storageService } from './storage';
 import { validateEmail } from '../utils/helpers';
 
 // Lazy load Supabase auth helpers to avoid blocking initial load
@@ -31,16 +30,11 @@ export const authService = {
                 throw new Error('Failed to create user account');
             }
 
-            // Save user info locally for offline access
-            await storageService.createUser({
-                email: user.email,
-                supabaseId: user.id,
-                supabaseUserId: user.id // Store Supabase user ID
-            });
-
-            // Save API key if provided (using Supabase user ID)
+            // Save API key if provided (using Supabase user ID). It is queued in the outbox and
+            // synced once the user has a session.
             if (ocrApiKey && user.id) {
-                await storageService.setOcrApiKey(user.id, ocrApiKey);
+                const { saveSettings } = await import('../data/repo');
+                await saveSettings(user.id, { ocrApiKey });
             }
 
             return {
@@ -72,16 +66,6 @@ export const authService = {
                 throw new Error('Invalid email or password');
             }
 
-            // Save user info locally for offline access (if not already saved)
-            const localUser = await storageService.getUserByEmail(email);
-            if (!localUser) {
-                await storageService.createUser({
-                    email: user.email,
-                    supabaseId: user.id,
-                    supabaseUserId: user.id
-                });
-            }
-
             return {
                 userId: user.id,
                 email: user.email,
@@ -107,8 +91,9 @@ export const authService = {
         }
     },
 
-    async getUser(userId) {
-        return await storageService.getUserById(userId);
+    async getUser() {
+        // Users live in Supabase Auth; there is no local user table any more
+        return null;
     },
 
     async getCurrentSession() {

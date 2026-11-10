@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
+import {
+    useCreateCategory,
+    useDeleteCategory,
+    useDemoData,
+    useSaveSettings,
+    useSettings,
+    useSyncActions,
+    useUpdateCategory,
+    useUserCategories,
+} from '../data/hooks';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
@@ -41,7 +50,6 @@ export default function SettingsPage() {
     const [loadingNotifications, setLoadingNotifications] = useState(false);
     const [loadingDemo, setLoadingDemo] = useState(false);
     const [clearingDemo, setClearingDemo] = useState(false);
-    const [demoReceiptCount, setDemoReceiptCount] = useState(0);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
     const [showClearResyncConfirm, setShowClearResyncConfirm] = useState(false);
@@ -50,7 +58,6 @@ export default function SettingsPage() {
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showDeleteCategoryConfirm, setShowDeleteCategoryConfirm] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState(null);
-    const [customCategories, setCustomCategories] = useState([]);
     const [editingCategory, setEditingCategory] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryColor, setNewCategoryColor] = useState('#00573f');
@@ -59,23 +66,45 @@ export default function SettingsPage() {
     const [notificationPreferences, setNotificationPreferences] = useState(() =>
         normalizeNotificationPreferences(null)
     );
+    const { settings, isSuccess: settingsLoaded, defaultCurrency: storedCurrency } = useSettings();
+    const saveSettings = useSaveSettings();
+    const { categories: customCategories } = useUserCategories();
+    const createCategory = useCreateCategory();
+    const updateCategory = useUpdateCategory();
+    const deleteCategory = useDeleteCategory();
+    const { demoCount: demoReceiptCount, seedDemoData, clearDemoData } = useDemoData();
+    const { syncNow, clearAndResync } = useSyncActions();
+
+    // Hydrate the forms from the stored settings. Each field re-hydrates only when its stored value
+    // changes (after the first sync or a save), so unsaved edits in other sections are not reset.
+    const storedApiKey = settings?.ocrApiKey || settings?.veryfiApiKey || '';
+    useEffect(() => {
+        if (!currentUser || !settingsLoaded) return;
+        if (storedApiKey) {
+            setApiKey(storedApiKey);
+            setValue('ocrApiKey', storedApiKey);
+        }
+    }, [currentUser, settingsLoaded, storedApiKey, setValue]);
 
     useEffect(() => {
-        loadSettings();
-        loadCustomCategories();
-        loadDemoReceiptCount();
-    }, [currentUser]);
+        if (!currentUser || !settingsLoaded) return;
+        setDefaultCurrency(storedCurrency);
+        resetCurrency({ defaultCurrency: storedCurrency });
+    }, [currentUser, settingsLoaded, storedCurrency, resetCurrency]);
 
+    const storedLanguage = settings?.languageCode || '';
     useEffect(() => {
-        const handleReceiptRefresh = () => {
-            loadDemoReceiptCount();
-        };
+        if (!currentUser || !settingsLoaded) return;
+        const language = normalizeLanguageCode(storedLanguage, '');
+        setSelectedLanguage(language || detectDeviceLanguage());
+    }, [currentUser, settingsLoaded, storedLanguage]);
 
-        window.addEventListener('refreshReceipts', handleReceiptRefresh);
-        return () => {
-            window.removeEventListener('refreshReceipts', handleReceiptRefresh);
-        };
-    }, [currentUser]);
+    const storedNotificationPreferences = settings?.notificationPreferences || null;
+    useEffect(() => {
+        if (!currentUser || !settingsLoaded) return;
+        setNotificationPreferences(normalizeNotificationPreferences(storedNotificationPreferences));
+        setNotificationPermission(getNotificationPermissionStatus());
+    }, [currentUser, settingsLoaded, storedNotificationPreferences]);
 
     useEffect(() => {
         const refreshPermission = () => {
@@ -90,53 +119,6 @@ export default function SettingsPage() {
             document.removeEventListener('visibilitychange', refreshPermission);
         };
     }, []);
-
-    const loadCustomCategories = async () => {
-        if (!currentUser) return;
-        try {
-            const categories = await storageService.getUserCategories(currentUser.userId);
-            setCustomCategories(categories);
-        } catch (err) {
-            console.error('Failed to load custom categories:', err);
-        }
-    };
-
-    const loadSettings = async () => {
-        if (!currentUser) return;
-
-        try {
-            const settings = await storageService.getSettings(currentUser.userId);
-            // Check both ocrApiKey and legacy veryfiApiKey
-            const existingApiKey = settings?.ocrApiKey || settings?.veryfiApiKey || '';
-            if (existingApiKey) {
-                setApiKey(existingApiKey);
-                setValue('ocrApiKey', existingApiKey);
-            }
-            const currency = await storageService.getDefaultCurrency(currentUser.userId);
-            setDefaultCurrency(currency);
-            resetCurrency({ defaultCurrency: currency });
-            const language = normalizeLanguageCode(settings?.languageCode || '', '');
-            setSelectedLanguage(language || detectDeviceLanguage());
-            setNotificationPreferences(normalizeNotificationPreferences(settings?.notificationPreferences || null));
-            setNotificationPermission(getNotificationPermissionStatus());
-        } catch (err) {
-            console.error('Failed to load settings:', err);
-        }
-    };
-
-    const loadDemoReceiptCount = async () => {
-        if (!currentUser) {
-            setDemoReceiptCount(0);
-            return;
-        }
-
-        try {
-            const count = await storageService.getDemoReceiptCount(currentUser.userId);
-            setDemoReceiptCount(count);
-        } catch (err) {
-            console.error('Failed to load demo receipt count:', err);
-        }
-    };
 
     const onSaveApiKey = async (data) => {
         if (!currentUser) {
@@ -153,9 +135,7 @@ export default function SettingsPage() {
         setLoading(true);
         try {
             const apiKeyValue = data.ocrApiKey?.trim() || '';
-            // Ensure userId is a string
-            const userId = String(currentUser.userId);
-            await storageService.setOcrApiKey(userId, apiKeyValue);
+            await saveSettings({ ocrApiKey: apiKeyValue });
             setApiKey(apiKeyValue);
             setValue('ocrApiKey', apiKeyValue);
             showToast(t('settings.ocr.saveSuccess'), 'success');
@@ -174,7 +154,7 @@ export default function SettingsPage() {
         setLoadingCurrency(true);
         try {
             const currency = data.defaultCurrency || data.currency || defaultCurrency;
-            await storageService.setDefaultCurrency(currentUser.userId, currency);
+            await saveSettings({ defaultCurrency: currency });
             setDefaultCurrency(currency);
             resetCurrency({ defaultCurrency: currency });
             showToast(t('settings.currency.saveSuccess'), 'success');
@@ -196,7 +176,7 @@ export default function SettingsPage() {
         const normalizedLanguage = normalizeLanguageCode(selectedLanguage);
 
         try {
-            await storageService.setLanguage(currentUser.userId, normalizedLanguage);
+            await saveSettings({ languageCode: normalizedLanguage });
             setLanguageCode(normalizedLanguage);
             showToast(t('settings.language.saveSuccess'), 'success');
         } catch (err) {
@@ -260,9 +240,8 @@ export default function SettingsPage() {
                 lastSetupPromptAt: nowIso,
             });
 
-            await storageService.setNotificationPreferences(currentUser.userId, normalized);
+            await saveSettings({ notificationPreferences: normalized });
             setNotificationPreferences(normalized);
-            window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated'));
             showToast(t('settings.notifications.saveSuccess'), 'success');
         } catch (err) {
             console.error('Failed to save notifications settings:', err);
@@ -293,7 +272,7 @@ export default function SettingsPage() {
         setLoadingDemo(true);
         setShowLoadDemoConfirm(false);
         try {
-            const result = await storageService.seedDemoData(currentUser.userId);
+            const result = await seedDemoData();
 
             if (result.alreadyExists) {
                 showToast(t('settings.demo.alreadyLoaded'), 'info');
@@ -301,10 +280,6 @@ export default function SettingsPage() {
                 showToast(t('settings.demo.loadedSuccess', { count: result.importedCount }), 'success');
             }
 
-            await loadDemoReceiptCount();
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
         } catch (err) {
             showToast(t('settings.demo.loadFailed'), 'error');
         } finally {
@@ -318,14 +293,8 @@ export default function SettingsPage() {
         setClearingDemo(true);
         setShowClearDemoConfirm(false);
         try {
-            const clearedCount = await storageService.clearDemoData(currentUser.userId);
+            await clearDemoData();
             showToast(t('settings.demo.clearSuccess'), 'success');
-            if (clearedCount > 0) {
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                window.dispatchEvent(new CustomEvent('refreshReceipts'));
-                window.dispatchEvent(new CustomEvent('refreshGroups'));
-            }
-            await loadDemoReceiptCount();
         } catch (err) {
             showToast(t('settings.demo.clearFailed'), 'error');
         } finally {
@@ -353,7 +322,7 @@ export default function SettingsPage() {
 
         try {
             console.log('[Settings] Starting bidirectional sync for userId:', currentUser.userId);
-            const result = await storageService.syncBidirectional(currentUser.userId);
+            const result = await syncNow();
             clearTimeout(syncTimeout); // Clear timeout if sync completes
             console.log('[Settings] Sync result:', result);
 
@@ -392,13 +361,6 @@ export default function SettingsPage() {
             showToast(message, statusType);
             setSyncStatus({ type: statusType, message });
 
-            // Always trigger refresh events to ensure UI is up to date
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                window.dispatchEvent(new CustomEvent('refreshReceipts'));
-                window.dispatchEvent(new CustomEvent('refreshGroups'));
-            }, 200);
-            await loadDemoReceiptCount();
         } catch (err) {
             clearTimeout(syncTimeout); // Clear timeout on error
             console.error('[Settings] Sync error:', err);
@@ -421,7 +383,7 @@ export default function SettingsPage() {
 
         try {
             console.log('[Settings] Starting clear and resync for userId:', currentUser.userId);
-            const result = await storageService.clearAndResync(currentUser.userId);
+            const result = await clearAndResync();
             console.log('[Settings] Clear and resync result:', result);
 
             if (result.errors && result.errors.length > 0) {
@@ -432,12 +394,6 @@ export default function SettingsPage() {
                 showToast(t('settings.cloud.resyncSuccess'), 'success');
                 setSyncStatus({ type: 'success', message: t('settings.cloud.resyncSuccess') });
             }
-
-            // Refresh the UI
-            window.dispatchEvent(new Event('refreshReceipts'));
-            window.dispatchEvent(new Event('refreshGroups'));
-            window.dispatchEvent(new Event('refreshDashboard'));
-            await loadDemoReceiptCount();
         } catch (err) {
             console.error('[Settings] Clear and resync error:', err);
             showToast(t('settings.cloud.resyncFailed', { message: err.message || 'Unknown error' }), 'error');
@@ -903,11 +859,10 @@ export default function SettingsPage() {
                                             return;
                                         }
                                         try {
-                                            await storageService.updateUserCategory(editingCategory.id, {
+                                            await updateCategory(editingCategory.id, {
                                                 name: newCategoryName.trim(),
                                                 color: newCategoryColor
                                             });
-                                            await loadCustomCategories();
                                             setEditingCategory(null);
                                             setNewCategoryName('');
                                             setNewCategoryColor('#00573f');
@@ -941,11 +896,10 @@ export default function SettingsPage() {
                                     }
                                     if (!currentUser) return;
                                     try {
-                                        await storageService.createUserCategory(currentUser.userId, {
+                                        await createCategory({
                                             name: newCategoryName.trim(),
                                             color: newCategoryColor
                                         });
-                                        await loadCustomCategories();
                                         setNewCategoryName('');
                                         setNewCategoryColor('#00573f');
                                         showToast(t('settings.categories.createSuccess'), 'success');
@@ -1029,8 +983,7 @@ export default function SettingsPage() {
                 onConfirm={async () => {
                     if (!categoryToDelete) return;
                     try {
-                        await storageService.deleteUserCategory(categoryToDelete.id);
-                        await loadCustomCategories();
+                        await deleteCategory(categoryToDelete.id);
                         showToast(t('settings.categories.deleteSuccess'), 'success');
                     } catch (err) {
                         showToast(t('settings.categories.deleteFailed', { message: err.message }), 'error');

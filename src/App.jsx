@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 function ScrollToTop() {
@@ -10,8 +10,9 @@ function ScrollToTop() {
 }
 import { useAppStore } from './store/appStore';
 import { authService } from './services/authService';
-import { electricStorage } from './services/electricStorage';
-import { storageService } from './services/storage';
+import { checkStorageHealth, useSaveSettings, useSettings, useSyncStatus, useTransactions } from './data/hooks';
+import { startSync, syncNow } from './data/sync';
+import { notifyDataChanged } from './data/queryClient';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
@@ -63,11 +64,13 @@ function App() {
     const initializeDarkMode = useAppStore((state) => state.initializeDarkMode);
     const darkModeManual = useAppStore((state) => state.darkModeManual);
     const applyDarkMode = useAppStore((state) => state.applyDarkMode);
-    const languageCode = useAppStore((state) => state.languageCode);
     const setLanguageCode = useAppStore((state) => state.setLanguageCode);
-    const electricInitialized = useRef(false);
-    const syncInProgressRef = useRef(false);
     const storageWarningShownRef = useRef(false);
+    const languagePersistedRef = useRef(false);
+    const { settings, isSuccess: settingsLoaded } = useSettings();
+    const saveSettings = useSaveSettings();
+    const syncStatus = useSyncStatus();
+    const { transactions: receipts } = useTransactions();
     const showToastRef = useRef(showToast);
     const [isRecoveringStorage, setIsRecoveringStorage] = useState(false);
     const [showNotificationSetupPrompt, setShowNotificationSetupPrompt] = useState(false);
@@ -83,16 +86,13 @@ function App() {
 
         setIsRecoveringStorage(true);
         try {
-            await electricStorage.init(currentUser.userId, { force: true });
-            const health = electricStorage.getStorageHealth();
+            const health = await checkStorageHealth(true);
             setStorageHealth(health);
 
             if (health.hasLocalCache) {
                 storageWarningShownRef.current = false;
                 showToastRef.current(t('app.cacheRestored'), 'success');
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                window.dispatchEvent(new CustomEvent('refreshReceipts'));
-                window.dispatchEvent(new CustomEvent('refreshGroups'));
+                notifyDataChanged();
             } else {
                 showToastRef.current(t('app.cloudOnlyWarning'), 'warning');
             }
@@ -107,15 +107,12 @@ function App() {
     const saveNotificationPreferences = async (updater) => {
         if (!currentUser?.userId) return null;
 
-        const currentPreferences = normalizeNotificationPreferences(
-            await storageService.getNotificationPreferences(currentUser.userId)
-        );
+        const currentPreferences = normalizeNotificationPreferences(settings?.notificationPreferences || null);
         const updatedPreferences = normalizeNotificationPreferences(
             typeof updater === 'function' ? updater(currentPreferences) : updater
         );
 
-        await storageService.setNotificationPreferences(currentUser.userId, updatedPreferences);
-        window.dispatchEvent(new CustomEvent('notificationPreferencesUpdated'));
+        await saveSettings({ notificationPreferences: updatedPreferences });
         return updatedPreferences;
     };
 
@@ -181,52 +178,9 @@ function App() {
         showToastRef.current = showToast;
     }, [showToast]);
 
-    // Initialize PGlite storage when user authenticates
+    // Open the local IndexedDB mirror when the user authenticates and report its health
     useEffect(() => {
-        const initStorage = async () => {
-            if (currentUser?.userId && !electricInitialized.current) {
-                try {
-                    console.log('[App] Initializing PGlite storage...');
-
-                    // Initialize PGlite local database (fast - just creates tables if needed)
-                    await electricStorage.init(currentUser.userId);
-
-                    electricInitialized.current = true;
-                    console.log('[App] PGlite storage initialized');
-
-                    const storageHealth = electricStorage.getStorageHealth();
-                    setStorageHealth(storageHealth);
-                    if (!storageHealth.hasLocalCache && !storageWarningShownRef.current) {
-                        showToastRef.current(t('app.offlineModeLimited'), 'warning');
-                        storageWarningShownRef.current = true;
-                    } else if (storageHealth.hasLocalCache) {
-                        storageWarningShownRef.current = false;
-                    }
-
-                    // Trigger initial data load from local storage first (instant)
-                    window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                    window.dispatchEvent(new CustomEvent('refreshReceipts'));
-                    window.dispatchEvent(new CustomEvent('refreshGroups'));
-                } catch (error) {
-                    console.error('[App] Failed to initialize storage:', error);
-                    setStorageHealth({
-                        hasLocalCache: false,
-                        initFailed: true,
-                        fallbackMode: true,
-                        lastError: error?.message || 'Storage initialization failed'
-                    });
-                }
-            }
-        };
-
-        initStorage();
-    }, [currentUser?.userId, setStorageHealth]);
-
-    // Reset Electric on logout
-    useEffect(() => {
-        if (!currentUser?.userId && electricInitialized.current) {
-            electricInitialized.current = false;
-            syncInProgressRef.current = false;
+        if (!currentUser?.userId) {
             storageWarningShownRef.current = false;
             setStorageHealth({
                 hasLocalCache: true,
@@ -235,61 +189,52 @@ function App() {
                 lastError: null,
                 lastAttemptAt: null
             });
+            return;
         }
+
+        let cancelled = false;
+        checkStorageHealth().then((health) => {
+            if (cancelled) return;
+            setStorageHealth(health);
+            if (!health.hasLocalCache && !storageWarningShownRef.current) {
+                showToastRef.current(t('app.offlineModeLimited'), 'warning');
+                storageWarningShownRef.current = true;
+            } else if (health.hasLocalCache) {
+                storageWarningShownRef.current = false;
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [currentUser?.userId, setStorageHealth]);
 
     // Sync lifecycle: startup, online/focus/visibility, and periodic sync every 5 minutes
     useEffect(() => {
         if (!currentUser?.userId) return;
+        return startSync(currentUser.userId);
+    }, [currentUser?.userId]);
 
-        let disposed = false;
+    // Retry opening the local cache when the app comes back online / into focus while it was unavailable
+    useEffect(() => {
+        if (!currentUser?.userId || !storageHealth?.fallbackMode) return;
 
-        const runSync = async (reason) => {
-            if (disposed || !currentUser?.userId || !navigator.onLine || syncInProgressRef.current) {
-                return;
-            }
-
-            syncInProgressRef.current = true;
-            try {
-                console.log(`[App] Starting sync (${reason})...`);
-                const shouldForceRetry = reason === 'online' || reason === 'focus' || reason === 'visibility' || reason === 'manual';
-                await electricStorage.init(currentUser.userId, { force: shouldForceRetry });
-                const health = electricStorage.getStorageHealth();
+        const retry = () => {
+            checkStorageHealth(true).then((health) => {
                 setStorageHealth(health);
                 if (health.hasLocalCache) {
                     storageWarningShownRef.current = false;
+                    notifyDataChanged();
                 }
-                await electricStorage.syncBidirectional(currentUser.userId);
-            } catch (error) {
-                console.error(`[App] Sync failed (${reason}):`, error);
-            } finally {
-                syncInProgressRef.current = false;
-            }
+            });
         };
-
-        const handleOnline = () => runSync('online');
-        const handleFocus = () => runSync('focus');
-        const handleVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                runSync('visibility');
-            }
-        };
-
-        const syncInterval = setInterval(() => runSync('interval'), 5 * 60 * 1000);
-        runSync('startup');
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('focus', handleFocus);
-        document.addEventListener('visibilitychange', handleVisibility);
-
+        window.addEventListener('online', retry);
+        window.addEventListener('focus', retry);
         return () => {
-            disposed = true;
-            clearInterval(syncInterval);
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('focus', handleFocus);
-            document.removeEventListener('visibilitychange', handleVisibility);
+            window.removeEventListener('online', retry);
+            window.removeEventListener('focus', retry);
         };
-    }, [currentUser?.userId, setStorageHealth]);
+    }, [currentUser?.userId, storageHealth?.fallbackMode, setStorageHealth]);
 
     // Check for existing Supabase session on mount
     useEffect(() => {
@@ -324,25 +269,17 @@ function App() {
                                 email: session.user.email
                             });
 
-                            // Initialize Electric and pull from Supabase
-                            // (useEffect will handle full initialization, but we can start pulling early)
                             showToastRef.current(t('app.signedInSuccess'), 'success');
 
-                            // Trigger sync after sign-in if Electric is already initialized
-                            if (electricInitialized.current) {
-                                try {
-                                    console.log('[App] Pulling data after sign-in...');
-                                    await electricStorage.pullFromSupabase(session.user.id);
-                                } catch (error) {
-                                    console.error('[App] Post-signin sync failed:', error);
-                                }
-                            }
+                            // Pull data right after sign-in (the sync lifecycle effect also starts on the user change)
+                            syncNow(session.user.id, { reason: 'signin' }).catch((error) => {
+                                console.error('[App] Post-signin sync failed:', error);
+                            });
                         } else if (event === 'SIGNED_OUT') {
                             // Only clear auth state if actually online — offline token
                             // validation failures should not log the user out
                             if (navigator.onLine) {
                                 setCurrentUser(null);
-                                electricInitialized.current = false;
                             }
                         }
                     }
@@ -369,104 +306,52 @@ function App() {
     }, [initializeDarkMode]);
 
     // Initialize language (account setting > local cached > device language)
+    const accountLanguage = normalizeLanguageCode(settings?.languageCode || '', '');
     useEffect(() => {
-        let isMounted = true;
+        const deviceLanguage = detectDeviceLanguage();
+        const localLanguage = normalizeLanguageCode(useAppStore.getState().languageCode || '', '');
 
-        const initializeLanguage = async () => {
-            const deviceLanguage = detectDeviceLanguage();
-            const localLanguage = normalizeLanguageCode(languageCode || '', '');
+        if (!currentUser?.userId) {
+            languagePersistedRef.current = false;
+            setLanguageCode(localLanguage || deviceLanguage);
+            return;
+        }
 
-            if (!currentUser?.userId) {
-                const fallbackLanguage = localLanguage || deviceLanguage;
-                if (isMounted) {
-                    setLanguageCode(fallbackLanguage);
-                }
-                return;
-            }
+        if (!settingsLoaded) return;
 
-            // Pull latest cloud settings first so language stays in sync across devices.
-            if (typeof navigator !== 'undefined' && navigator.onLine) {
-                try {
-                    await electricStorage.pullFromSupabase(currentUser.userId);
-                } catch (err) {
-                    console.warn('[App] Failed to pull latest settings before language init:', err);
-                }
-            }
+        const resolvedLanguage = accountLanguage || localLanguage || deviceLanguage;
+        setLanguageCode(resolvedLanguage);
 
-            let accountLanguage = '';
-            let accountLanguageLoaded = false;
-            try {
-                accountLanguage = normalizeLanguageCode(await storageService.getLanguage(currentUser.userId), '');
-                accountLanguageLoaded = true;
-            } catch (err) {
-                console.warn('[App] Failed to read language from settings:', err);
-            }
-
-            const resolvedLanguage = accountLanguage || localLanguage || deviceLanguage;
-            if (!isMounted) return;
-
-            setLanguageCode(resolvedLanguage);
-
-            // Persist only when there is no account value yet.
-            if (accountLanguageLoaded && !accountLanguage) {
-                try {
-                    await storageService.setLanguage(currentUser.userId, resolvedLanguage);
-                } catch (err) {
-                    console.warn('[App] Failed to persist detected language:', err);
-                }
-            }
-        };
-
-        initializeLanguage();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [currentUser?.userId, setLanguageCode]);
+        // Persist only when there is no account value yet, and only after the first pull so a
+        // language chosen on another device is never overwritten by the detected one.
+        if (!accountLanguage && syncStatus.hasPulled && !languagePersistedRef.current) {
+            languagePersistedRef.current = true;
+            saveSettings({ languageCode: resolvedLanguage }).catch((err) => {
+                console.warn('[App] Failed to persist detected language:', err);
+            });
+        }
+    }, [currentUser?.userId, settingsLoaded, accountLanguage, syncStatus.hasPulled, setLanguageCode]);
 
     // Notification setup prompt (first login and every 48h until configured)
+    const notificationPreferences = useMemo(
+        () => normalizeNotificationPreferences(settings?.notificationPreferences || null),
+        [settings?.notificationPreferences]
+    );
     useEffect(() => {
-        let isMounted = true;
+        if (!currentUser?.userId || !settingsLoaded) {
+            setShowNotificationSetupPrompt(false);
+            return;
+        }
+        // Wait for the first pull so preferences configured on another device are known
+        if (!syncStatus.attempted && navigator.onLine) return;
 
-        const evaluatePrompt = async () => {
-            if (!currentUser?.userId) {
-                if (isMounted) {
-                    setShowNotificationSetupPrompt(false);
-                }
-                return;
-            }
-
-            try {
-                const preferences = normalizeNotificationPreferences(
-                    await storageService.getNotificationPreferences(currentUser.userId)
-                );
-                if (!isMounted) return;
-
-                setShowNotificationSetupPrompt(shouldShowNotificationSetupPrompt(preferences));
-            } catch (error) {
-                console.error('[App] Failed to evaluate notification setup prompt:', error);
-            }
-        };
-
-        const handleNotificationPreferencesUpdated = () => {
-            evaluatePrompt();
-        };
-        const handleSettingsRefresh = () => {
-            evaluatePrompt();
-        };
-
-        evaluatePrompt();
-        window.addEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
-        window.addEventListener('refreshSettings', handleSettingsRefresh);
-
-        return () => {
-            isMounted = false;
-            window.removeEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
-            window.removeEventListener('refreshSettings', handleSettingsRefresh);
-        };
-    }, [currentUser?.userId]);
+        setShowNotificationSetupPrompt(shouldShowNotificationSetupPrompt(notificationPreferences));
+    }, [currentUser?.userId, settingsLoaded, syncStatus.attempted, notificationPreferences]);
 
     // Notification runtime checks (while app/PWA is open)
+    const notificationDataRef = useRef({ receipts: [], preferences: notificationPreferences });
+    notificationDataRef.current = { receipts, preferences: notificationPreferences };
+    const runChecksRef = useRef(null);
     useEffect(() => {
         if (!currentUser?.userId) return;
 
@@ -480,9 +365,7 @@ function App() {
 
             running = true;
             try {
-                const preferences = normalizeNotificationPreferences(
-                    await storageService.getNotificationPreferences(currentUser.userId)
-                );
+                const preferences = notificationDataRef.current.preferences;
 
                 if (!preferences.enabled) {
                     return;
@@ -490,7 +373,7 @@ function App() {
 
                 const now = new Date();
                 const dayKey = getLocalDateKey(now);
-                const receipts = await storageService.getReceiptsByUserId(currentUser.userId);
+                const receipts = notificationDataRef.current.receipts;
 
                 if (preferences.paymentDueAlertsEnabled) {
                     const paymentEvents = collectPaymentNotificationEvents(receipts, now);
@@ -570,34 +453,25 @@ function App() {
                 runNotificationChecks();
             }
         };
-        const handleReceiptsRefresh = () => {
-            runNotificationChecks();
-        };
-        const handleNotificationPreferencesUpdated = () => {
-            runNotificationChecks();
-        };
-        const handleSettingsRefresh = () => {
-            runNotificationChecks();
-        };
-
         runNotificationChecks();
         const intervalId = setInterval(runNotificationChecks, 5 * 60 * 1000);
         window.addEventListener('focus', handleFocus);
         document.addEventListener('visibilitychange', handleVisibility);
-        window.addEventListener('refreshReceipts', handleReceiptsRefresh);
-        window.addEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
-        window.addEventListener('refreshSettings', handleSettingsRefresh);
+        runChecksRef.current = runNotificationChecks;
 
         return () => {
             disposed = true;
             clearInterval(intervalId);
             window.removeEventListener('focus', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibility);
-            window.removeEventListener('refreshReceipts', handleReceiptsRefresh);
-            window.removeEventListener('notificationPreferencesUpdated', handleNotificationPreferencesUpdated);
-            window.removeEventListener('refreshSettings', handleSettingsRefresh);
+            runChecksRef.current = null;
         };
     }, [currentUser?.userId, t]);
+
+    // Re-run the checks whenever receipts or notification preferences change
+    useEffect(() => {
+        runChecksRef.current?.();
+    }, [receipts, notificationPreferences]);
 
     // Listen for system preference changes (only if not manually set)
     useEffect(() => {

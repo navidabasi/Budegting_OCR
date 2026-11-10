@@ -4,7 +4,7 @@ import { buildReturnToPath, formatDate } from '../../utils/helpers';
 import CurrencyDisplay from '../common/CurrencyDisplay';
 import { Tag, Users, Pin, PinOff, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
 import { getTrackingStatus } from '../../utils/tracking';
-import { storageService } from '../../services/storage';
+import { useMarkTransactionDone } from '../../data/hooks';
 import { useAppStore } from '../../store/appStore';
 import { useTranslation } from '../../languages/useTranslation';
 
@@ -23,6 +23,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
     const navigate = useNavigate();
     const location = useLocation();
     const showToast = useAppStore((state) => state.showToast);
+    const markReceiptAsDone = useMarkTransactionDone();
     const [isDragging, setIsDragging] = useState(false);
     const [touchStart, setTouchStart] = useState(null);
     const [isLongPress, setIsLongPress] = useState(false);
@@ -123,7 +124,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
 
         setIsMarkingDone(true);
         try {
-            await storageService.markReceiptAsDone(receipt.id);
+            await markReceiptAsDone(receipt.id);
             if (onMarkAsDone) {
                 await onMarkAsDone(receipt);
             }
@@ -133,9 +134,6 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                     : t('receipts.tracking.markSuccess'),
                 'success'
             );
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast(err.message || t('receipts.tracking.markFailed'), 'error');
         } finally {

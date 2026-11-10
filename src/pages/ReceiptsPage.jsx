@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
+import { useCreateGroup, useDeleteGroup, useUpdateGroup, useUpdateTransaction } from '../data/hooks';
 import ReceiptCard from '../components/receipts/ReceiptCard';
 import { Search, X, Filter, ChevronDown, ChevronUp, Plus, Tag, Pin, PinOff, Edit2, Trash2 } from 'lucide-react';
 import Input from '../components/common/Input';
@@ -16,7 +16,6 @@ import Card from '../components/common/Card';
 import { useReceipts } from '../hooks/useReceipts';
 import { useGroups } from '../hooks/useGroups';
 import { useCategories } from '../hooks/useCategories';
-import { useCustomEvent } from '../hooks/useCustomEvent';
 import { useNavigate } from 'react-router-dom';
 import { getTrackingStatus } from '../utils/tracking';
 import { compareDateValuesDesc, isDateInMonthYear, parseAppDate } from '../utils/helpers';
@@ -33,6 +32,12 @@ export default function ReceiptsPage() {
     const { receipts, loading: receiptsLoading, reload: reloadReceipts } = useReceipts();
     const { groups: allGroups, loading: groupsLoading, reload: reloadGroups } = useGroups();
     const categories = useCategories();
+    const createGroup = useCreateGroup();
+    const updateGroup = useUpdateGroup();
+    const deleteGroup = useDeleteGroup();
+    const updateReceipt = useUpdateTransaction();
+    const allGroupsRef = useRef(allGroups);
+    allGroupsRef.current = allGroups;
     const [filteredReceipts, setFilteredReceipts] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState(null);
@@ -59,7 +64,7 @@ export default function ReceiptsPage() {
 
     // Helper function to get next available group number
     const getNextAvailableGroupNumber = async () => {
-        const allGroupsList = await storageService.getAllGroups(currentUser.userId);
+        const allGroupsList = allGroupsRef.current || [];
 
         // Extract numbers from group names that match "Group N" pattern
         const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -84,7 +89,7 @@ export default function ReceiptsPage() {
     // Handler to toggle receipt pin status
     const handleToggleReceiptPin = async (receiptId, currentPinned) => {
         try {
-            await storageService.updateReceipt(receiptId, {
+            await updateReceipt(receiptId, {
                 isPinned: !currentPinned
             });
             await reloadReceipts();
@@ -186,7 +191,7 @@ export default function ReceiptsPage() {
                     }
 
                 const groupIdToUse = group.supabaseId || group.id;
-                await storageService.updateReceipt(receiptId, {
+                await updateReceipt(receiptId, {
                     groupId: groupIdToUse,
                     groupName: group.name
                 });
@@ -212,22 +217,20 @@ export default function ReceiptsPage() {
 
                 // Create group with default name
                 const groupName = `${defaultGroupPrefix} ${new Date().toLocaleDateString(languageCode || 'en-US')}`;
-                const groupId = await storageService.createGroup(currentUser.userId, {
+                const createdGroup = await createGroup({
                     name: groupName,
                     color: '#3b82f6',
                     isPinned: false
                 });
-
-                const createdGroup = await storageService.getGroupById(groupId);
-                const groupIdToUse = createdGroup?.id || groupId;
+                const groupIdToUse = createdGroup.id;
 
                 // Assign both receipts to the new group
-                await storageService.updateReceipt(draggedReceiptId, {
+                await updateReceipt(draggedReceiptId, {
                     groupId: groupIdToUse,
                     groupName: createdGroup?.name || groupName
                 });
 
-                await storageService.updateReceipt(targetReceiptId, {
+                await updateReceipt(targetReceiptId, {
                     groupId: groupIdToUse,
                     groupName: createdGroup?.name || groupName
                 });
@@ -750,7 +753,7 @@ export default function ReceiptsPage() {
                                             }}
                                             onTogglePin={async () => {
                                                 try {
-                                                    await storageService.updateGroup(group.id, {
+                                                    await updateGroup(group.id, {
                                                         isPinned: !group.isPinned
                                                     });
                                                     await reloadGroups();
@@ -803,7 +806,7 @@ export default function ReceiptsPage() {
 
                                                     // Assign receipt to group
                                                     const groupIdToUse = group.supabaseId || group.id;
-                                                    await storageService.updateReceipt(receiptId, {
+                                                    await updateReceipt(receiptId, {
                                                         groupId: groupIdToUse,
                                                         groupName: group.name
                                                     });
@@ -889,7 +892,7 @@ export default function ReceiptsPage() {
                                                     }
                                                 }
 
-                                                await storageService.updateReceipt(receiptId, {
+                                                await updateReceipt(receiptId, {
                                                     groupId: groupIdToUse,
                                                     groupName: group.name
                                                 });
@@ -928,7 +931,7 @@ export default function ReceiptsPage() {
                                                                 // Check if target receipt is already in a group - if so, just add dragged receipt to that group
                                                                 if (targetReceipt.groupId) {
                                                                     // Add dragged receipt to the same group
-                                                                    await storageService.updateReceipt(draggedReceiptId, {
+                                                                    await updateReceipt(draggedReceiptId, {
                                                                         groupId: targetReceipt.groupId,
                                                                         groupName: targetReceipt.groupName
                                                                     });
@@ -944,7 +947,7 @@ export default function ReceiptsPage() {
 
                                                                 // Check if dragged receipt is already in a group - if so, add target to that group
                                                                 if (draggedReceipt.groupId) {
-                                                                    await storageService.updateReceipt(targetReceiptId, {
+                                                                    await updateReceipt(targetReceiptId, {
                                                                         groupId: draggedReceipt.groupId,
                                                                         groupName: draggedReceipt.groupName
                                                                     });
@@ -962,22 +965,20 @@ export default function ReceiptsPage() {
                                                                 const nextNumber = await getNextAvailableGroupNumber();
                                                                 const groupName = `${defaultGroupPrefix} ${nextNumber}`;
 
-                                                                const newGroupId = await storageService.createGroup(currentUser.userId, {
+                                                                const createdGroup = await createGroup({
                                                                     name: groupName,
                                                                     color: '#3b82f6',
                                                                     isPinned: false
                                                                 });
-
-                                                                const createdGroup = await storageService.getGroupById(newGroupId);
-                                                                const newGroupIdToUse = createdGroup?.id || newGroupId;
+                                                                const newGroupIdToUse = createdGroup.id;
 
                                                                 // Assign both receipts to the new group
-                                                                await storageService.updateReceipt(draggedReceiptId, {
+                                                                await updateReceipt(draggedReceiptId, {
                                                                     groupId: newGroupIdToUse,
                                                                     groupName: createdGroup?.name || groupName
                                                                 });
 
-                                                                await storageService.updateReceipt(targetReceiptId, {
+                                                                await updateReceipt(targetReceiptId, {
                                                                     groupId: newGroupIdToUse,
                                                                     groupName: createdGroup?.name || groupName
                                                                 });
@@ -1038,7 +1039,7 @@ export default function ReceiptsPage() {
 
                                     // Check if target receipt is already in a group - add dragged receipt to that group
                                     if (targetReceipt.groupId) {
-                                        await storageService.updateReceipt(draggedReceiptId, {
+                                        await updateReceipt(draggedReceiptId, {
                                             groupId: targetReceipt.groupId,
                                             groupName: targetReceipt.groupName
                                         });
@@ -1054,7 +1055,7 @@ export default function ReceiptsPage() {
 
                                     // Check if dragged receipt is already in a group - add target to that group
                                     if (draggedReceipt.groupId) {
-                                        await storageService.updateReceipt(targetReceiptId, {
+                                        await updateReceipt(targetReceiptId, {
                                             groupId: draggedReceipt.groupId,
                                             groupName: draggedReceipt.groupName
                                         });
@@ -1072,22 +1073,20 @@ export default function ReceiptsPage() {
                                     const nextNumber = await getNextAvailableGroupNumber();
                                     const groupName = `${defaultGroupPrefix} ${nextNumber}`;
 
-                                    const newGroupId = await storageService.createGroup(currentUser.userId, {
+                                    const createdGroup = await createGroup({
                                         name: groupName,
                                         color: '#3b82f6',
                                         isPinned: false
                                     });
-
-                                    const createdGroup = await storageService.getGroupById(newGroupId);
-                                    const groupIdToUse = createdGroup?.id || newGroupId;
+                                    const groupIdToUse = createdGroup.id;
 
                                     // Assign both receipts to the new group
-                                    await storageService.updateReceipt(draggedReceiptId, {
+                                    await updateReceipt(draggedReceiptId, {
                                         groupId: groupIdToUse,
                                         groupName: createdGroup?.name || groupName
                                     });
 
-                                    await storageService.updateReceipt(targetReceiptId, {
+                                    await updateReceipt(targetReceiptId, {
                                         groupId: groupIdToUse,
                                         groupName: createdGroup?.name || groupName
                                     });
@@ -1209,7 +1208,7 @@ export default function ReceiptsPage() {
                                         }
                                         if (!currentUser) return;
                                         try {
-                                            await storageService.createGroup(currentUser.userId, {
+                                            await createGroup({
                                                 name: newGroupName.trim(),
                                                 color: newGroupColor,
                                                 isPinned: newGroupPinned
@@ -1220,9 +1219,6 @@ export default function ReceiptsPage() {
                                             setNewGroupColor('#3b82f6');
                                             setNewGroupPinned(false);
                                             showToast(t('receipts.groups.createSuccess'), 'success');
-                                            // Dispatch events to refresh components
-                                            window.dispatchEvent(new CustomEvent('refreshGroups'));
-                                            window.dispatchEvent(new CustomEvent('refreshReceipts'));
                                         } catch (err) {
                                             showToast(t('receipts.groups.failedCreate', { message: err.message }), 'error');
                                         }
@@ -1324,7 +1320,7 @@ export default function ReceiptsPage() {
                                     onClick={async () => {
                                         try {
                                             const oldName = editingGroup.name;
-                                            await storageService.updateGroup(editingGroup.id, {
+                                            await updateGroup(editingGroup.id, {
                                                 name: newGroupName.trim(),
                                                 color: newGroupColor,
                                                 isPinned: newGroupPinned
@@ -1339,7 +1335,7 @@ export default function ReceiptsPage() {
                                                 });
 
                                                 for (const receipt of receiptsToUpdate) {
-                                                    await storageService.updateReceipt(receipt.id, {
+                                                    await updateReceipt(receipt.id, {
                                                         groupName: newGroupName.trim()
                                                     });
                                                 }
@@ -1412,7 +1408,7 @@ export default function ReceiptsPage() {
                                 onClick={async () => {
                                     if (!groupToDelete) return;
                                     try {
-                                        await storageService.deleteGroup(groupToDelete.id);
+                                        await deleteGroup(groupToDelete.id);
                                         await reloadReceipts();
                                         await reloadGroups();
                                         showToast(t('receipts.groups.deleteSuccess'), 'success');

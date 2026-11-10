@@ -6,7 +6,7 @@ import Button from '../common/Button';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
 import CurrencyDisplay from '../common/CurrencyDisplay';
-import { storageService } from '../../services/storage';
+import { useDeleteTransaction, useMarkTransactionDone, useUpdateTransaction } from '../../data/hooks';
 import { useAppStore } from '../../store/appStore';
 import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 import { useTranslation } from '../../languages/useTranslation';
@@ -16,6 +16,9 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const navigate = useNavigate();
     const location = useLocation();
     const showToast = useAppStore((state) => state.showToast);
+    const updateReceipt = useUpdateTransaction();
+    const deleteReceipt = useDeleteTransaction();
+    const markReceiptAsDone = useMarkTransactionDone();
     const [isEditing, setIsEditing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isMarkingDone, setIsMarkingDone] = useState(false);
@@ -27,14 +30,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
     const handleUpdate = async (receiptData) => {
         try {
-            await storageService.updateReceipt(receipt.id, receiptData);
+            await updateReceipt(receipt.id, receiptData);
             onUpdate();
             setIsEditing(false);
             showToast(t('receipts.form.updateSuccess'), 'success');
-            // Dispatch events to refresh components using hooks
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast(t('receipts.form.updateFailed'), 'error');
         }
@@ -42,12 +41,8 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
 
     const handleDelete = async () => {
         try {
-            await storageService.deleteReceipt(receipt.id);
+            await deleteReceipt(receipt.id);
             showToast(t('receipts.detail.deleteSuccess'), 'success');
-            // Dispatch events to refresh components using hooks
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
             navigate(backTarget);
             onDelete();
         } catch (err) {
@@ -59,7 +54,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
         setIsMarkingDone(true);
 
         try {
-            await storageService.markReceiptAsDone(receipt.id);
+            await markReceiptAsDone(receipt.id);
             onUpdate();
             showToast(
                 receipt.recurringData?.isActive
@@ -67,9 +62,6 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     : t('receipts.tracking.markSuccess'),
                 'success'
             );
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast(err.message || t('receipts.tracking.markFailed'), 'error');
         } finally {

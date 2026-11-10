@@ -1,7 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
 import ErrorBoundary from './components/common/ErrorBoundary.jsx'
+import { queryClient } from './data/queryClient'
 import './index.css'
 
 try {
@@ -14,9 +16,11 @@ try {
 
     root.render(
         <React.StrictMode>
-            <ErrorBoundary>
-                <App />
-            </ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+                <ErrorBoundary>
+                    <App />
+                </ErrorBoundary>
+            </QueryClientProvider>
         </React.StrictMode>
     );
 } catch (error) {

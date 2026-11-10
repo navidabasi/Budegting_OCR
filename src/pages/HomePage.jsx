@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
-import { storageService } from '../services/storage';
+import { useSaveLayout } from '../data/hooks';
 import SummaryCards from '../components/dashboard/SummaryCards';
 import CategoryChart from '../components/dashboard/CategoryChart';
 import ExpenseChart from '../components/dashboard/ExpenseChart';
@@ -16,7 +16,6 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import IconButton from '../components/common/IconButton';
 import { useReceipts } from '../hooks/useReceipts';
 import { useUserLayout } from '../hooks/useUserLayout';
-import { useCustomEvent } from '../hooks/useCustomEvent';
 import { Settings, Layout } from 'lucide-react';
 import { shouldIncludeInFinancialTotals } from '../utils/tracking';
 import { useTranslation } from '../languages/useTranslation';
@@ -26,12 +25,10 @@ export default function HomePage() {
     const currentUser = useAppStore((state) => state.currentUser);
     const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
     const showToast = useAppStore((state) => state.showToast);
-    const { receipts, loading: receiptsLoading, reload: reloadReceipts } = useReceipts();
-    const { layout, loading: layoutLoading, reload: reloadLayout } = useUserLayout();
+    const { receipts, loading: receiptsLoading } = useReceipts();
+    const { layout, loading: layoutLoading } = useUserLayout();
+    const saveLayout = useSaveLayout();
     const [showCustomizer, setShowCustomizer] = useState(false);
-
-    // Listen for refresh event when already on home page
-    useCustomEvent('refreshDashboard', reloadReceipts, [reloadReceipts]);
 
     const loading = receiptsLoading || layoutLoading;
     if (loading || !layout) {
@@ -45,12 +42,8 @@ export default function HomePage() {
 
         try {
             console.log('[HomePage] Saving layout:', newLayout);
-            await storageService.saveUserLayout(currentUser.userId, newLayout);
-            // Reload layout from storage to ensure consistency
-            await reloadLayout();
+            await saveLayout(newLayout);
             showToast(t('dashboard.toasts.layoutSaved'), 'success');
-            // Dispatch event to refresh layout in other components
-            window.dispatchEvent(new CustomEvent('refreshLayout'));
         } catch (err) {
             console.error('Failed to save layout:', err);
             showToast(t('dashboard.toasts.layoutSaveFailed'), 'error');

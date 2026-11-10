@@ -13,17 +13,20 @@ import { clearAndResync, getSyncState, subscribeSync, syncNow } from './sync';
 import { getStorageHealth, openDb } from './db';
 import { notifyDataChanged } from './queryClient';
 
+// Stable empty array so consumers' effects/memos do not re-run on every render while a query is pending
+const EMPTY = Object.freeze([]);
+
 const useUserId = () => useAppStore((state) => state.currentUser?.userId || null);
 
 export function useSyncStatus() {
     return useSyncExternalStore(subscribeSync, getSyncState, getSyncState);
 }
 
-/** True while the mirror is empty and the first pull has not finished (avoids an "empty" flash). */
+/** True while the mirror is empty and the first sync has not finished (avoids an "empty" flash). */
 function useInitialLoading(query, isEmpty) {
     const sync = useSyncStatus();
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    return query.isLoading || (isEmpty && !sync.hasPulled && !offline && sync.syncing);
+    return query.isLoading || (isEmpty && !sync.attempted && !offline);
 }
 
 const dataQuery = (table, userId, extra, fn, enabled = true) => ({
@@ -40,7 +43,7 @@ const dataQuery = (table, userId, extra, fn, enabled = true) => ({
 export function useTransactions({ month } = {}) {
     const userId = useUserId();
     const query = useQuery(dataQuery('transactions', userId, [month || 'all'], () => repo.listTransactions(userId, { month })));
-    const transactions = query.data || [];
+    const transactions = query.data || EMPTY;
     const initialLoading = useInitialLoading(query, transactions.length === 0);
     const loading = !!userId && initialLoading;
     return { transactions, loading, error: query.error, reload: () => notifyDataChanged() };
@@ -68,7 +71,7 @@ export const useMarkTransactionDone = () => useDataMutation(repo.markTransaction
 export function useGroupsData() {
     const userId = useUserId();
     const query = useQuery(dataQuery('groups', userId, [], () => repo.listGroups(userId)));
-    const groups = query.data || [];
+    const groups = query.data || EMPTY;
     const initialLoading = useInitialLoading(query, groups.length === 0);
     const loading = !!userId && initialLoading;
     return { groups, loading, error: query.error, reload: () => notifyDataChanged() };
@@ -90,7 +93,7 @@ export const useDeleteGroup = () => useDataMutation(repo.deleteGroup);
 export function useUserCategories() {
     const userId = useUserId();
     const query = useQuery(dataQuery('categories', userId, [], () => repo.listCategories(userId)));
-    return { categories: query.data || [], loading: query.isLoading, error: query.error, reload: () => notifyDataChanged() };
+    return { categories: query.data || EMPTY, loading: query.isLoading, error: query.error, reload: () => notifyDataChanged() };
 }
 
 export function useCreateCategory() {
@@ -182,12 +185,12 @@ export async function checkStorageHealth(force = false) {
 function useRows(table, filter, extraKey = []) {
     const userId = useUserId();
     const query = useQuery(dataQuery(table, userId, extraKey, () => repo.listRows(table, userId, filter)));
-    return { rows: query.data || [], loading: query.isLoading };
+    return { rows: query.data || EMPTY, loading: query.isLoading };
 }
 
 export function useAccounts() {
     const { rows, loading } = useRows('accounts', (a) => !a.isArchived);
-    return { accounts: rows.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), loading };
+    return { accounts: [...rows].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), loading };
 }
 
 /** Budgets that apply to `month` ('YYYY-MM'): started on/before it and not ended before it. */

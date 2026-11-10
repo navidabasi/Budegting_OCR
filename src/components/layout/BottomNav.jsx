@@ -1,6 +1,7 @@
 import { Home, Receipt, Plus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
+import { notifyDataChanged } from '../../data/queryClient';
 import { useTranslation } from '../../languages/useTranslation';
 
 export default function BottomNav() {
@@ -16,7 +17,7 @@ export default function BottomNav() {
             // Already on home - scroll to top smoothly
             window.scrollTo({ top: 0, behavior: 'smooth' });
             // Also refresh the data
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
+            notifyDataChanged();
         } else {
             navigate('/');
         }

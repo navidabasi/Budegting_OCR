@@ -29,7 +29,8 @@ const nowIso = () => new Date().toISOString();
 // ---------------------------------------------------------------------------
 // Observable sync state (for UI status and tests)
 // ---------------------------------------------------------------------------
-const state = { syncing: false, pending: 0, failed: 0, lastSyncAt: null, lastError: null, hasPulled: false };
+// attempted: a sync run finished (or was impossible), used to stop the "first load" spinner
+const state = { syncing: false, pending: 0, failed: 0, lastSyncAt: null, lastError: null, hasPulled: false, attempted: false };
 const listeners = new Set();
 let snapshot = { ...state };
 
@@ -308,6 +309,10 @@ let running = null;
  */
 export function syncNow(userId, { reason = 'manual', reconcile = false } = {}) {
     if (!userId || !api.isConfigured()) {
+        if (!state.attempted) {
+            state.attempted = true;
+            emit();
+        }
         return Promise.resolve({ uploaded: 0, downloaded: 0, updated: 0, deleted: 0, conflicts: [], errors: [], skipped: 'unconfigured' });
     }
     if (isOffline()) {
@@ -324,6 +329,7 @@ export function syncNow(userId, { reason = 'manual', reconcile = false } = {}) {
             const pull = await pullAll(userId, { reconcile });
             const errors = [...push.errors, ...pull.errors];
             state.lastSyncAt = nowIso();
+            state.attempted = true;
             state.lastError = errors.length ? errors[0].error : null;
             state.hasPulled = state.hasPulled || pull.errors.length === 0;
             notifyDataChanged();
@@ -336,6 +342,10 @@ export function syncNow(userId, { reason = 'manual', reconcile = false } = {}) {
                 errors,
                 reason,
             };
+        } catch (err) {
+            state.attempted = true;
+            state.lastError = err?.message || String(err);
+            throw err;
         } finally {
             state.syncing = false;
             running = null;
@@ -358,6 +368,10 @@ export async function clearAndResync(userId) {
 /** Register online / focus / visibility / interval triggers. Returns a stop function. */
 export function startSync(userId) {
     if (!userId) return () => {};
+    // A new session starts "cold": hooks show a loading state until this user's first sync finishes
+    state.hasPulled = false;
+    state.attempted = false;
+    emit();
     const run = (reason) => syncNow(userId, { reason }).catch((err) => console.error(`[Sync] ${reason} failed:`, err));
     const onOnline = () => run('online');
     const onFocus = () => run('focus');
@@ -384,6 +398,6 @@ export function __resetSyncForTests() {
     running = null;
     inflight.clear();
     if (pullAll.unavailable) pullAll.unavailable.clear();
-    Object.assign(state, { syncing: false, pending: 0, failed: 0, lastSyncAt: null, lastError: null, hasPulled: false });
+    Object.assign(state, { syncing: false, pending: 0, failed: 0, lastSyncAt: null, lastError: null, hasPulled: false, attempted: false });
     emit();
 }

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Loader } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { ocrApi } from '../../services/ocrApi';
-import { storageService } from '../../services/storage';
+import { useCreateTransaction, useSettings } from '../../data/hooks';
 import Modal from '../common/Modal';
 import ReceiptForm from './ReceiptForm';
 import { useTranslation } from '../../languages/useTranslation';
@@ -153,6 +153,8 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
     const { t } = useTranslation();
     const currentUser = useAppStore((state) => state.currentUser);
     const showToast = useAppStore((state) => state.showToast);
+    const { settings } = useSettings();
+    const createReceipt = useCreateTransaction();
     const setLoading = useAppStore((state) => state.setLoading);
     const loading = useAppStore((state) => state.loading);
 
@@ -226,14 +228,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
 
         try {
             // The user's own OCR.Space key is optional; the server key is used otherwise
-            let apiKey = null;
-            try {
-                apiKey = await storageService.getOcrApiKey(currentUser.userId);
-            } catch (apiKeyError) {
-                console.warn('[ReceiptUpload] Could not get API key:', apiKeyError);
-            }
-
-            const normalizedApiKey = (apiKey || '').trim();
+            const normalizedApiKey = (settings?.ocrApiKey || '').trim();
 
             let fileToProcess = file;
             try {
@@ -286,16 +281,12 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         if (!currentUser) return;
 
         try {
-            await storageService.createReceipt({
+            await createReceipt({
                 ...receiptData,
                 userId: currentUser.userId
             });
             showToast(t('receipts.upload.saveSuccess'), 'success');
             handleClose();
-            // Dispatch events to refresh components using hooks
-            window.dispatchEvent(new CustomEvent('refreshReceipts'));
-            window.dispatchEvent(new CustomEvent('refreshGroups'));
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } catch (err) {
             showToast(t('receipts.upload.saveFailed'), 'error');
         }
