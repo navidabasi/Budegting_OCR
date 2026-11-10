@@ -109,10 +109,9 @@ export const de = {
             googleSignUp: 'Mit Google registrieren',
             haveAccount: 'Bereits ein Konto?',
             signIn: 'Anmelden',
-            apiKeyLabel: 'OCR API-Schlüssel (Premium)',
-            apiKeyPlaceholder: 'Erforderlich für OCR-Scan',
-            apiKeyHint:
-                'OCR-Scan/Upload ist nur mit deinem Premium-API-Schlüssel verfügbar. Später in Einstellungen änderbar.',
+            apiKeyLabel: 'OCR API-Schlüssel (optional)',
+            apiKeyPlaceholder: 'Optional',
+            apiKeyHint: 'Scannen funktioniert auch ohne Schlüssel. Füge deinen eigenen OCR.Space-Schlüssel nur für höhere Limits hinzu. Später unter Einstellungen > Erweitert änderbar.',
             success: 'Registrierung erfolgreich',
         },
         callback: {
@@ -269,10 +268,6 @@ export const de = {
             uploadDescription: 'Bild vom Gerät auswählen',
             enterManually: 'Manuell eingeben',
             enterManuallyDescription: 'Belegdaten eintippen',
-            premiumRequired:
-                'OCR-Scan erfordert einen Premium-API-Schlüssel. In Einstellungen hinzufügen.',
-            premiumError:
-                'OCR-Scan ist ein Premium-Feature. Premium-API-Schlüssel in Einstellungen hinzufügen.',
             manualTitle: 'Beleg manuell hinzufügen',
             saveSuccess: 'Beleg erfolgreich gespeichert',
             saveFailed: 'Beleg konnte nicht gespeichert werden',
@@ -350,8 +345,6 @@ export const de = {
                 'Belegverarbeitung fehlgeschlagen: Ungültige Serverantwort. Bitte erneut versuchen oder anderes Bild nutzen.',
             originNotAllowed:
                 'Belegverarbeitung fehlgeschlagen: Ursprung nicht erlaubt. Bitte Support kontaktieren.',
-            premiumRequired:
-                'OCR-Scan ist ein Premium-Feature. Premium-API-Schlüssel in Einstellungen hinzufügen.',
             saveSuccess: 'Beleg erfolgreich gespeichert',
             saveFailed: 'Beleg konnte nicht gespeichert werden',
         },
@@ -395,13 +388,13 @@ export const de = {
             saveFailed: 'Benachrichtigungseinstellungen konnten nicht gespeichert werden',
         },
         ocr: {
+            advanced: 'Erweitert',
             ...en.settings.ocr,
-            title: 'OCR API-Schlüssel (Premium)',
+            title: 'OCR-Scan',
             apiKeyLabel: 'API-Schlüssel',
-            placeholder: 'Premium OCR API-Schlüssel eingeben',
-            hint: 'OCR-Scan erfordert einen persönlichen Premium-Schlüssel. Erhältlich bei ocr.space.',
-            note:
-                'Ohne API-Schlüssel sind OCR-Scan/Upload deaktiviert. Manuelle Eingabe bleibt verfügbar.',
+            placeholder: 'OCR.Space API-Schlüssel eingeben (optional)',
+            hint: 'Optional. Scannen funktioniert auch ohne; dein eigener Schlüssel bietet höhere Limits. Erhältlich bei',
+            note: 'Ohne Schlüssel wird der gemeinsame Server-Schlüssel verwendet; das Scannen kann begrenzt sein.',
             originHint:
                 'Bei Fehler Origin not allowed APP_URL oder ALLOWED_ORIGINS in der Umgebung setzen.',
             save: 'API-Schlüssel speichern',

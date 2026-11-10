@@ -106,10 +106,9 @@ export const en = {
             googleSignUp: 'Sign up with Google',
             haveAccount: 'Already have an account?',
             signIn: 'Sign in',
-            apiKeyLabel: 'OCR API Key (Premium)',
-            apiKeyPlaceholder: 'Required for OCR scanning',
-            apiKeyHint:
-                'OCR scan/upload is available only with your premium OCR API key. You can add or change it later in Settings.',
+            apiKeyLabel: 'OCR API Key (optional)',
+            apiKeyPlaceholder: 'Optional',
+            apiKeyHint: 'Scanning works without a key. Add your own OCR.Space key only if you want higher limits. You can add or change it later in Settings > Advanced.',
             success: 'Registration successful',
         },
         callback: {
@@ -229,10 +228,6 @@ export const en = {
             uploadDescription: 'Select image from device',
             enterManually: 'Enter Manually',
             enterManuallyDescription: 'Type receipt details',
-            premiumRequired:
-                'OCR scanning requires a premium API key. Add it in Settings to continue.',
-            premiumError:
-                'OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.',
             manualTitle: 'Add Receipt Manually',
             saveSuccess: 'Receipt saved successfully',
             saveFailed: 'Failed to save receipt',
@@ -412,8 +407,6 @@ export const en = {
                 'Failed to process receipt: server returned invalid response. Please try again or use a different image.',
             originNotAllowed:
                 'Failed to process receipt: origin not allowed. Please contact support.',
-            premiumRequired:
-                'OCR scanning is a premium feature. Add your premium OCR API key in Settings to continue.',
             saveSuccess: 'Receipt saved successfully',
             saveFailed: 'Failed to save receipt',
             optimizedToast: 'Image optimized: {{original}} -> {{optimized}}',
@@ -533,13 +526,12 @@ export const en = {
             saveFailed: 'Failed to save notification settings',
         },
         ocr: {
-            title: 'OCR API Key (Premium)',
+            advanced: 'Advanced',
+            title: 'OCR scanning',
             apiKeyLabel: 'API Key',
-            placeholder: 'Enter your premium OCR API key',
-            hint:
-                'OCR scanning requires your personal premium key. Get one at ocr.space.',
-            note:
-                'Without an API key, scan/upload OCR is disabled and users can still add receipts manually.',
+            placeholder: 'Enter your OCR.Space API key (optional)',
+            hint: 'Optional. Scanning works without it; your own key gives you higher limits. Get one at',
+            note: 'Without a key, the shared server key is used and scanning may be rate-limited.',
             originHint:
                 'If scanning fails with Origin not allowed, set APP_URL or ALLOWED_ORIGINS in your deployment environment.',
             save: 'Save API Key',

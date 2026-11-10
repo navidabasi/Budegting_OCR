@@ -225,7 +225,7 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
         setError(null);
 
         try {
-            // OCR scanning is premium-gated and requires a user API key
+            // The user's own OCR.Space key is optional; the server key is used otherwise
             let apiKey = null;
             try {
                 apiKey = await storageService.getOcrApiKey(currentUser.userId);
@@ -234,9 +234,6 @@ export default function ReceiptUpload({ isOpen, onClose, mode = 'camera', initia
             }
 
             const normalizedApiKey = (apiKey || '').trim();
-            if (!normalizedApiKey) {
-                throw new Error(t('receipts.upload.premiumRequired'));
-            }
 
             let fileToProcess = file;
             try {

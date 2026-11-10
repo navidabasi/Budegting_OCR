@@ -109,10 +109,9 @@ export const es = {
             googleSignUp: 'Registrarse con Google',
             haveAccount: '¿Ya tienes cuenta?',
             signIn: 'Iniciar sesión',
-            apiKeyLabel: 'Clave API OCR (Premium)',
-            apiKeyPlaceholder: 'Necesaria para escaneo OCR',
-            apiKeyHint:
-                'El escaneo OCR solo está disponible con tu clave premium. Puedes cambiarla en Ajustes.',
+            apiKeyLabel: 'Clave API OCR (opcional)',
+            apiKeyPlaceholder: 'Opcional',
+            apiKeyHint: 'El escaneo funciona sin clave. Añade tu propia clave de OCR.Space solo si quieres límites más altos. Puedes cambiarla en Ajustes > Avanzado.',
             success: 'Registro exitoso',
         },
         callback: {
@@ -269,10 +268,6 @@ export const es = {
             uploadDescription: 'Seleccionar imagen del dispositivo',
             enterManually: 'Ingresar manualmente',
             enterManuallyDescription: 'Escribir detalles del recibo',
-            premiumRequired:
-                'El escaneo OCR requiere una clave API premium. Agrégala en Ajustes.',
-            premiumError:
-                'El escaneo OCR es una función premium. Agrega tu clave en Ajustes.',
             manualTitle: 'Agregar recibo manualmente',
             saveSuccess: 'Recibo guardado correctamente',
             saveFailed: 'No se pudo guardar el recibo',
@@ -317,13 +312,13 @@ export const es = {
             saveFailed: 'No se pudieron guardar las preferencias de notificaciones',
         },
         ocr: {
+            advanced: 'Avanzado',
             ...en.settings.ocr,
-            title: 'Clave API OCR (Premium)',
+            title: 'Escaneo OCR',
             apiKeyLabel: 'Clave API',
-            placeholder: 'Introduce tu clave OCR premium',
-            hint: 'El escaneo OCR requiere una clave premium personal. Consíguela en ocr.space.',
-            note:
-                'Sin clave API, OCR por escaneo/subida está deshabilitado, pero puedes añadir recibos manualmente.',
+            placeholder: 'Introduce tu clave de OCR.Space (opcional)',
+            hint: 'Opcional. El escaneo funciona sin ella; tu propia clave ofrece límites más altos. Consíguela en',
+            note: 'Sin clave se usa la clave compartida del servidor y el escaneo puede estar limitado.',
             originHint:
                 'Si falla con Origin not allowed, configura APP_URL o ALLOWED_ORIGINS en tu entorno.',
             save: 'Guardar clave API',

@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, FileText, AlertCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Camera, Upload, FileText } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { storageService } from '../../services/storage';
 import Modal from '../common/Modal';
@@ -16,32 +16,7 @@ export default function AddReceiptModal() {
     const showToast = useAppStore((state) => state.showToast);
     const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
     const [selectedFile, setSelectedFile] = useState(null);
-    const [hasOcrKey, setHasOcrKey] = useState(null); // null=checking, true/false=resolved
     const fileInputRef = useRef(null);
-
-    useEffect(() => {
-        if (!addReceiptModalOpen || !currentUser?.userId) {
-            setHasOcrKey(null);
-            return;
-        }
-
-        let isMounted = true;
-        setHasOcrKey(null);
-
-        storageService.getOcrApiKey(currentUser.userId)
-            .then((key) => {
-                if (!isMounted) return;
-                setHasOcrKey(Boolean((key || '').trim()));
-            })
-            .catch(() => {
-                if (!isMounted) return;
-                setHasOcrKey(false);
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [addReceiptModalOpen, currentUser?.userId]);
 
     const handleClose = () => {
         setMode(null);
@@ -67,37 +42,16 @@ export default function AddReceiptModal() {
         }
     };
 
-    const showPremiumUpgradeError = () => {
-        showToast(t('receipts.addModal.premiumError'), 'error');
-    };
-
     const handleStartCamera = () => {
-        if (hasOcrKey === false) {
-            showPremiumUpgradeError();
-            return;
-        }
-        if (hasOcrKey === null) return;
         setMode('camera');
     };
 
     const handleStartUpload = () => {
-        if (hasOcrKey === false) {
-            showPremiumUpgradeError();
-            return;
-        }
-        if (hasOcrKey === null) return;
         fileInputRef.current?.click();
     };
 
     const handleFileSelect = (e) => {
         const file = e.target.files?.[0];
-        if (hasOcrKey === false) {
-            showPremiumUpgradeError();
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-            return;
-        }
         if (file) {
             setSelectedFile(file);
             setMode('upload');
@@ -149,7 +103,6 @@ export default function AddReceiptModal() {
                 <button
                     onClick={handleStartCamera}
                     className={ocrButtonClass()}
-                    disabled={hasOcrKey === null}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Camera size={24} className="primary-color" />
@@ -163,7 +116,6 @@ export default function AddReceiptModal() {
                 <button
                     onClick={handleStartUpload}
                     className={ocrButtonClass()}
-                    disabled={hasOcrKey === null}
                 >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center primary-bg">
                         <Upload size={24} className="primary-color" />
@@ -174,12 +126,6 @@ export default function AddReceiptModal() {
                     </div>
                 </button>
 
-                {hasOcrKey === false && (
-                    <div className="flex items-center gap-2 px-1 py-2 text-sm text-amber-700 dark:text-amber-400">
-                        <AlertCircle size={16} className="flex-shrink-0" />
-                        <span>{t('receipts.addModal.premiumRequired')}</span>
-                    </div>
-                )}
 
                 <input
                     ref={fileInputRef}

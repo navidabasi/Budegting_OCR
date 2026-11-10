@@ -6,7 +6,7 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
-import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell } from 'lucide-react';
+import { LogOut, Database, Key, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
 import {
@@ -478,34 +478,42 @@ export default function SettingsPage() {
                 icon={Key}
                 title={t('settings.ocr.title')}
             >
-                <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
-                    <Input
-                        label={t('settings.ocr.apiKeyLabel')}
-                        type="text"
-                        placeholder={t('settings.ocr.placeholder')}
-                        {...register('ocrApiKey')}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        {t('settings.ocr.hint')}{' '}
-                        <a
-                            href="https://ocr.space/ocrapi"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 dark:text-primary-400 hover:underline"
-                        >
-                            ocr.space
-                        </a>
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {t('settings.ocr.note')}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {t('settings.ocr.originHint')}
-                    </p>
-                    <Button type="submit" variant="primary" disabled={loading}>
-                        {loading ? t('settings.ocr.saving') : t('settings.ocr.save')}
-                    </Button>
-                </form>
+                <details className="group">
+                    <summary className="flex items-center justify-between min-h-[44px] cursor-pointer select-none text-sm font-medium text-gray-900 dark:text-white">
+                        {t('settings.ocr.advanced')}
+                        <ChevronDown size={16} className="text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="pt-2">
+                        <form onSubmit={handleSubmit(onSaveApiKey)} className="space-y-4">
+                            <Input
+                                label={t('settings.ocr.apiKeyLabel')}
+                                type="text"
+                                placeholder={t('settings.ocr.placeholder')}
+                                {...register('ocrApiKey')}
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                {t('settings.ocr.hint')}{' '}
+                                <a
+                                    href="https://ocr.space/ocrapi"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary-600 dark:text-primary-400 hover:underline"
+                                >
+                                    ocr.space
+                                </a>
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {t('settings.ocr.note')}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {t('settings.ocr.originHint')}
+                            </p>
+                            <Button type="submit" variant="primary" disabled={loading}>
+                                {loading ? t('settings.ocr.saving') : t('settings.ocr.save')}
+                            </Button>
+                        </form>
+                    </div>
+                </details>
             </SettingsCard>
 
             <SettingsCard

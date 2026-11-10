@@ -109,10 +109,9 @@ export const it = {
             googleSignUp: 'Registrati con Google',
             haveAccount: 'Hai già un account?',
             signIn: 'Accedi',
-            apiKeyLabel: 'Chiave OCR API (Premium)',
-            apiKeyPlaceholder: 'Richiesta per la scansione OCR',
-            apiKeyHint:
-                'La scansione OCR è disponibile solo con la tua chiave premium. Puoi aggiungerla o modificarla nelle Impostazioni.',
+            apiKeyLabel: 'Chiave OCR API (facoltativa)',
+            apiKeyPlaceholder: 'Facoltativa',
+            apiKeyHint: 'La scansione funziona anche senza chiave. Aggiungi la tua chiave OCR.Space solo se vuoi limiti più alti. Puoi aggiungerla o modificarla in Impostazioni > Avanzate.',
             success: 'Registrazione completata',
         },
         callback: {
@@ -269,10 +268,6 @@ export const it = {
             uploadDescription: 'Seleziona immagine dal dispositivo',
             enterManually: 'Inserisci manualmente',
             enterManuallyDescription: 'Digita i dettagli dello scontrino',
-            premiumRequired:
-                'La scansione OCR richiede una chiave API premium. Aggiungila nelle Impostazioni.',
-            premiumError:
-                'La scansione OCR è una funzione premium. Aggiungi la tua chiave nelle Impostazioni.',
             manualTitle: 'Aggiungi scontrino manualmente',
             saveSuccess: 'Scontrino salvato',
             saveFailed: 'Salvataggio scontrino non riuscito',
@@ -350,8 +345,6 @@ export const it = {
                 'Elaborazione non riuscita: risposta server non valida. Riprova o usa un\'altra immagine.',
             originNotAllowed:
                 'Elaborazione non riuscita: origine non consentita. Contatta il supporto.',
-            premiumRequired:
-                'La scansione OCR è una funzione premium. Aggiungi la tua chiave nelle Impostazioni.',
             saveSuccess: 'Scontrino salvato',
             saveFailed: 'Salvataggio non riuscito',
         },
@@ -395,13 +388,13 @@ export const it = {
             saveFailed: 'Salvataggio impostazioni notifiche non riuscito',
         },
         ocr: {
+            advanced: 'Avanzate',
             ...en.settings.ocr,
-            title: 'Chiave OCR API (Premium)',
+            title: 'Scansione OCR',
             apiKeyLabel: 'Chiave API',
-            placeholder: 'Inserisci la tua chiave OCR premium',
-            hint: 'La scansione OCR richiede una chiave premium personale. Ottienila su ocr.space.',
-            note:
-                'Senza chiave API, OCR scan/upload è disabilitato ma puoi aggiungere scontrini manualmente.',
+            placeholder: 'Inserisci la tua chiave OCR.Space (facoltativa)',
+            hint: 'Facoltativa. La scansione funziona anche senza; la tua chiave offre limiti più alti. Ottienila su',
+            note: 'Senza chiave si usa la chiave condivisa del server e la scansione può essere limitata.',
             originHint:
                 'Se la scansione fallisce con Origin not allowed, imposta APP_URL o ALLOWED_ORIGINS.',
             save: 'Salva chiave API',

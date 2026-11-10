@@ -109,10 +109,9 @@ export const fr = {
             googleSignUp: 'S\'inscrire avec Google',
             haveAccount: 'Vous avez déjà un compte ?',
             signIn: 'Se connecter',
-            apiKeyLabel: 'Clé API OCR (Premium)',
-            apiKeyPlaceholder: 'Requise pour le scan OCR',
-            apiKeyHint:
-                'Le scan OCR n\'est disponible qu\'avec votre clé premium. Vous pourrez la modifier dans les Paramètres.',
+            apiKeyLabel: 'Clé API OCR (facultative)',
+            apiKeyPlaceholder: 'Facultative',
+            apiKeyHint: 'Le scan fonctionne sans clé. Ajoutez votre propre clé OCR.Space seulement pour des limites plus élevées. Modifiable dans Paramètres > Avancé.',
             success: 'Inscription réussie',
         },
         callback: {
@@ -269,10 +268,6 @@ export const fr = {
             uploadDescription: 'Sélectionner une image depuis l\'appareil',
             enterManually: 'Saisir manuellement',
             enterManuallyDescription: 'Saisir les détails du reçu',
-            premiumRequired:
-                'Le scan OCR nécessite une clé API premium. Ajoutez-la dans les Paramètres.',
-            premiumError:
-                'Le scan OCR est une fonctionnalité premium. Ajoutez votre clé API dans les Paramètres.',
             manualTitle: 'Ajouter un reçu manuellement',
             saveSuccess: 'Reçu enregistré',
             saveFailed: 'Échec de l\'enregistrement du reçu',
@@ -317,13 +312,13 @@ export const fr = {
             saveFailed: 'Échec de l\'enregistrement des préférences de notification',
         },
         ocr: {
+            advanced: 'Avancé',
             ...en.settings.ocr,
-            title: 'Clé API OCR (Premium)',
+            title: 'Scan OCR',
             apiKeyLabel: 'Clé API',
-            placeholder: 'Entrez votre clé API OCR premium',
-            hint: 'Le scan OCR nécessite une clé premium personnelle. Obtenez-la sur ocr.space.',
-            note:
-                'Sans clé API, le scan/téléversement OCR est désactivé mais la saisie manuelle reste possible.',
+            placeholder: 'Entrez votre clé OCR.Space (facultative)',
+            hint: 'Facultative. Le scan fonctionne sans ; votre propre clé offre des limites plus élevées. Obtenez-la sur',
+            note: 'Sans clé, la clé partagée du serveur est utilisée et le scan peut être limité.',
             originHint:
                 'Si le scan échoue avec Origin not allowed, configurez APP_URL ou ALLOWED_ORIGINS.',
             save: 'Enregistrer la clé API',
