@@ -17,6 +17,7 @@ import { buildHints } from './services/receiptScan';
 import { useAccounts } from './data/hooks';
 import { useCategories } from './hooks/useCategories';
 import { notifyDataChanged } from './data/queryClient';
+import { fillMissingBaseAmounts } from './data/repo';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
@@ -135,6 +136,13 @@ function App() {
                 });
             },
         }).catch((err) => console.warn('[App] pending scans failed:', err));
+    }, [currentUser?.userId, syncStatus.lastSyncAt]);
+    // Base amounts left empty while offline (no cached exchange rate) are filled in after each sync
+    useEffect(() => {
+        if (!currentUser?.userId || !syncStatus.lastSyncAt) return;
+        fillMissingBaseAmounts(currentUser.userId)
+            .then((n) => n && notifyDataChanged())
+            .catch((err) => console.warn('[App] base amount backfill failed:', err));
     }, [currentUser?.userId, syncStatus.lastSyncAt]);
     const [isRecoveringStorage, setIsRecoveringStorage] = useState(false);
     const [showNotificationSetupPrompt, setShowNotificationSetupPrompt] = useState(false);

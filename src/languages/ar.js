@@ -929,4 +929,14 @@ export const ar = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "إعادة حساب المبالغ بالعملة الأساسية",
+        recalculating: "جارٍ إعادة الحساب…",
+        recalcHint: "يحوّل كل معاملة إلى عملتك الأساسية مرة أخرى بسعر اليوم. استخدمه بعد تغيير العملة.",
+        recalcDone: "تم تحديث {{count}} معاملة",
+        recalcPartial: "تم تحديث {{count}} وتخطي {{skipped}} (لا يتوفر سعر صرف)",
+        recalcFailed: "تعذّرت إعادة الحساب. حاول مرة أخرى.",
+    },
+    // @i18n:end fx
 };

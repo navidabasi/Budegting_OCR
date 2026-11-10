@@ -169,3 +169,52 @@ describe('v14 category read mapping', () => {
         expect((await repo.listCategories(USER)).map((c) => c.name)).toEqual(['Health', 'Stocks']);
     });
 });
+
+describe('base-currency amounts at write time (P4-T2)', () => {
+    const fx = async () => (await import('../../services/exchangeRateService'));
+    beforeEach(async () => {
+        (await fx()).__clearRateCache();
+        await repo.saveSettings(USER, { defaultCurrency: 'EUR' });
+    });
+
+    it('stores amountBase/baseCurrency/exchangeRate on create (same currency and cached foreign rate)', async () => {
+        const { __clearRateCache } = await fx();
+        __clearRateCache();
+        localStorage.setItem(`wmw.fx.${(await fx()).todayKey()}.USD`, JSON.stringify({ EUR: 0.5 }));
+        const a = await repo.createTransaction({ userId: USER, merchant: 'A', total: 10, date: '2026-11-01' });
+        const b = await repo.createTransaction({ userId: USER, merchant: 'B', total: 10, currency: 'USD', date: '2026-11-01' });
+        expect(await repo.getTransaction(a)).toMatchObject({ amountBase: 10, baseCurrency: 'EUR', exchangeRate: 1 });
+        expect(await repo.getTransaction(b)).toMatchObject({ amountBase: 5, baseCurrency: 'EUR', exchangeRate: 0.5 });
+    });
+
+    it('offline with no rate stores null, then fillMissingBaseAmounts fills it after the rate is known', async () => {
+        setOnline(false);
+        const id = await repo.createTransaction({ userId: USER, merchant: 'C', total: 20, currency: 'GBP', date: '2026-11-01' });
+        const tx = await repo.getTransaction(id);
+        expect(tx.amountBase ?? null).toBeNull();
+        expect(await repo.fillMissingBaseAmounts(USER)).toBe(0);
+        localStorage.setItem(`wmw.fx.${(await fx()).todayKey()}.GBP`, JSON.stringify({ EUR: 1.2 }));
+        expect(await repo.fillMissingBaseAmounts(USER)).toBe(1);
+        expect(await repo.getTransaction(id)).toMatchObject({ amountBase: 24, baseCurrency: 'EUR', exchangeRate: 1.2 });
+    });
+
+    it('editing the total or currency recomputes the base amount; other edits keep it', async () => {
+        const id = await repo.createTransaction({ userId: USER, merchant: 'D', total: 10, date: '2026-11-01' });
+        await repo.updateTransaction(id, { total: 15 });
+        expect((await repo.getTransaction(id)).amountBase).toBe(15);
+        await repo.updateTransaction(id, { notes: 'x' });
+        expect((await repo.getTransaction(id)).amountBase).toBe(15);
+    });
+
+    it('recalculateBaseAmounts follows a changed base currency and skips rows without a rate', async () => {
+        const id = await repo.createTransaction({ userId: USER, merchant: 'E', total: 10, date: '2026-11-01' });
+        await repo.saveSettings(USER, { defaultCurrency: 'USD' });
+        setOnline(false);
+        let res = await repo.recalculateBaseAmounts(USER);
+        expect(res).toEqual({ updated: 0, skipped: 1 });
+        localStorage.setItem(`wmw.fx.${(await fx()).todayKey()}.EUR`, JSON.stringify({ USD: 1.1 }));
+        res = await repo.recalculateBaseAmounts(USER);
+        expect(res.updated).toBe(1);
+        expect(await repo.getTransaction(id)).toMatchObject({ amountBase: 11, baseCurrency: 'USD' });
+    });
+});

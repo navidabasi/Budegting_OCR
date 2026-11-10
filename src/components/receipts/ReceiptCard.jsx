@@ -361,7 +361,7 @@ export default function ReceiptCard({ receipt, onDropOnReceipt, isNested = false
                 </div>
                 <div className="text-right flex-shrink-0">
                     <div className={`font-bold text-xl ${receipt.transactionType === 'income' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                        <CurrencyDisplay amount={receipt.total} currency={receipt.currency} />
+                        <CurrencyDisplay amount={receipt.total} currency={receipt.currency} amountBase={receipt.amountBase} baseCurrency={receipt.baseCurrency} />
                     </div>
                 </div>
             </div>

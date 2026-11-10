@@ -1053,4 +1053,14 @@ export const en = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalculate base amounts",
+        recalculating: "Recalculating…",
+        recalcHint: "Converts every transaction to your main currency again, at today’s rate. Use it after changing your currency.",
+        recalcDone: "{{count}} transactions updated",
+        recalcPartial: "{{count}} updated, {{skipped}} skipped (no exchange rate available)",
+        recalcFailed: "Could not recalculate. Try again.",
+    },
+    // @i18n:end fx
 };

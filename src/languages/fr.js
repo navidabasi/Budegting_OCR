@@ -784,4 +784,14 @@ export const fr = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalculer les montants en devise de base",
+        recalculating: "Recalcul…",
+        recalcHint: "Reconvertit chaque opération dans votre devise principale, au taux du jour. À utiliser après un changement de devise.",
+        recalcDone: "{{count}} opérations mises à jour",
+        recalcPartial: "{{count}} mis à jour, {{skipped}} ignorés (taux indisponible)",
+        recalcFailed: "Recalcul impossible. Réessayez.",
+    },
+    // @i18n:end fx
 };

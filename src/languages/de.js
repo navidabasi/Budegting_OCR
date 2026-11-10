@@ -897,4 +897,14 @@ export const de = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Basisbeträge neu berechnen",
+        recalculating: "Wird berechnet…",
+        recalcHint: "Rechnet jede Buchung erneut in deine Hauptwährung um, zum heutigen Kurs. Nutze es nach einem Währungswechsel.",
+        recalcDone: "{{count}} Buchungen aktualisiert",
+        recalcPartial: "{{count}} aktualisiert, {{skipped}} übersprungen (kein Kurs verfügbar)",
+        recalcFailed: "Neuberechnung fehlgeschlagen. Versuche es erneut.",
+    },
+    // @i18n:end fx
 };

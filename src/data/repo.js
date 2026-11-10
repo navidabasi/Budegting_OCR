@@ -20,6 +20,8 @@ import {
 import { calculateNextRecurringDate } from '../utils/recurring';
 import { normalizeCategoryName } from '../utils/categoryNames';
 import { merchantKey as computeMerchantKey } from '../utils/merchant';
+import { computeBase, needsBase } from '../utils/baseAmount';
+import { getRate } from '../services/exchangeRateService';
 
 const nowIso = () => new Date().toISOString();
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -145,6 +147,7 @@ export async function createTransaction(receipt) {
     };
     if (typeof record.total === 'string') record.total = parseFloat(record.total);
     if (!record.merchantKey && record.transactionType !== 'transfer' && record.merchant) record.merchantKey = computeMerchantKey(record.merchant) || undefined;
+    if (record.amountBase === undefined || record.amountBase === null) Object.assign(record, await baseFor(record.userId, record));
     await insertRecord('transactions', record);
     return record.id;
 }
@@ -155,8 +158,73 @@ export async function updateTransaction(id, updates) {
     delete patch.userId;
     if (patch.trackingData !== undefined) patch.trackingData = normalizeTrackingData(patch.trackingData);
     await withMerchantKey(id, patch);
+    await withBaseAmount(id, patch);
     await patchRecord('transactions', id, patch);
     return id;
+}
+
+// ---------------------------------------------------------------------------
+// Base-currency amounts (P4-T2): computed at write time, recomputed when total/currency change
+// ---------------------------------------------------------------------------
+
+async function baseCurrencyOf(userId) {
+    if (!(await mirrorOk())) return 'EUR';
+    return (await db.settings.get(userId))?.defaultCurrency || 'EUR';
+}
+
+/** { amountBase, baseCurrency, exchangeRate } for a transaction-like { total, currency } in the user's base currency. */
+async function baseFor(userId, tx, { baseCurrency } = {}) {
+    const base = baseCurrency || (await baseCurrencyOf(userId));
+    const currency = tx.currency || 'EUR';
+    const rate = currency === base ? 1 : await getRate(currency, base);
+    return computeBase({ total: tx.total, currency, baseCurrency: base, rate });
+}
+
+async function withBaseAmount(id, patch) {
+    if (patch.amountBase !== undefined || !(await mirrorOk())) return;
+    const existing = await db.transactions.get(id);
+    if (!existing) return;
+    const touches = patch.total !== undefined || patch.currency !== undefined;
+    if (!touches && existing.amountBase !== null && existing.amountBase !== undefined) return;
+    if (!touches && !needsBase(existing, await baseCurrencyOf(existing.userId))) return;
+    const total = patch.total !== undefined ? (typeof patch.total === 'string' ? parseFloat(patch.total) : patch.total) : existing.total;
+    Object.assign(patch, await baseFor(existing.userId, { total, currency: patch.currency ?? existing.currency }));
+}
+
+/**
+ * Fill base amounts that were left null (saved offline without a cached rate). Called after each sync.
+ * Only foreign-currency rows need it; returns how many rows were updated.
+ */
+export async function fillMissingBaseAmounts(userId) {
+    if (!userId || !(await mirrorOk())) return 0;
+    const base = await baseCurrencyOf(userId);
+    const rows = (await db.transactions.where('userId').equals(userId).toArray()).filter((tx) => needsBase(tx, base));
+    const changes = [];
+    for (const tx of rows) {
+        const b = await baseFor(userId, tx, { baseCurrency: base });
+        if (b.amountBase !== null) changes.push({ id: tx.id, patch: b });
+    }
+    await batchUpdateTransactions(changes);
+    return changes.length;
+}
+
+/** Settings > Data > "Recalculate base amounts": every row, current base currency, today's rate. */
+export async function recalculateBaseAmounts(userId) {
+    if (!userId || !(await mirrorOk())) return { updated: 0, skipped: 0 };
+    const base = await baseCurrencyOf(userId);
+    const rows = await db.transactions.where('userId').equals(userId).toArray();
+    const changes = [];
+    let skipped = 0;
+    for (const tx of rows) {
+        const b = await baseFor(userId, tx, { baseCurrency: base });
+        if (b.amountBase === null) {
+            skipped += 1; // no rate available: keep what is stored
+            continue;
+        }
+        if (b.amountBase !== tx.amountBase || b.baseCurrency !== tx.baseCurrency || b.exchangeRate !== tx.exchangeRate) changes.push({ id: tx.id, patch: b });
+    }
+    await batchUpdateTransactions(changes);
+    return { updated: changes.length, skipped };
 }
 
 /** Keep merchantKey in step with the merchant, and persist it for rows that were saved without one (lazy backfill). */

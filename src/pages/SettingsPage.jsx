@@ -19,8 +19,10 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
 import AccountsManager from '../components/settings/AccountsManager';
 import { buildCsv, downloadCsv } from '../utils/exportCsv';
+import { recalculateBaseAmounts } from '../data/repo';
+import { notifyDataChanged } from '../data/queryClient';
 import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
-import { LogOut, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown } from 'lucide-react';
+import { LogOut, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
 import {
@@ -392,6 +394,22 @@ export default function SettingsPage() {
             setSyncStatus({ type: 'error', message: t('settings.cloud.syncFailed', { message: err.message || 'Unknown error' }) });
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const [recalculating, setRecalculating] = useState(false);
+    const handleRecalculateBase = async () => {
+        if (!currentUser || recalculating) return;
+        setRecalculating(true);
+        try {
+            const { updated, skipped } = await recalculateBaseAmounts(currentUser.userId);
+            notifyDataChanged();
+            showToast(t(skipped > 0 ? 'fx.recalcPartial' : 'fx.recalcDone', { count: updated, skipped }), skipped > 0 ? 'warning' : 'success');
+        } catch (err) {
+            console.error('[Settings] recalculate failed', err);
+            showToast(t('fx.recalcFailed'), 'error');
+        } finally {
+            setRecalculating(false);
         }
     };
 
@@ -811,6 +829,11 @@ export default function SettingsPage() {
                         {t('prefs.data.exportCsv')}
                     </Button>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{t('prefs.data.exportHint')}</p>
+                    <Button variant="secondary" onClick={handleRecalculateBase} disabled={recalculating} className="w-full flex items-center justify-center gap-2">
+                        <RefreshCw size={18} />
+                        {recalculating ? t('fx.recalculating') : t('fx.recalcBase')}
+                    </Button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('fx.recalcHint')}</p>
                     {demoReceiptCount > 0 && (
                         <Button variant="secondary" onClick={() => setShowClearDemoConfirm(true)} disabled={clearingDemo} className="w-full">
                             {clearingDemo ? t('settings.demo.clearing') : t('prefs.data.removeSample', { count: demoReceiptCount })}

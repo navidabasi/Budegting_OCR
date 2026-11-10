@@ -784,4 +784,14 @@ export const es = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalcular importes en moneda base",
+        recalculating: "Recalculando…",
+        recalcHint: "Vuelve a convertir cada movimiento a tu moneda principal, al cambio de hoy. Úsalo tras cambiar de moneda.",
+        recalcDone: "{{count}} movimientos actualizados",
+        recalcPartial: "{{count}} actualizados, {{skipped}} omitidos (sin tipo de cambio)",
+        recalcFailed: "No se pudo recalcular. Inténtalo de nuevo.",
+    },
+    // @i18n:end fx
 };

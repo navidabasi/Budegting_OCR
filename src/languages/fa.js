@@ -947,4 +947,14 @@ export const fa = {
         },
     },
     // @i18n:end categorise
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "محاسبه مجدد مبالغ ارز پایه",
+        recalculating: "در حال محاسبه…",
+        recalcHint: "همه تراکنش‌ها را دوباره با نرخ امروز به ارز اصلی شما تبدیل می‌کند. پس از تغییر ارز از آن استفاده کنید.",
+        recalcDone: "{{count}} تراکنش به‌روز شد",
+        recalcPartial: "{{count}} به‌روز شد، {{skipped}} رد شد (نرخ ارز در دسترس نیست)",
+        recalcFailed: "محاسبه مجدد انجام نشد. دوباره تلاش کنید.",
+    },
+    // @i18n:end fx
 };

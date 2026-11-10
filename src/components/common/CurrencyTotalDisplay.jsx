@@ -1,109 +1,39 @@
-import { useState, useEffect } from 'react';
-import { formatCurrency, getEffectiveAmount } from '../../utils/helpers';
+import { formatCurrency } from '../../utils/helpers';
 import { useSettings } from '../../data/hooks';
-import { exchangeRateService } from '../../services/exchangeRateService';
+import { shareAmount } from '../../utils/money';
 
-// Component to display totals that may come from receipts with different currencies
+/**
+ * Total of receipts that may be in different currencies. Uses the base amounts stored at write time
+ * (`amountBase`), so nothing is converted at render time and nothing flickers.
+ * `amount` is the caller's own sum in the receipts' entered currency.
+ */
 export default function CurrencyTotalDisplay({ receipts, amount }) {
     const { defaultCurrency } = useSettings();
-    const [convertedAmount, setConvertedAmount] = useState(null);
-    const [hasMultipleCurrencies, setHasMultipleCurrencies] = useState(false);
 
-    useEffect(() => {
-        const checkAndConvert = async () => {
-            if (!receipts || receipts.length === 0 || !amount) {
-                setConvertedAmount(null);
-                setHasMultipleCurrencies(false);
-                return;
-            }
+    if (!receipts || receipts.length === 0) return <span>{formatCurrency(amount || 0, defaultCurrency)}</span>;
 
-            // Check if receipts have different currencies
-            const currencies = new Set(receipts.map(r => r.currency || 'USD').filter(Boolean));
-            setHasMultipleCurrencies(currencies.size > 1);
+    const currencies = new Set(receipts.map((r) => r.currency || defaultCurrency));
+    const single = currencies.size === 1 ? [...currencies][0] : null;
+    const allConverted = receipts.every((r) => (r.currency || defaultCurrency) === defaultCurrency || (r.amountBase !== null && r.amountBase !== undefined));
+    const baseTotal = receipts.reduce((sum, r) => sum + shareAmount(r), 0);
 
-            // If all receipts use the same currency and it's not the default, convert
-            if (currencies.size === 1) {
-                const receiptCurrency = Array.from(currencies)[0];
-                if (receiptCurrency !== defaultCurrency) {
-                    try {
-                        const converted = await exchangeRateService.convertAmount(
-                            parseFloat(amount),
-                            receiptCurrency,
-                            defaultCurrency
-                        );
-                        setConvertedAmount(converted);
-                    } catch (error) {
-                        console.error('Failed to convert amount:', error);
-                        setConvertedAmount(null);
-                    }
-                } else {
-                    setConvertedAmount(null);
-                }
-            } else if (currencies.size > 1) {
-                // Multiple currencies - convert each receipt and sum
-                try {
-                    let totalConverted = 0;
-                    for (const receipt of receipts) {
-                        const receiptCurrency = receipt.currency || 'USD';
-                        // Use effective amount (user's share if split)
-                        const receiptAmount = getEffectiveAmount(receipt);
-                        if (receiptCurrency === defaultCurrency) {
-                            totalConverted += receiptAmount;
-                        } else {
-                            const converted = await exchangeRateService.convertAmount(
-                                receiptAmount,
-                                receiptCurrency,
-                                defaultCurrency
-                            );
-                            totalConverted += converted;
-                        }
-                    }
-                    setConvertedAmount(totalConverted);
-                } catch (error) {
-                    console.error('Failed to convert amounts:', error);
-                    setConvertedAmount(null);
-                }
-            } else {
-                setConvertedAmount(null);
-            }
-        };
+    if (single === defaultCurrency) return <span>{formatCurrency(amount || 0, defaultCurrency)}</span>;
 
-        checkAndConvert();
-    }, [receipts, amount, defaultCurrency]);
-
-    if (!receipts || receipts.length === 0) {
-        return <span>{formatCurrency(amount || 0, defaultCurrency)}</span>;
-    }
-
-    const currencies = new Set(receipts.map(r => r.currency || 'USD').filter(Boolean));
-    const singleCurrency = currencies.size === 1 ? Array.from(currencies)[0] : null;
-
-    if (singleCurrency && singleCurrency === defaultCurrency) {
-        return <span>{formatCurrency(amount, defaultCurrency)}</span>;
-    }
-
-    if (singleCurrency && convertedAmount) {
+    if (single && allConverted) {
         return (
             <div>
-                <div>{formatCurrency(amount, singleCurrency)}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">
-                    ≈ {formatCurrency(convertedAmount, defaultCurrency)} ({defaultCurrency})
-                </div>
+                <div>{formatCurrency(amount || 0, single)}</div>
+                <div className="mt-0.5 text-xs text-ink-muted">≈ {formatCurrency(baseTotal, defaultCurrency)}</div>
             </div>
         );
     }
-
-    if (hasMultipleCurrencies && convertedAmount !== null) {
+    if (!single && allConverted) {
         return (
             <div>
-                <div>{formatCurrency(convertedAmount, defaultCurrency)}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">
-                    Converted from multiple currencies
-                </div>
+                <div>{formatCurrency(baseTotal, defaultCurrency)}</div>
+                <div className="mt-0.5 text-xs text-ink-muted">≈ {defaultCurrency}</div>
             </div>
         );
     }
-
-    return <span>{formatCurrency(amount || 0, defaultCurrency)}</span>;
+    return <span>{formatCurrency(amount || 0, single || defaultCurrency)}</span>;
 }
-
