@@ -34,10 +34,10 @@ React Components → hooks (src/data/hooks.js, TanStack Query) → repo.js
 - `src/components/dashboard/` - Dashboard widgets (charts, summaries, widget customizer)
 - `src/components/receipts/` - Receipt-specific components (ReceiptCard, ReceiptForm, GroupManager)
 - `src/data/` - Data layer: `db.js` (Dexie schema), `api.js` (Supabase CRUD + camelCase/snake_case mappers), `sync.js` (outbox flush + pull), `repo.js` (local-first reads/writes), `hooks.js` (React Query hooks)
-- `src/services/` - supabaseService.js (client + auth helpers), authService.js, ocrApi.js, notificationService.js, categoryService.js
+- `src/services/` - supabaseService.js (client + auth helpers), authService.js, notificationService.js, categoryService.js
 - `src/store/appStore.js` - Zustand global state with localStorage persistence
 - `src/hooks/` - Thin wrappers over the data hooks (useReceipts, useGroups, useCategories, useUserLayout)
-- `api/ocr.py` - Vercel Python serverless OCR endpoint (OCR.Space + regex parsing); `api/ocr-proxy.js` - JS fallback proxy. Both are to be replaced by `api/extract-receipt.js` (plan Phase 2)
+- `api/extract-receipt.js` - Vercel Node function: receipt image -> structured JSON (vision model, OCR.Space text fallback). The client scan flow is `src/pages/ScanPage.jsx` + `src/services/receiptScan.js`
 
 ### State Management
 Zustand with localStorage persistence. Access state with selectors:

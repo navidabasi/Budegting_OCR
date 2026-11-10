@@ -171,7 +171,7 @@ src/
 
 api/
 ├── ocr.py            # Vercel serverless OCR endpoint (to be replaced, see plan)
-└── ocr-proxy.js      # Optional OCR proxy endpoint
+└── extract-receipt.js # Receipt image -> structured JSON (AI extraction)
 ```
 
 ## Browser Support

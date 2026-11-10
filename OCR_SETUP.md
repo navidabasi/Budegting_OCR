@@ -1,85 +1,34 @@
-> This pipeline is to be replaced by AI structured extraction; see `docs/IMPROVEMENT_PLAN.md` (Phase 2).
+# Receipt scanning
 
-# OCR.Space Integration
-
-This app uses OCR.Space for receipt text extraction.
-
-## How it works
-
-1. **Without user API key**
-   - Works only when server-side `OCR_SPACE_API_KEY` is configured
-   - Useful for shared/team deployments
-
-2. **With API key (optional)**
-   - Get a free API key at https://ocr.space/ocrapi
-   - 25,000 requests/month on free tier
-   - Add your key in Settings
-
-## Architecture
+Scanning is done by `api/extract-receipt.js` (Vercel Node function). The client (`src/pages/ScanPage.jsx`,
+`src/services/receiptScan.js`) renders PDFs to an image in the browser, uploads one JPEG (<= 3 MB) and gets back
+`{ receipt, extraction }` (see `api/_lib/receiptSchema.js`).
 
 ```
-Browser → /api/ocr (Python serverless function) → OCR.Space API
+Browser (scan flow) -> POST /api/extract-receipt (Bearer: Supabase access token)
+                         -> vision model (LLM_VISION_*), or OCR.Space text (OCR_SPACE_API_KEY) + text model
 ```
 
-The app uses serverless functions (`api/ocr.py` and optional `api/ocr-proxy.js`) to:
-- Handle CORS issues
-- Keep API keys server-side
-- Process images securely
+## Environment variables (Vercel, server side only)
 
-## Files
+| Variable | Purpose |
+|---|---|
+| `LLM_VISION_BASE_URL`, `LLM_VISION_API_KEY`, `LLM_VISION_MODEL` | Vision model used to read the photo |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Text model (OCR fallback, categorize, insights) |
+| `OCR_SPACE_API_KEY` | Fallback OCR when no vision model is configured |
+| `AI_DAILY_LIMIT_PER_USER` | Per-user daily cap on AI calls |
 
-- `src/services/ocrApi.js` - Frontend OCR service
-- `api/ocr.py` - Main Vercel OCR endpoint
-- `api/ocr-proxy.js` - Optional JS proxy endpoint
+## Local development
 
-## Local Development
+`/api` is not served by `npm run dev`; run `vercel dev` to try scanning locally. Without it the request returns 404
+and the app offers manual entry with the photo attached.
 
-The Vite dev server proxies `/api` requests. For local testing:
+## Offline
 
-1. Start the dev server: `npm run dev`
-2. OCR requests go to `/api/ocr`
-3. The serverless endpoint forwards to OCR.Space API
+A photo taken offline is stored with a placeholder transaction (`extraction.pending = true`) and read automatically
+when the app is back online (`src/services/pendingScans.js`).
 
-## Production (Vercel)
+## Sharing receipts into the app
 
-Vercel automatically deploys files in `/api` as serverless functions.
-
-1. Push to GitHub
-2. Vercel deploys automatically
-3. `/api/ocr` becomes the main serverless OCR endpoint
-
-## OCR.Space Features Used
-
-- **Engine 2**: Better for receipts and structured documents
-- **Auto-rotate**: Detects and corrects image orientation
-- **Table detection**: Helps parse receipt line items
-- **Scale**: Enlarges small images for better recognition
-
-## Response Parsing
-
-OCR.Space returns plain text. The app parses it to extract:
-- Merchant name (first few lines)
-- Date (various formats)
-- Total amount (looks for "TOTAL", "AMOUNT DUE", etc.)
-- Line items (items with prices)
-
-## Limitations
-
-- Plain text output (no structured receipt data)
-- May require manual corrections for complex receipts
-- Rate limits on free tier
-
-## Troubleshooting
-
-### "Rate limit exceeded"
-- Add your own OCR.Space API key in Settings
-- Or wait and try again later
-
-### Poor OCR accuracy
-- Ensure good lighting when taking photos
-- Keep the receipt flat and in focus
-- Try cropping to just the receipt
-
-### Proxy not working
-- Check Vercel function logs
-- Verify the function is deployed (`/api/ocr` returns a response)
+The PWA manifest declares a Web Share Target (`POST /share`). The service worker (`src/sw.js`) stores the shared
+file(s) in IndexedDB and redirects to `/scan?shared=1`.
