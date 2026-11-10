@@ -7,15 +7,27 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
-            includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+            includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-maskable-192x192.png', 'pwa-maskable-512x512.png'],
             manifest: {
                 name: 'Where my money went?',
-                short_name: 'Money Tracker',
+                short_name: 'Where my money went?',
                 description: 'Track where your money goes with receipt scanning and expense management',
-                theme_color: '#10b981',
-                background_color: '#ffffff',
+                theme_color: '#00573F',
+                background_color: '#F4F6F3',
+                start_url: '/',
+                scope: '/',
                 display: 'standalone',
                 orientation: 'portrait',
+                // Web Share Target: receive receipts (images/PDF) shared from other apps.
+                // The /share handler (service worker) is implemented in plan task P2-T6.
+                share_target: {
+                    action: '/share',
+                    method: 'POST',
+                    enctype: 'multipart/form-data',
+                    params: {
+                        files: [{ name: 'files', accept: ['image/*', 'application/pdf'] }]
+                    }
+                },
                 icons: [
                     {
                         src: 'pwa-192x192.png',

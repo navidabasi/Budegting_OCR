@@ -3,19 +3,35 @@
 
 <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/mask-icon.svg" color="#00573F" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#10b981" />
-    <meta name="description" content="Manage your receipts and expenses with OCR" />
+    <meta name="theme-color" content="#00573F" />
+    <meta name="description" content="Track where your money goes with receipt scanning and expense management" />
+    <meta name="apple-mobile-web-app-title" content="Where my money went?" />
     <meta name="google-site-verification" content="4KScGVeqi0e2YBvX14mIUexsEePMC001iAg6NEumqaQ" />
-    <title>Receipt Manager</title>
+    <title>Where my money went?</title>
+    <style>
+        html, body { margin: 0; background: #F4F6F3; }
+        .splash { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; color: #00573F; background: #F4F6F3; }
+        .splash-spinner { width: 28px; height: 28px; border: 3px solid #E6F0EB; border-top-color: #00573F; border-radius: 50%; animation: splash-spin 0.8s linear infinite; }
+        @keyframes splash-spin { to { transform: rotate(360deg); } }
+        @media (prefers-color-scheme: dark) {
+            html, body, .splash { background: #0E1512; }
+            .splash { color: #3FA67F; }
+            .splash-spinner { border-color: #162019; border-top-color: #3FA67F; }
+        }
+    </style>
 </head>
 
 <body>
     <div id="root">
-        <div style="padding: 20px; font-family: sans-serif; background: #f0f0f0;">
-            <h1>Loading React App...</h1>
-            <p>Initializing...</p>
+        <div class="splash" role="status" aria-label="Loading">
+            <svg class="splash-logo" viewBox="0 0 16 16" width="64" height="64" aria-hidden="true">
+                <path fill="currentColor" d="M14.5856 3.6096H2.0416c-0.48281875 0 -0.78458125 -0.52266875 -0.54316875 -0.9408 0.11204375 -0.1940625 0.31908125 -0.3136125 0.54316875 -0.3136H12.704c0.48281875 -0.00001875 0.7845875 -0.5227 0.54315625 -0.940825 -0.11204375 -0.19404375 -0.3190875 -0.313575 -0.54315625 -0.313575H2.0416C1.0023875 1.10075625 0.16 1.9431875 0.16 2.9824v10.0352c0 1.03918125 0.84241875 1.8816 1.8816 1.8816h12.544c0.6927875 0 1.2544 -0.5616125 1.2544 -1.2544V4.864c0 -0.6927625 -0.5616375 -1.25436875 -1.2544 -1.2544Zm0 10.0352H2.0416c-0.34640625 0.0000125 -0.6272 -0.28079375 -0.6272 -0.6272V4.75659375c0.2013875 0.0713875 0.41353125 0.10771875 0.6272 0.10740625h12.544Zm-3.7632 -4.704c0 -0.72423125 0.784 -1.17686875 1.4112 -0.81475625 0.6272 0.3621125 0.6272 1.2674 0 1.6295125 -0.14300625 0.08256875 -0.30526875 0.1260375 -0.4704 0.12604375 -0.51960625 0.000025 -0.9408 -0.42119375 -0.9408 -0.9408Z"/>
+            </svg>
+            <div class="splash-spinner"></div>
         </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
