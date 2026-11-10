@@ -1,7 +1,7 @@
 # Budgeting OCR — Audit & Improvement Plan
 
 Status: **v2 — decisions taken (see §6). Ready for implementation.**
-Design reference (touch-first, 8 screens): https://claude.ai/artifact/EstNe5pd4gpTfuqm74VTMW — the implementer builds Phase 5 screens to match it.
+Design reference (touch-first, 9 screens): https://claude.ai/artifact/EstNe5pd4gpTfuqm74VTMW — the implementer builds Phase 5 screens to match it.
 Audience: the implementer (a cheaper AI model or a developer) and the owner.
 Written: 2026-11-10, from a full read of the codebase on `main` (commit a9af340).
 
@@ -112,6 +112,7 @@ Client (React PWA, online-first)
 Supabase ("navidabasi's Project")
   ├─ receipts (+ account_id, to_account_id, image_path, amount_base, extraction, merchant_key, goal_id, import_ref)
   ├─ accounts, budgets, savings_goals, merchant_rules, insights_cache, ai_usage      (new)
+  ├─ groups → trips (dates, budget, currency, auto-attach)                            (extended)
   └─ Storage bucket "receipts" (private, per-user folder)
 ```
 
@@ -169,6 +170,19 @@ alter table receipts
 create index if not exists idx_receipts_user_date on receipts(user_id, date desc);
 create index if not exists idx_receipts_merchant_key on receipts(user_id, merchant_key);
 create unique index if not exists idx_receipts_import_ref on receipts(user_id, import_ref) where import_ref is not null;
+
+-- Trips (travel sessions). The existing groups table is extended rather than replaced:
+-- a trip is a group with kind='trip' and dates. Receipts keep using group_id.
+alter table groups
+  add column if not exists kind text not null default 'group',      -- group | trip | project
+  add column if not exists starts_on date,
+  add column if not exists ends_on date,
+  add column if not exists budget_amount numeric(12,2),
+  add column if not exists currency text,
+  add column if not exists is_active boolean default false,          -- manual start/stop; dates are the default
+  add column if not exists exclude_from_budgets boolean default true,-- trip spend counts under one "Travel" line, not per category
+  add column if not exists companions text[];                        -- names for splits
+create index if not exists idx_groups_active on groups(user_id, is_active) where kind = 'trip';
 
 create table if not exists budgets (
   id uuid primary key default gen_random_uuid(),
@@ -235,6 +249,8 @@ create table if not exists ai_usage (
 ```
 
 **Savings semantics (D6).** A transfer from a spending account to a `savings` or `investment` account is "saving". Monthly `saved` = sum of such transfers in the month minus transfers back out. `savings rate` = saved / income (hidden when income is 0). Goal progress = `starting_amount` + transfers with that `goal_id` (or, when `account_id` is set and no goal_id is used, the account balance). Account balance = opening balance + income − expenses − transfers out + transfers in. This removes the need to log savings as fake "income".
+
+**Trip semantics (D15).** Exactly one trip can be *active* at a time: `is_active = true`, or today within `starts_on..ends_on` when no manual flag is set. While active, every new transaction (Quick Add, scan, share-to-app, CSV import rows dated inside the trip) gets `group_id = trip.id` by default; the user can detach it in "More". The category stays normal. Trip total = Σ `amount_base` of its expenses (minus incomes/refunds in the trip); per-day burn = total / days elapsed; "your share" uses split data. When `exclude_from_budgets` is true (default), trip expenses are not counted against per-category monthly budgets; they appear as one "Travel (trip name)" line on Home and in the whole-month total, so a holiday does not break November's Dining budget. Past trips are listed with totals for side-by-side comparison.
 
 **Categories after Phase 2** (seeded defaults; users may add their own):
 `Groceries, Dining, Fuel, Transport, Housing, Utilities, Subscriptions, Shopping, Health, Personal care, Entertainment, Travel, Education, Insurance, Gifts, Fees, Other` plus the system types `Income` and `Transfer` (not user-pickable as expense categories). Old → new: `Restaurant→Dining`, `Gas→Fuel`, `Transportation→Transport`, `Healthcare→Health`.
@@ -324,6 +340,9 @@ Acceptance: `scripts/eval-extraction.mjs` prints per-field accuracy over the tes
 
 **P4-T6 (L) CSV import (Revolut, PostePay).** `src/import/parsers/revolut.js` (columns `Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance`; `TRANSFER`/`TOPUP` rows between own accounts become transfers; `CARD_PAYMENT` → expense; negative/positive sign by `Amount`; skip `REVERTED`), `postepay.js` (ask the owner for one export to pin the columns; build a generic column-mapper UI as fallback). Flow: Settings → Accounts → Import CSV → pick account → preview table (date, description, amount, suggested category, "duplicate of scanned receipt?" when same amount within ±1 day) → import. `import_ref` = `provider:sha1(row)` guarantees idempotent re-imports. After import, run P3-T4 on unknown descriptions. Acceptance: importing the same file twice adds nothing; a scanned Lidl receipt and its Revolut row merge into one transaction (the receipt keeps the items and image, the row supplies the account).
 
+
+**P4-T7 (M) Trips (travel sessions)** = design screen 9 + the Home banner. Extend `useGroups` → `useTrips` (kind='trip'); "Start a trip" sheet (name, dates, budget, currency, companions) from Home's header menu and from Budgets › Savings & accounts › Trips; `useActiveTrip()` hook; default `group_id` in Quick Add, Scan review, share-to-app and CSV import to the active trip (rows dated inside the trip range); Home shows the "On a trip" banner with the running total and the "Travel (name)" line in the month receipt; Trip page: hero (total vs budget with pace tick, per-day burn, your share), category split, latest transactions, "Add to trip", "End trip"; past trips list with totals. Budget math respects `exclude_from_budgets`. Acceptance: start a 4-day trip, add 5 transactions (2 via CSV import dated inside it), end it → trip total equals their sum, November's Dining budget unchanged, Home's whole-month total includes it.
+
 ### Phase 5 — UX overhaul to the design (exit: manual add ≤ 5 taps; screens match the canvas)
 
 Use the `frontend-design` skill and the design canvas for every task. Tokens in `tailwind.config.js`: ground `#F4F6F3`, surface `#FFFFFF`, ink `#10211B`, ink-muted `#5C6B64`, line `#E4E9E5`, forest `#00573F`, mint `#E6F0EB`, income `#1B7F55`, savings `#2458D6`, warn `#B45309` / `#8A5A00` text, over `#C2410C` / `#A33A0A` text. Fonts: Bricolage Grotesque (display), Albert Sans (body), IBM Plex Mono (all amounts, `font-variant-numeric: tabular-nums`). Amount rows use the dotted-leader pattern (`.lead`). Dark mode: invert ground/surface to `#0E1512`/`#162019`, keep forest/savings hues, raise text contrast; every token gets a dark value.
@@ -331,7 +350,7 @@ Use the `frontend-design` skill and the design canvas for every task. Tokens in 
 **P5-T1 (L) Quick Add bottom sheet** = screen 2. Amount-first with in-app keypad, Expense/Income/Transfer control, camera + gallery shortcuts, merchant input with recent chips, category chips (suggested first), Today/Yesterday/Pick, account chips, "More" accordion (items, notes, group, tags, split, recurring, planned). Undo toast after save.
 **P5-T2 (L) Activity** = screen 4. Split `ReceiptsPage.jsx` into `ActivityPage`, `TransactionRow`, `DayGroup`, `FilterBar`; groups management moves to `/groups`. Day groups with totals, month strip, chips (month, type, category, account, Unpaid, Uncategorised), search by merchant/notes/amount, sort, swipe actions, virtualised list.
 **P5-T3 (M) Detail** = screen 8. Inline category chips with "applies to all N" hint, details rows, items with unreadable lines flagged, Duplicate/Edit/Delete in the thumb zone.
-**P5-T4 (M) Home + bottom nav** = screen 1. Five-slot nav (Home, Activity, +, Budgets, Insights); Budgets tab hosts the Budgets / Savings & accounts segments. Lazy-load chart.js.
+**P5-T4 (M) Home + bottom nav** = screen 1 (with the trip banner) and the Trip page = screen 9. Five-slot nav (Home, Activity, +, Budgets, Insights); Budgets tab hosts the Budgets / Savings & accounts segments. Lazy-load chart.js.
 **P5-T5 (S) Settings** clean-up: Profile · Accounts · Currency & language · Appearance · Notifications · AI & scanning (toggles, privacy text) · Data (import CSV, export CSV, clear local cache) · About. Demo data moves to the empty-state "Try with sample data".
 **P5-T6 (S) Onboarding**: currency + language, create accounts (Revolut/PostePay/Cash preselected), set a whole-month budget or skip.
 
@@ -367,6 +386,7 @@ Push notifications for unpaid bills (Supabase Edge Function + Web Push); ESLint 
 | D12 | Multi-currency kept; base amounts stored at write time. |
 | D13 | App name: "Where my money went?" |
 | D14 | Chat is the last phase (Phase 7). |
+| D15 | Owner travels a lot: **Trips** are first-class travel sessions (auto-attach while active, own budget/currency, total and per-day burn, kept out of regular category budgets by default). Built on the existing groups table. |
 
 Still open: a PostePay CSV sample (for P4-T6) and the receipt test set (P2-T0).
 
@@ -378,6 +398,7 @@ Still open: a PostePay CSV sample (for P4-T6) and the receipt test set (P2-T0).
 - Works offline: open the app, add transactions, scan (queued), reconnect → everything in Supabase.
 - Home answers in one screen: spent vs budget with pace, income, saved, savings rate, safe-to-spend, next bills.
 - Revolut CSV imported idempotently, deduplicated against scanned receipts.
+- A trip started on the phone collects every transaction made during it, shows its total and per-day burn, and leaves the monthly category budgets untouched.
 - At least one true and actionable insight per month; chat answers cite real numbers.
 - Manual add ≤ 5 taps; scan-to-saved ≤ 3 taps when extraction is right.
 - `npm test` ≥ 80 tests green; CI on every push; Lighthouse installable; bundle < 1.5 MB gzipped; no console errors on first load.
