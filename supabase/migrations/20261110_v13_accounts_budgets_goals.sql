@@ -1,13 +1,14 @@
 -- v13: accounts, budgets, savings goals, merchant rules, insights cache, AI usage,
 -- trip columns on groups and new receipts columns. See docs/IMPROVEMENT_PLAN.md section 4.
--- NOT applied automatically. Review, then apply with the Supabase CLI or SQL editor.
+-- Applied to production on 2026-11-10.
 
 -- Accounts: where money sits. Savings = a transfer INTO an account of kind savings/investment.
 create table if not exists accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   name text not null,                     -- Revolut, PostePay, Cash, Savings account, Investments
-  kind text not null,                     -- spending | savings | investment | cash
+  kind text not null,                     -- spending | cash | savings | investment | debt (liability: Klarna, owed to a friend) | receivable (money lent out)
+  counterparty text,                      -- for debt/receivable: person or provider name
   currency text not null default 'EUR',
   opening_balance numeric(12,2) default 0,
   opening_date date default current_date,
@@ -147,22 +148,18 @@ drop trigger if exists update_merchant_rules_updated_at on merchant_rules;
 create trigger update_merchant_rules_updated_at before update on merchant_rules
   for each row execute function update_updated_at_column();
 
--- Storage: bucket 'receipts' (private); policy: authenticated users read/write objects whose first path segment = auth.uid()::text.
--- Create the bucket in the dashboard (private), then run:
---   create policy "receipts_objects_own" on storage.objects for all to authenticated
---     using (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text)
---     with check (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text);
+-- No account backfill: historical transactions keep account_id = null ("unassigned").
+-- Accounts are created by the user in onboarding / Settings › Accounts; balances count from each account's opening_date.
 
--- Backfill: insert a default 'Cash' spending account per existing user; set receipts.account_id to it where null.
-insert into accounts (user_id, name, kind, currency)
-select distinct r.user_id, 'Cash', 'cash', 'EUR'
-from receipts r
-where r.user_id is not null
-on conflict (user_id, name) do nothing;
+-- Columns from older migrations (v7, v8) that were never applied to production.
+alter table groups   add column if not exists is_demo boolean default false;
+alter table receipts add column if not exists field_timestamps jsonb;
 
-update receipts r
-set account_id = a.id
-from accounts a
-where r.account_id is null
-  and a.user_id = r.user_id
-  and a.name = 'Cash';
+-- Receipt images: private bucket, one folder per user.
+insert into storage.buckets (id, name, public)
+values ('receipts', 'receipts', false)
+on conflict (id) do nothing;
+drop policy if exists "receipts_objects_own" on storage.objects;
+create policy "receipts_objects_own" on storage.objects for all to authenticated
+  using (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text);
