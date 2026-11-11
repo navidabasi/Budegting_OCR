@@ -35,7 +35,7 @@ function SwipeRow({ onSwipe, children }) {
         if (Math.abs(moved) >= SWIPE_PX) onSwipe();
     };
     return (
-        <div className="grid overflow-hidden rounded-2xl" style={{ touchAction: 'pan-y' }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerCancel={() => { start.current = null; setDx(0); }} data-testid="chat-row">
+        <div className="grid shrink-0 overflow-hidden rounded-2xl" style={{ touchAction: 'pan-y' }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerCancel={() => { start.current = null; setDx(0); }} data-testid="chat-row">
             <div className="flex items-center justify-end bg-over px-4 text-white" style={{ gridArea: '1 / 1' }} aria-hidden="true">
                 <Trash2 size={18} />
             </div>
