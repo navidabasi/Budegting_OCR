@@ -1063,4 +1063,54 @@ export const en = {
         recalcFailed: "Could not recalculate. Try again.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "Plan",
+        tabs: "Plan sections",
+        tab: {
+            budgets: "Budgets",
+            savings: "Savings",
+            trips: "Trips",
+        },
+        prevMonth: "Previous month",
+        nextMonth: "Next month",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "Whole month",
+        dayOf: "day {{day}} of {{days}}",
+        of: "of {{amount}}",
+        projectedOver: "Projected {{projected}} · {{over}} over",
+        projectedOk: "Projected {{projected}} · on track",
+        left: "{{amount}} left",
+        over: "{{amount}} over",
+        slowDown: "On this pace: {{projected}} · slow down to {{perDay}}/day",
+        onTrack: "On track",
+        notBudgeted: "Not budgeted: {{list}}",
+        addBudget: "Add budget",
+        edit: "Edit budget for {{name}}",
+        openCategory: "Show {{name}} transactions",
+        travelTitle: "Travel · {{name}}",
+        travelHint: "Kept out of category budgets",
+        emptyTitle: "Set a monthly limit",
+        emptyBody: "Pick a number for the whole month or for a category. We suggest one from your last 3 months.",
+        sheet: {
+            titleAdd: "Add budget",
+            titleEdit: "Edit budget",
+            category: "Category",
+            amount: "Monthly amount",
+            suggestion: "Your 3-month average: {{amount}}",
+            useSuggestion: "Use",
+            save: "Save budget",
+            remove: "Remove budget",
+            removeNote: "Stops this budget from {{month}} on. Earlier months keep it.",
+            removeConfirm: "Remove",
+            saved: "Budget saved",
+            removed: "Budget removed",
+            failed: "Could not save the budget",
+            noCategories: "Every category already has a budget.",
+        },
+    },
+    // @i18n:end budgets
 };

@@ -957,4 +957,54 @@ export const fa = {
         recalcFailed: "محاسبه مجدد انجام نشد. دوباره تلاش کنید.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "برنامه",
+        tabs: "بخش‌های برنامه",
+        tab: {
+            budgets: "بودجه‌ها",
+            savings: "پس‌انداز",
+            trips: "سفرها",
+        },
+        prevMonth: "ماه قبل",
+        nextMonth: "ماه بعد",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "کل ماه",
+        dayOf: "روز {{day}} از {{days}}",
+        of: "از {{amount}}",
+        projectedOver: "پیش‌بینی {{projected}} · {{over}} بیشتر",
+        projectedOk: "پیش‌بینی {{projected}} · طبق برنامه",
+        left: "{{amount}} باقی‌مانده",
+        over: "{{amount}} بیشتر",
+        slowDown: "با این روند: {{projected}} · به {{perDay}} در روز کاهش دهید",
+        onTrack: "طبق برنامه",
+        notBudgeted: "بدون بودجه: {{list}}",
+        addBudget: "افزودن بودجه",
+        edit: "ویرایش بودجه {{name}}",
+        openCategory: "نمایش تراکنش‌های {{name}}",
+        travelTitle: "سفر · {{name}}",
+        travelHint: "خارج از بودجه دسته‌ها",
+        emptyTitle: "یک سقف ماهانه تعیین کنید",
+        emptyBody: "یک عدد برای کل ماه یا یک دسته انتخاب کنید. از روی ۳ ماه اخیر یکی پیشنهاد می‌دهیم.",
+        sheet: {
+            titleAdd: "افزودن بودجه",
+            titleEdit: "ویرایش بودجه",
+            category: "دسته",
+            amount: "مبلغ ماهانه",
+            suggestion: "میانگین ۳ ماه شما: {{amount}}",
+            useSuggestion: "استفاده",
+            save: "ذخیره بودجه",
+            remove: "حذف بودجه",
+            removeNote: "این بودجه از {{month}} به بعد متوقف می‌شود. ماه‌های قبل می‌مانند.",
+            removeConfirm: "حذف",
+            saved: "بودجه ذخیره شد",
+            removed: "بودجه حذف شد",
+            failed: "ذخیره بودجه انجام نشد",
+            noCategories: "همه دسته‌ها از قبل بودجه دارند.",
+        },
+    },
+    // @i18n:end budgets
 };

@@ -1,6 +1,6 @@
 // Budget math (plan P4-T3). Pure.
-import { daysInMonth, monthEnd, monthProgress, monthStart, previousMonths, toYmd } from './monthMath';
-import { monthTotals, round2, spentByCategory } from './money';
+import { daysInMonth, monthEnd, monthKey, monthProgress, monthStart, previousMonths, toYmd } from './monthMath';
+import { excludedTripIds, isPlanned, monthTotals, round2, spentByCategory, typeOf } from './money';
 
 export const WHOLE_MONTH = '*';
 
@@ -116,4 +116,34 @@ export function suggestBudget(transactions = [], category, month, { trips = [], 
     if (firstWithData === -1) return null;
     const used = totals.slice(firstWithData);
     return Math.round(used.reduce((s, t) => s + t, 0) / used.length);
+}
+
+/**
+ * topVisits(transactions, month, category, { trips, min }): the merchant visited most often in a category this month
+ * (trip spend left out like the category bars) -> { name, visits } or null below `min` visits (default 3).
+ */
+export function topVisits(transactions = [], month, category, { trips = [], min = 3 } = {}) {
+    const excluded = excludedTripIds(trips);
+    const counts = new Map();
+    for (const tx of transactions || []) {
+        if (!tx || monthKey(tx.date) !== month || typeOf(tx) !== 'expense' || isPlanned(tx) || (tx.category || 'Other') !== category) continue;
+        if (tx.groupId && excluded.has(tx.groupId)) continue;
+        const name = String(tx.merchant || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        const e = counts.get(key) || { name, visits: 0 };
+        e.visits += 1;
+        counts.set(key, e);
+    }
+    const best = [...counts.values()].sort((a, b) => b.visits - a.visits || a.name.localeCompare(b.name))[0];
+    return best && best.visits >= min ? best : null;
+}
+
+/** Categories with spend this month (trip spend left out) that have no active budget: [{ category, spent }] largest first. */
+export function notBudgeted(budgets = [], transactions = [], month, { trips = [] } = {}) {
+    const has = new Set(activeBudgets(budgets, month).map((b) => b.category));
+    return Object.entries(spentByCategory(transactions, month, { trips, includeTrips: false }))
+        .filter(([category, spent]) => !has.has(category) && spent > 0)
+        .map(([category, spent]) => ({ category, spent }))
+        .sort((a, b) => b.spent - a.spent);
 }

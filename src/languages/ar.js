@@ -939,4 +939,54 @@ export const ar = {
         recalcFailed: "تعذّرت إعادة الحساب. حاول مرة أخرى.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "الخطة",
+        tabs: "أقسام الخطة",
+        tab: {
+            budgets: "الميزانيات",
+            savings: "المدخرات",
+            trips: "الرحلات",
+        },
+        prevMonth: "الشهر السابق",
+        nextMonth: "الشهر التالي",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "الشهر كاملاً",
+        dayOf: "اليوم {{day}} من {{days}}",
+        of: "من {{amount}}",
+        projectedOver: "المتوقع {{projected}} · تجاوز {{over}}",
+        projectedOk: "المتوقع {{projected}} · على المسار",
+        left: "متبقي {{amount}}",
+        over: "تجاوز {{amount}}",
+        slowDown: "بهذا المعدل: {{projected}} · خفّف إلى {{perDay}}/يوم",
+        onTrack: "على المسار",
+        notBudgeted: "بلا ميزانية: {{list}}",
+        addBudget: "إضافة ميزانية",
+        edit: "تعديل ميزانية {{name}}",
+        openCategory: "عرض معاملات {{name}}",
+        travelTitle: "سفر · {{name}}",
+        travelHint: "خارج ميزانيات الفئات",
+        emptyTitle: "حدد حداً شهرياً",
+        emptyBody: "اختر رقماً للشهر كله أو لفئة. نقترح رقماً من آخر 3 أشهر.",
+        sheet: {
+            titleAdd: "إضافة ميزانية",
+            titleEdit: "تعديل الميزانية",
+            category: "الفئة",
+            amount: "المبلغ الشهري",
+            suggestion: "متوسط 3 أشهر لديك: {{amount}}",
+            useSuggestion: "استخدام",
+            save: "حفظ الميزانية",
+            remove: "إزالة الميزانية",
+            removeNote: "يوقف هذه الميزانية من {{month}} فصاعداً. الأشهر السابقة تحتفظ بها.",
+            removeConfirm: "إزالة",
+            saved: "تم حفظ الميزانية",
+            removed: "تمت إزالة الميزانية",
+            failed: "تعذّر حفظ الميزانية",
+            noCategories: "لكل فئة ميزانية بالفعل.",
+        },
+    },
+    // @i18n:end budgets
 };

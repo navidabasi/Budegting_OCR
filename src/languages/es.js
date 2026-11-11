@@ -794,4 +794,54 @@ export const es = {
         recalcFailed: "No se pudo recalcular. Inténtalo de nuevo.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "Plan",
+        tabs: "Secciones del plan",
+        tab: {
+            budgets: "Presupuestos",
+            savings: "Ahorros",
+            trips: "Viajes",
+        },
+        prevMonth: "Mes anterior",
+        nextMonth: "Mes siguiente",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "Mes completo",
+        dayOf: "día {{day}} de {{days}}",
+        of: "de {{amount}}",
+        projectedOver: "Previsto {{projected}} · {{over}} de más",
+        projectedOk: "Previsto {{projected}} · en camino",
+        left: "quedan {{amount}}",
+        over: "{{amount}} de más",
+        slowDown: "A este ritmo: {{projected}} · baja a {{perDay}}/día",
+        onTrack: "En camino",
+        notBudgeted: "Sin presupuesto: {{list}}",
+        addBudget: "Añadir presupuesto",
+        edit: "Editar presupuesto de {{name}}",
+        openCategory: "Ver movimientos de {{name}}",
+        travelTitle: "Viaje · {{name}}",
+        travelHint: "Fuera de los presupuestos por categoría",
+        emptyTitle: "Fija un límite mensual",
+        emptyBody: "Elige una cifra para todo el mes o para una categoría. Te sugerimos una según los últimos 3 meses.",
+        sheet: {
+            titleAdd: "Añadir presupuesto",
+            titleEdit: "Editar presupuesto",
+            category: "Categoría",
+            amount: "Importe mensual",
+            suggestion: "Tu media de 3 meses: {{amount}}",
+            useSuggestion: "Usar",
+            save: "Guardar presupuesto",
+            remove: "Quitar presupuesto",
+            removeNote: "Detiene este presupuesto desde {{month}}. Los meses anteriores lo conservan.",
+            removeConfirm: "Quitar",
+            saved: "Presupuesto guardado",
+            removed: "Presupuesto quitado",
+            failed: "No se pudo guardar el presupuesto",
+            noCategories: "Todas las categorías ya tienen presupuesto.",
+        },
+    },
+    // @i18n:end budgets
 };

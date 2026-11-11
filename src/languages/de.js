@@ -907,4 +907,54 @@ export const de = {
         recalcFailed: "Neuberechnung fehlgeschlagen. Versuche es erneut.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "Planung",
+        tabs: "Planungsbereiche",
+        tab: {
+            budgets: "Budgets",
+            savings: "Sparen",
+            trips: "Reisen",
+        },
+        prevMonth: "Vorheriger Monat",
+        nextMonth: "Nächster Monat",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "Ganzer Monat",
+        dayOf: "Tag {{day}} von {{days}}",
+        of: "von {{amount}}",
+        projectedOver: "Hochrechnung {{projected}} · {{over}} drüber",
+        projectedOk: "Hochrechnung {{projected}} · im Plan",
+        left: "{{amount}} übrig",
+        over: "{{amount}} drüber",
+        slowDown: "Bei diesem Tempo: {{projected}} · bremse auf {{perDay}}/Tag",
+        onTrack: "Im Plan",
+        notBudgeted: "Ohne Budget: {{list}}",
+        addBudget: "Budget hinzufügen",
+        edit: "Budget für {{name}} bearbeiten",
+        openCategory: "Buchungen für {{name}} zeigen",
+        travelTitle: "Reise · {{name}}",
+        travelHint: "Nicht in den Kategorie-Budgets",
+        emptyTitle: "Monatslimit festlegen",
+        emptyBody: "Wähle einen Betrag für den ganzen Monat oder eine Kategorie. Wir schlagen einen aus den letzten 3 Monaten vor.",
+        sheet: {
+            titleAdd: "Budget hinzufügen",
+            titleEdit: "Budget bearbeiten",
+            category: "Kategorie",
+            amount: "Monatsbetrag",
+            suggestion: "Dein 3-Monats-Schnitt: {{amount}}",
+            useSuggestion: "Übernehmen",
+            save: "Budget speichern",
+            remove: "Budget entfernen",
+            removeNote: "Beendet dieses Budget ab {{month}}. Frühere Monate behalten es.",
+            removeConfirm: "Entfernen",
+            saved: "Budget gespeichert",
+            removed: "Budget entfernt",
+            failed: "Budget konnte nicht gespeichert werden",
+            noCategories: "Jede Kategorie hat bereits ein Budget.",
+        },
+    },
+    // @i18n:end budgets
 };

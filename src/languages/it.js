@@ -907,4 +907,54 @@ export const it = {
         recalcFailed: "Impossibile ricalcolare. Riprova.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "Piano",
+        tabs: "Sezioni del piano",
+        tab: {
+            budgets: "Budget",
+            savings: "Risparmi",
+            trips: "Viaggi",
+        },
+        prevMonth: "Mese precedente",
+        nextMonth: "Mese successivo",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "Intero mese",
+        dayOf: "giorno {{day}} di {{days}}",
+        of: "di {{amount}}",
+        projectedOver: "Previsione {{projected}} · {{over}} oltre",
+        projectedOk: "Previsione {{projected}} · in linea",
+        left: "{{amount}} rimasti",
+        over: "{{amount}} oltre",
+        slowDown: "Con questo ritmo: {{projected}} · rallenta a {{perDay}}/giorno",
+        onTrack: "In linea",
+        notBudgeted: "Senza budget: {{list}}",
+        addBudget: "Aggiungi budget",
+        edit: "Modifica il budget di {{name}}",
+        openCategory: "Mostra i movimenti di {{name}}",
+        travelTitle: "Viaggio · {{name}}",
+        travelHint: "Fuori dai budget per categoria",
+        emptyTitle: "Imposta un limite mensile",
+        emptyBody: "Scegli una cifra per tutto il mese o per una categoria. Te ne proponiamo una dagli ultimi 3 mesi.",
+        sheet: {
+            titleAdd: "Aggiungi budget",
+            titleEdit: "Modifica budget",
+            category: "Categoria",
+            amount: "Importo mensile",
+            suggestion: "La tua media su 3 mesi: {{amount}}",
+            useSuggestion: "Usa",
+            save: "Salva budget",
+            remove: "Rimuovi budget",
+            removeNote: "Ferma questo budget da {{month}} in poi. I mesi precedenti restano.",
+            removeConfirm: "Rimuovi",
+            saved: "Budget salvato",
+            removed: "Budget rimosso",
+            failed: "Impossibile salvare il budget",
+            noCategories: "Ogni categoria ha già un budget.",
+        },
+    },
+    // @i18n:end budgets
 };

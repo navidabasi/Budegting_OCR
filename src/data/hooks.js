@@ -13,6 +13,8 @@ import { clearAndResync, getSyncState, subscribeSync, syncNow } from './sync';
 import { getStorageHealth, openDb } from './db';
 import { notifyDataChanged } from './queryClient';
 import { getImageUrl } from './images';
+import { activeTrip } from '../utils/tripMath';
+import { dateKey } from '../utils/monthMath';
 
 // Stable empty array so consumers' effects/memos do not re-run on every render while a query is pending
 const EMPTY = Object.freeze([]);
@@ -219,6 +221,48 @@ export function useRules() {
 export function useMerchantRules() {
     const { rules, loading } = useRules();
     return { rules, loading };
+}
+
+/** All budget rows of the user (every month); budgetMath.activeBudgets picks the ones that apply to a month. */
+export function useAllBudgets() {
+    return useBudgets();
+}
+
+// ---------------------------------------------------------------------------
+// Trips: groups with kind = 'trip'
+// ---------------------------------------------------------------------------
+
+export function useTrips() {
+    const { groups, loading } = useGroupsData();
+    const trips = useMemo(() => groups.filter((g) => g.kind === 'trip'), [groups]);
+    return { trips, loading };
+}
+
+/** { trip, trips, loading }: the trip new transactions join (manual start or today inside its dates), or null. */
+export function useActiveTrip() {
+    const { trips, loading } = useTrips();
+    const today = dateKey(new Date());
+    const trip = useMemo(() => activeTrip(trips, today), [trips, today]);
+    return { trip, trips, loading };
+}
+
+/** create(data) -> the new trip record. Defaults: kept out of category budgets, started now when it has no end date. */
+export function useCreateTrip() {
+    const create = useCreateGroup();
+    return useCallback(
+        (data) => {
+            const today = dateKey(new Date());
+            return create({
+                color: '#1F4E79',
+                isPinned: false,
+                excludeFromBudgets: true,
+                ...data,
+                kind: 'trip',
+                isActive: data.isActive ?? (!!data.startsOn && data.startsOn <= today && !data.endsOn),
+            });
+        },
+        [create]
+    );
 }
 
 /** create(data) / update(id, patch) / remove(id) for one of: accounts, budgets, goals, rules. */

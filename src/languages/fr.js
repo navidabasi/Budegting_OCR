@@ -794,4 +794,54 @@ export const fr = {
         recalcFailed: "Recalcul impossible. Réessayez.",
     },
     // @i18n:end fx
+    // @i18n:begin plan
+    plan: {
+        title: "Plan",
+        tabs: "Sections du plan",
+        tab: {
+            budgets: "Budgets",
+            savings: "Épargne",
+            trips: "Voyages",
+        },
+        prevMonth: "Mois précédent",
+        nextMonth: "Mois suivant",
+    },
+    // @i18n:end plan
+    // @i18n:begin budgets
+    budgets: {
+        wholeMonth: "Mois entier",
+        dayOf: "jour {{day}} sur {{days}}",
+        of: "sur {{amount}}",
+        projectedOver: "Prévu {{projected}} · {{over}} de dépassement",
+        projectedOk: "Prévu {{projected}} · dans les clous",
+        left: "reste {{amount}}",
+        over: "{{amount}} de trop",
+        slowDown: "À ce rythme : {{projected}} · ralentissez à {{perDay}}/jour",
+        onTrack: "Dans les clous",
+        notBudgeted: "Sans budget : {{list}}",
+        addBudget: "Ajouter un budget",
+        edit: "Modifier le budget {{name}}",
+        openCategory: "Voir les opérations {{name}}",
+        travelTitle: "Voyage · {{name}}",
+        travelHint: "Hors budgets par catégorie",
+        emptyTitle: "Fixez une limite mensuelle",
+        emptyBody: "Choisissez un montant pour le mois ou une catégorie. Nous en proposons un d’après les 3 derniers mois.",
+        sheet: {
+            titleAdd: "Ajouter un budget",
+            titleEdit: "Modifier le budget",
+            category: "Catégorie",
+            amount: "Montant mensuel",
+            suggestion: "Votre moyenne sur 3 mois : {{amount}}",
+            useSuggestion: "Utiliser",
+            save: "Enregistrer le budget",
+            remove: "Supprimer le budget",
+            removeNote: "Arrête ce budget à partir de {{month}}. Les mois précédents le gardent.",
+            removeConfirm: "Supprimer",
+            saved: "Budget enregistré",
+            removed: "Budget supprimé",
+            failed: "Impossible d’enregistrer le budget",
+            noCategories: "Chaque catégorie a déjà un budget.",
+        },
+    },
+    // @i18n:end budgets
 };

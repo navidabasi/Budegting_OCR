@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { budgetStatus, categoryBudgets, copyForward, suggestBudget, activeBudgets } from '../budgetMath'
+import { budgetStatus, categoryBudgets, copyForward, suggestBudget, activeBudgets, topVisits, notBudgeted } from '../budgetMath'
 
 let n = 0
 const tx = (o) => ({ id: `t${++n}`, date: '2026-11-05', total: 10, currency: 'EUR', category: 'Dining', transactionType: 'expense', ...o })
@@ -138,3 +138,24 @@ describe('suggestBudget', () => {
         expect(suggestBudget(h, 'Dining', '2026-11', { trips: [{ id: 't', kind: 'trip' }] })).toBe(100)
     })
 })
+
+describe('topVisits / notBudgeted', () => {
+    const tx = (merchant, category, date, total = 10, extra = {}) => ({ id: `${merchant}${date}`, merchant, category, date, total, transactionType: 'expense', ...extra });
+    const list = [
+        tx('Bar Roma', 'Dining', '2026-11-01'),
+        tx('Bar Roma', 'Dining', '2026-11-02'),
+        tx('bar roma', 'Dining', '2026-11-03'),
+        tx('Pizzeria', 'Dining', '2026-11-04'),
+        tx('Zara', 'Shopping', '2026-11-05', 96),
+        tx('Lisbon bar', 'Dining', '2026-11-06', 50, { groupId: 'trip1' }),
+    ];
+    const trips = [{ id: 'trip1', kind: 'trip', excludeFromBudgets: true }];
+    it('finds the most visited merchant and ignores trips', () => {
+        expect(topVisits(list, '2026-11', 'Dining', { trips })).toEqual({ name: 'Bar Roma', visits: 3 });
+        expect(topVisits(list, '2026-11', 'Shopping', { trips })).toBeNull();
+    });
+    it('lists spend in categories without a budget, trips excluded', () => {
+        const budgets = [{ id: 'b', category: 'Dining', amount: 100, startsOn: '2026-11-01' }];
+        expect(notBudgeted(budgets, list, '2026-11', { trips })).toEqual([{ category: 'Shopping', spent: 96 }]);
+    });
+});

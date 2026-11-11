@@ -52,3 +52,11 @@ export function decimalSeparator(locale = 'de-DE') {
     const part = new Intl.NumberFormat(locale).formatToParts(1.1).find((p) => p.type === 'decimal');
     return part?.value || '.';
 }
+
+/** "212 €" for whole amounts, "212,40 €" otherwise (budget lines, compact labels). */
+export function formatMoneyShort(value, currency = 'EUR', locale = 'de-DE') {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    const digits = Math.abs(n - Math.round(n)) < 0.005 ? 0 : 2;
+    return `${formatAmount(n, { locale, digits })} ${currencySymbol(currency, locale)}`;
+}
