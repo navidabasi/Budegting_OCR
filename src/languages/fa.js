@@ -1208,4 +1208,27 @@ export const fa = {
         trySample: "امتحان با داده نمونه",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "خلاصه هوش مصنوعی",
+        generating: "در حال نوشتن خلاصه…",
+        connect: "برای ساخت وصل شو",
+        notConfigured: "هوش مصنوعی هنوز تنظیم نشده",
+        notConfiguredHint: "یافته‌های زیر بدون آن هم کار می‌کنند.",
+        rateLimit: "به سقف روزانه هوش مصنوعی رسیدی. فردا دوباره امتحان کن.",
+        failed: "الان نوشتن خلاصه ممکن نشد.",
+        tryAgain: "تلاش دوباره",
+        retry: "تلاش دوباره",
+        madeFrom: "فقط از جمع‌های ماهانه‌ات ساخته شده · {{model}} · {{time}}",
+        refresh: "تازه‌سازی",
+        soFar: "{{month}} تا اینجا",
+        noFindings: "فعلاً چیز قابل‌توجهی نیست. تراکنش بیشتری اضافه کن و دوباره بیا.",
+        tag: {
+            high: "هشدار",
+            medium: "توجه",
+            low: "نکته",
+            positive: "خوب",
+        },
+    },
+    // @i18n:end insights
 };

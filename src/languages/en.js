@@ -1314,4 +1314,27 @@ export const en = {
         trySample: "Try with sample data",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "AI summary",
+        generating: "Writing your summary…",
+        connect: "Connect to generate",
+        notConfigured: "AI isn’t set up yet",
+        notConfiguredHint: "The findings below still work without it.",
+        rateLimit: "Daily AI limit reached. Try again tomorrow.",
+        failed: "Couldn’t write the summary right now.",
+        tryAgain: "Try again",
+        retry: "Retry",
+        madeFrom: "Made from your monthly totals only · {{model}} · {{time}}",
+        refresh: "Refresh",
+        soFar: "{{month}} so far",
+        noFindings: "Nothing stands out yet. Add more transactions and check back.",
+        tag: {
+            high: "Alert",
+            medium: "Heads up",
+            low: "Note",
+            positive: "Good",
+        },
+    },
+    // @i18n:end insights
 };

@@ -1158,4 +1158,27 @@ export const it = {
         trySample: "Prova con dati di esempio",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "Riepilogo AI",
+        generating: "Scrivo il tuo riepilogo…",
+        connect: "Connettiti per generarlo",
+        notConfigured: "L’AI non è ancora configurata",
+        notConfiguredHint: "I risultati qui sotto funzionano comunque.",
+        rateLimit: "Limite giornaliero AI raggiunto. Riprova domani.",
+        failed: "Non riesco a scrivere il riepilogo adesso.",
+        tryAgain: "Riprova",
+        retry: "Riprova",
+        madeFrom: "Creato solo dai tuoi totali mensili · {{model}} · {{time}}",
+        refresh: "Aggiorna",
+        soFar: "{{month}} finora",
+        noFindings: "Per ora niente di rilevante. Aggiungi altre transazioni e ricontrolla.",
+        tag: {
+            high: "Allarme",
+            medium: "Attenzione",
+            low: "Nota",
+            positive: "Bene",
+        },
+    },
+    // @i18n:end insights
 };

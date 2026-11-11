@@ -1190,4 +1190,27 @@ export const ar = {
         trySample: "جرّب ببيانات تجريبية",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "ملخص الذكاء الاصطناعي",
+        generating: "جارٍ كتابة ملخصك…",
+        connect: "اتصل لإنشائه",
+        notConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد",
+        notConfiguredHint: "تبقى النتائج أدناه تعمل بدونه.",
+        rateLimit: "تم بلوغ الحد اليومي للذكاء الاصطناعي. جرّب غدًا.",
+        failed: "تعذّر كتابة الملخص الآن.",
+        tryAgain: "حاول مجددًا",
+        retry: "إعادة المحاولة",
+        madeFrom: "مبني على إجمالياتك الشهرية فقط · {{model}} · {{time}}",
+        refresh: "تحديث",
+        soFar: "{{month}} حتى الآن",
+        noFindings: "لا شيء بارز بعد. أضف معاملات أكثر وعد لاحقًا.",
+        tag: {
+            high: "تنبيه",
+            medium: "انتبه",
+            low: "ملاحظة",
+            positive: "جيد",
+        },
+    },
+    // @i18n:end insights
 };

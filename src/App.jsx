@@ -27,7 +27,7 @@ import ActivityPage from './pages/ActivityPage';
 import GroupsPage from './pages/GroupsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
-import ComingNextPage from './pages/ComingNextPage';
+import InsightsPage from './pages/InsightsPage';
 import PlanPage from './pages/PlanPage';
 import TripPage from './pages/TripPage';
 import ScanPage from './pages/ScanPage';
@@ -639,7 +639,7 @@ function App() {
                     <Route path="/budgets" element={<RedirectKeepQuery to="/plan" />} />
                     <Route path="/trips/:id" element={<ProtectedRoute><TripPage /></ProtectedRoute>} />
                     <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
-                    <Route path="/insights" element={<ProtectedRoute><ComingNextPage kind="insights" /></ProtectedRoute>} />
+                    <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
                     <Route
                         path="/receipts/:id"
                         element={

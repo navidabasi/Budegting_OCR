@@ -1045,4 +1045,27 @@ export const es = {
         trySample: "Probar con datos de ejemplo",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "Resumen de IA",
+        generating: "Escribiendo tu resumen…",
+        connect: "Conéctate para generarlo",
+        notConfigured: "La IA aún no está configurada",
+        notConfiguredHint: "Los hallazgos de abajo funcionan igualmente.",
+        rateLimit: "Límite diario de IA alcanzado. Inténtalo mañana.",
+        failed: "No se pudo escribir el resumen ahora.",
+        tryAgain: "Reintentar",
+        retry: "Reintentar",
+        madeFrom: "Hecho solo con tus totales mensuales · {{model}} · {{time}}",
+        refresh: "Actualizar",
+        soFar: "{{month}} hasta ahora",
+        noFindings: "Nada destaca todavía. Añade más transacciones y vuelve a mirar.",
+        tag: {
+            high: "Alerta",
+            medium: "Ojo",
+            low: "Nota",
+            positive: "Bien",
+        },
+    },
+    // @i18n:end insights
 };

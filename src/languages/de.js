@@ -1158,4 +1158,27 @@ export const de = {
         trySample: "Mit Beispieldaten testen",
     },
     // @i18n:end home
+    // @i18n:begin insights
+    insights: {
+        narrative: "KI-Zusammenfassung",
+        generating: "Deine Zusammenfassung wird geschrieben …",
+        connect: "Verbinde dich, um sie zu erstellen",
+        notConfigured: "KI ist noch nicht eingerichtet",
+        notConfiguredHint: "Die Ergebnisse unten funktionieren auch ohne.",
+        rateLimit: "Tageslimit für KI erreicht. Versuche es morgen erneut.",
+        failed: "Die Zusammenfassung konnte gerade nicht erstellt werden.",
+        tryAgain: "Erneut versuchen",
+        retry: "Wiederholen",
+        madeFrom: "Nur aus deinen Monatssummen erstellt · {{model}} · {{time}}",
+        refresh: "Aktualisieren",
+        soFar: "{{month}} bisher",
+        noFindings: "Noch nichts Auffälliges. Füge weitere Transaktionen hinzu und schau später wieder rein.",
+        tag: {
+            high: "Warnung",
+            medium: "Achtung",
+            low: "Hinweis",
+            positive: "Gut",
+        },
+    },
+    // @i18n:end insights
 };
