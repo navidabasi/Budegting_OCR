@@ -955,6 +955,7 @@ export const it = {
             failed: "Impossibile salvare il budget",
             noCategories: "Ogni categoria ha già un budget.",
         },
+        visits: "{{count}} visite da {{name}}",
     },
     // @i18n:end budgets
 };

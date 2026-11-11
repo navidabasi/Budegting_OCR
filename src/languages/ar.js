@@ -987,6 +987,7 @@ export const ar = {
             failed: "تعذّر حفظ الميزانية",
             noCategories: "لكل فئة ميزانية بالفعل.",
         },
+        visits: "{{count}} زيارات إلى {{name}}",
     },
     // @i18n:end budgets
 };

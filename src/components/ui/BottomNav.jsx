@@ -43,7 +43,7 @@ export default function BottomNav() {
                 >
                     <Plus size={28} strokeWidth={2.4} aria-hidden="true" />
                 </button>
-                {link('/budgets', PieChart, t('nav.budgets'), pathname.startsWith('/budgets'))}
+                {link('/plan', PieChart, t('nav.budgets'), pathname.startsWith('/plan') || pathname.startsWith('/trips'))}
                 {link('/insights', Sparkles, t('nav.insights'), pathname.startsWith('/insights'))}
             </div>
         </nav>

@@ -28,6 +28,7 @@ import GroupsPage from './pages/GroupsPage';
 import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
 import ComingNextPage from './pages/ComingNextPage';
+import PlanPage from './pages/PlanPage';
 import ScanPage from './pages/ScanPage';
 import OnboardingPage, { onboardedKey } from './pages/OnboardingPage';
 import Sidebar from './components/layout/Sidebar';
@@ -634,7 +635,8 @@ function App() {
                     <Route path="/welcome" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                     <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
                     <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
-                    <Route path="/budgets" element={<ProtectedRoute><ComingNextPage kind="budgets" /></ProtectedRoute>} />
+                    <Route path="/budgets" element={<RedirectKeepQuery to="/plan" />} />
+                    <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
                     <Route path="/insights" element={<ProtectedRoute><ComingNextPage kind="insights" /></ProtectedRoute>} />
                     <Route
                         path="/receipts/:id"

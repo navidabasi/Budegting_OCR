@@ -12,6 +12,7 @@ export const day = (offset = 0) => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const now = new Date().toISOString();
+const monthStart = `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-01`;
 const U = 'demo-user';
 const tx = (id, merchant, total, category, off, extra = {}) => ({
     id, userId: U, merchant, total, currency: 'EUR', category, date: day(off), notes: '', lineItems: [], isDemo: false, isPinned: false,
@@ -25,6 +26,16 @@ export const DEMO = {
         { id: 'a2', userId: U, name: 'Cash', kind: 'cash', currency: 'EUR', openingBalance: 60, isArchived: false, sortOrder: 1, createdAt: now, updatedAt: now },
         { id: 'a3', userId: U, name: 'PostePay', kind: 'spending', currency: 'EUR', openingBalance: 120, isArchived: false, sortOrder: 2, createdAt: now, updatedAt: now },
         { id: 'a4', userId: U, name: 'Savings account', kind: 'savings', currency: 'EUR', openingBalance: 2000, isArchived: false, sortOrder: 3, createdAt: now, updatedAt: now },
+    ],
+    budgets: [
+        { id: 'b0', userId: U, category: '*', amount: 2000, currency: 'EUR', startsOn: monthStart, endsOn: null, createdAt: now, updatedAt: now },
+        { id: 'b1', userId: U, category: 'Dining', amount: 180, currency: 'EUR', startsOn: monthStart, endsOn: null, createdAt: now, updatedAt: now },
+        { id: 'b2', userId: U, category: 'Groceries', amount: 450, currency: 'EUR', startsOn: monthStart, endsOn: null, createdAt: now, updatedAt: now },
+        { id: 'b3', userId: U, category: 'Transport', amount: 120, currency: 'EUR', startsOn: monthStart, endsOn: null, createdAt: now, updatedAt: now },
+    ],
+    goals: [
+        { id: 'go1', userId: U, name: 'Emergency fund', targetAmount: 10000, currency: 'EUR', targetDate: null, accountId: 'a4', startingAmount: 0, isArchived: false, createdAt: now, updatedAt: now },
+        { id: 'go2', userId: U, name: 'Japan trip', targetAmount: 3000, currency: 'EUR', targetDate: `${new Date().getFullYear() + 1}-07-01`, accountId: null, startingAmount: 500, isArchived: false, createdAt: now, updatedAt: now },
     ],
     groups: [{ id: 'g1', userId: U, name: 'Household', color: '#3b82f6', isPinned: false, isDemo: false, parentGroupId: null, createdAt: now, updatedAt: now }],
     transactions: [

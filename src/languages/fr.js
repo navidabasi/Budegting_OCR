@@ -842,6 +842,7 @@ export const fr = {
             failed: "Impossible d’enregistrer le budget",
             noCategories: "Chaque catégorie a déjà un budget.",
         },
+        visits: "{{count}} visites chez {{name}}",
     },
     // @i18n:end budgets
 };

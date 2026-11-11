@@ -1111,6 +1111,7 @@ export const en = {
             failed: "Could not save the budget",
             noCategories: "Every category already has a budget.",
         },
+        visits: "{{count}} visits to {{name}}",
     },
     // @i18n:end budgets
 };

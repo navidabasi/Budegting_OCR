@@ -842,6 +842,7 @@ export const es = {
             failed: "No se pudo guardar el presupuesto",
             noCategories: "Todas las categorías ya tienen presupuesto.",
         },
+        visits: "{{count}} visitas a {{name}}",
     },
     // @i18n:end budgets
 };

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useSettings } from '../data/hooks';
 import { useTranslation } from '../languages/useTranslation';
-import { formatMoney, formatMoneyShort, localeFor } from '../utils/format';
+import { formatAmount, formatMoney, formatMoneyShort, localeFor } from '../utils/format';
 
-/** Money formatting in the app language and the user's base currency: { currency, money(v), short(v) }. */
+/** Money formatting in the app language and the user's base currency: { currency, money(v), short(v), num(v) }. */
 export function useMoney() {
     const { languageCode } = useTranslation();
     const { defaultCurrency } = useSettings();
@@ -12,6 +12,8 @@ export function useMoney() {
             currency: defaultCurrency,
             money: (v, cur = defaultCurrency) => formatMoney(v, cur, localeFor(languageCode, cur)),
             short: (v, cur = defaultCurrency) => formatMoneyShort(v, cur, localeFor(languageCode, cur)),
+            /** "212" or "212,40": the number only, no symbol (compact lines like "212 / 180"). */
+            num: (v, cur = defaultCurrency) => formatAmount(v, { locale: localeFor(languageCode, cur), digits: Math.abs(Number(v) - Math.round(Number(v))) < 0.005 ? 0 : 2 }),
         }),
         [languageCode, defaultCurrency]
     );

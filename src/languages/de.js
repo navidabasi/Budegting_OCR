@@ -955,6 +955,7 @@ export const de = {
             failed: "Budget konnte nicht gespeichert werden",
             noCategories: "Jede Kategorie hat bereits ein Budget.",
         },
+        visits: "{{count}} Besuche bei {{name}}",
     },
     // @i18n:end budgets
 };

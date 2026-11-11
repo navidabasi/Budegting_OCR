@@ -1005,6 +1005,7 @@ export const fa = {
             failed: "ذخیره بودجه انجام نشد",
             noCategories: "همه دسته‌ها از قبل بودجه دارند.",
         },
+        visits: "{{count}} بار رفتن به {{name}}",
     },
     // @i18n:end budgets
 };
