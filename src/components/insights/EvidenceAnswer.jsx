@@ -20,7 +20,7 @@ export default function EvidenceAnswer({ ev, onProposal }) {
     if (!ev) return null;
     const { pack, refs = {}, citations = [], uncertain = [], grounded, unsupported = [], proposals = [], state } = ev;
     const fmt = (v) => money(v, pack.currency);
-    const period = pack.period?.start ? `${formatRange({ start: pack.period.start, end: pack.period.end }, languageCode)}${pack.period.state === 'current' ? ` (${t('evidence.dayOf', { day: pack.period.day, days: pack.period.days })})` : ''}` : '';
+    const period = pack.period?.start ? `${formatRange({ start: pack.period.start, end: pack.period.end }, languageCode)}${pack.period.state === 'current' ? ` (${t('evidence.dayOf', { day: pack.period.day, days: pack.period.days })})` : pack.period.state === 'history' ? ` (${t('evidence.allData')})` : ''}` : '';
     const cov = pack.coverage && pack.coverage.receipts > 0 ? pack.coverage : null;
     const cited = new Set(citations);
     const shown = pack.facts.filter((f) => (state === 'ok' && cited.size ? cited.has(f.id) : true));

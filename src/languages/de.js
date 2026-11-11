@@ -835,6 +835,7 @@ export const de = {
     budgets: {
         wholeMonth: "Ganzer Monat",
         dayOf: "Tag {{day}} von {{days}}",
+        allData: "alle deine Daten",
         of: "von {{amount}}",
         projectedOver: "Hochrechnung {{projected}} · {{over}} drüber",
         projectedOk: "Hochrechnung {{projected}} · im Plan",
@@ -1560,6 +1561,7 @@ export const de = {
         insufficient: {
             no_spending: "In diesem Zeitraum gibt es noch keine Ausgaben, also nichts zu erklären.",
             no_grocery_receipts: "In diesem Zeitraum gibt es keine Lebensmittelbelege, also nichts aufzuschlüsseln.",
+            no_history: "Es sind noch keine Ausgaben erfasst, daher gibt es keinen Verlauf für einen Durchschnitt.",
             no_comparison: "Es gibt keine frühere Periode zum Vergleichen.",
             no_comparable_units: "Kein Produkt hat in beiden Perioden Positionen mit passenden Einheiten (kg mit kg, Liter mit Litern); Stückpreise lassen sich nicht vergleichen. Scanne Belege mit Mengen, um das zu aktivieren.",
             no_shared: "Keine geteilten Ausgaben oder offenen Salden gefunden.",

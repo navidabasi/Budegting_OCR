@@ -722,6 +722,7 @@ export const fr = {
     budgets: {
         wholeMonth: "Mois entier",
         dayOf: "jour {{day}} sur {{days}}",
+        allData: "toutes tes données",
         of: "sur {{amount}}",
         projectedOver: "Prévu {{projected}} · {{over}} de dépassement",
         projectedOk: "Prévu {{projected}} · dans les clous",
@@ -1447,6 +1448,7 @@ export const fr = {
         insufficient: {
             no_spending: "Aucune dépense sur cette période pour l’instant : rien à expliquer.",
             no_grocery_receipts: "Aucun ticket de courses sur cette période : rien à détailler.",
+            no_history: "Aucune dépense n'est encore enregistrée, il n'y a donc pas d'historique pour calculer une moyenne.",
             no_comparison: "Aucune période précédente à comparer.",
             no_comparable_units: "Aucun produit n’a de lignes aux unités compatibles (kg avec kg, litres avec litres) sur les deux périodes : les prix à l’unité ne sont pas comparables. Scannez des tickets avec quantités pour l’activer.",
             no_shared: "Aucune dépense partagée ni solde ouvert.",

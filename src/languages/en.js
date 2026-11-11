@@ -991,6 +991,7 @@ export const en = {
     budgets: {
         wholeMonth: "Whole month",
         dayOf: "day {{day}} of {{days}}",
+        allData: "all your data",
         of: "of {{amount}}",
         projectedOver: "Projected {{projected}} · {{over}} over",
         projectedOk: "Projected {{projected}} · on track",
@@ -1716,6 +1717,7 @@ export const en = {
         insufficient: {
             no_spending: "There is no spending in this period yet, so there is nothing to explain.",
             no_grocery_receipts: "There are no grocery receipts in this period, so there is nothing to break down.",
+            no_history: "There are no expenses recorded yet, so there is no history to average.",
             no_comparison: "There is no earlier period to compare with.",
             no_comparable_units: "No product has item lines with matching units (kg with kg, litres with litres) in both periods, so prices per unit cannot be compared. Scan receipts with quantities to enable this.",
             no_shared: "No shared expenses or open balances were found.",

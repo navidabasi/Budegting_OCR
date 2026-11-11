@@ -24,7 +24,7 @@ import { findDuplicates } from '../import/dedupe';
 import { pendingConversionCount } from '../utils/conversion';
 
 export const PACK_VERSION = 1;
-export const INTENTS = ['top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'general'];
+export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'general'];
 const MAX_EVIDENCE = 24;
 
 // ---------------------------------------------------------------------------
@@ -33,9 +33,13 @@ const MAX_EVIDENCE = 24;
 const has = (q, re) => re.test(q);
 
 /** Which fact builder answers the question. Chips pass their intent explicitly; free text goes through this router. */
+// Questions about the whole history rather than the open period: averages, per-month figures, trends, "till now", "all my data".
+const HISTORY_Q = /(average|on average|avg\b|per month|a month\b|each month|every month|monthly|per cycle|each cycle|typical(ly)?|usually|normally|trend|over time|history|historic|all (my )?(data|time|history|months|transactions)|till now|until now|up to now|so far this year|this year|last (year|\d+ months)|since (i|the|january|start)|ever\b|in total|overall|media\b|in media|al mese|ogni mese|mensil|durchschnitt|pro monat|monatlich|promedio|al mes|mensual|moyenne|par mois|mensuel|میانگین|ماهانه|متوسط|شهري)/i;
+
 export function routeQuestion(question) {
     const q = String(question || '').toLowerCase();
     if (has(q, /\b(owe|owed|owing|settle|settlement|reimburs|debt|who pays|devo|mi devono|deve)\b/)) return 'owed';
+    if (HISTORY_Q.test(q)) return 'history';
     if (has(q, /(per (kg|kilo|litre|liter|l\b|unit|piece)|unit price|price per|paying more|buying more|cost more|more expensive|prezzo al)/)) return 'unit_price';
     if (has(q, /(needs? (review|attention|checking)|to review|review queue|uncategori[sz]ed|duplicate|subscription|recurring|unclear|recategori[sz]e|re-?categori[sz]e|doppion)/)) return 'review';
     if (has(q, /\b(budget|budgets|goal|goals|on track|afford|commitment|commitments|upcoming|savings?)\b/)) return 'budgets_goals';
@@ -338,7 +342,88 @@ function general(book, ctx) {
     return { coverage: itemCoverage(transactions, period, { basis }) };
 }
 
-const BUILDERS = { top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, general };
+const CATEGORY_WORDS = [
+    ['Groceries', /(grocer|supermarket|supermercato|\bspesa\b|lebensmittel|supermarkt|comestibles|supermercado|courses|épicerie|خواربار|سوپرمارکت|بقالة)/i],
+    ['Dining', /(dining|restaurant|eating out|takeaway|ristorant|pizzer|\bbar\b|caf[eé]|essen gehen|restaurante|resto|رستوران|مطعم)/i],
+    ['Transport', /(transport|train|bus|metro|taxi|uber|treno|trasport|zug|bahn|tren|trajet|حمل|مواصلات)/i],
+    ['Fuel', /(fuel|petrol|gas station|benzin|carburant|gasolin|بنزین|وقود)/i],
+    ['Housing', /(rent|housing|affitto|miete|alquiler|loyer|اجاره|إيجار)/i],
+    ['Utilities', /(utilit|electric|bollett|strom|luce|gas bill|factura|facture|قبض|فواتير)/i],
+    ['Subscriptions', /(subscription|abbonament|abo\b|suscripci|abonnement|اشتراک|اشتراك)/i],
+    ['Shopping', /(shopping|clothes|vestiti|kleidung|ropa|vêtements|خرید|تسوق)/i],
+    ['Health', /(health|pharmac|farmac|doctor|medic|apothek|salud|santé|دارو|صحة)/i],
+    ['Travel', /(travel|trip|holiday|vacation|viaggi|reise|viaje|voyage|سفر)/i],
+];
+
+/** The category a question is about: an exact category name first, then common words in the app's languages. */
+export function categoryFromQuestion(question, categoryNames = []) {
+    const q = String(question || '');
+    const names = [...(categoryNames || [])].sort((a, b) => String(b).length - String(a).length);
+    for (const n of names) if (n && new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q)) return n;
+    for (const [cat, re] of CATEGORY_WORDS) if (re.test(q)) return cat;
+    return null;
+}
+
+const monthOf = (d) => String(d || '').slice(0, 7);
+const nextMonth = (m) => {
+    const [y, mo] = m.split('-').map(Number);
+    return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Whole-history answer ("average monthly groceries", "check all my data"): per calendar month from the first recorded
+ * expense to today, the average over complete months (the running month is reported separately, never averaged in),
+ * highest and lowest month, and the top categories by monthly average when no category is named.
+ */
+function history(book, ctx) {
+    const { transactions, basis, question, today, categoryNames } = ctx;
+    const category = categoryFromQuestion(question, categoryNames);
+    const all = periodExpenses(transactions).filter((tx) => (category ? tx.category === category : true));
+    const expenses = periodExpenses(transactions);
+    if (!expenses.length) return { insufficient: 'no_history', skipPeriod: true };
+    const todayKey = typeof today === 'string' ? today.slice(0, 10) : new Date(today).toISOString().slice(0, 10);
+    const current = monthOf(todayKey);
+    const first = expenses.map((t) => monthOf(t.date)).filter(Boolean).sort()[0];
+    const months = [];
+    for (let m = first; m <= current; m = nextMonth(m)) months.push(m);
+    const byMonth = new Map(months.map((m) => [m, { total: 0, count: 0 }]));
+    for (const tx of all) {
+        const row = byMonth.get(monthOf(tx.date));
+        if (!row) continue;
+        row.total += basisAmount(tx, basis);
+        row.count += 1;
+    }
+    const complete = months.filter((m) => m < current);
+    const completeTotals = complete.map((m) => round2(byMonth.get(m).total));
+    const sum = completeTotals.reduce((a, b) => a + b, 0);
+    const avg = complete.length ? round2(sum / complete.length) : null;
+    const sorted = [...completeTotals].sort((a, b) => a - b);
+    const median = sorted.length ? round2(sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : null;
+    const withData = complete.filter((m) => byMonth.get(m).count > 0);
+    const hi = withData.reduce((a, m) => (!a || byMonth.get(m).total > byMonth.get(a).total ? m : a), null);
+    const lo = withData.reduce((a, m) => (!a || byMonth.get(m).total < byMonth.get(a).total ? m : a), null);
+    const byId = new Map(all.map((t) => [t.id, t]));
+    const biggest = all.slice().sort((a, b) => basisAmount(b, basis) - basisAmount(a, basis)).slice(0, 3).map((tx) => receiptRef(book, byId.get(tx.id), basis));
+    book.fact('history_scope', { category: category || 'all spending', from: first, to: current, months: months.length, completeMonths: complete.length, monthsWithSpending: withData.length, unit: 'calendar month', runningMonth: current });
+    book.fact(
+        'history_average',
+        { category: category || 'all spending', averagePerMonth: avg, medianPerMonth: median, totalCompleteMonths: round2(sum), highest: hi ? { month: hi, amount: round2(byMonth.get(hi).total) } : null, lowest: lo ? { month: lo, amount: round2(byMonth.get(lo).total) } : null, runningMonthSoFar: round2(byMonth.get(current)?.total || 0), note: 'average over complete calendar months, months with no spending count as 0, the running month is not included' },
+        biggest
+    );
+    for (const m of months.slice(-24)) book.fact('history_month', { month: m, amount: round2(byMonth.get(m).total), count: byMonth.get(m).count, ...(m === current ? { running: true } : {}) });
+    if (!category && complete.length) {
+        const cats = new Map();
+        for (const tx of expenses) {
+            if (monthOf(tx.date) >= current) continue;
+            const c = tx.category || 'Other';
+            cats.set(c, (cats.get(c) || 0) + basisAmount(tx, basis));
+        }
+        [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([c, total]) => book.fact('history_category', { category: c, averagePerMonth: round2(total / complete.length), total: round2(total) }));
+    }
+    return { skipPeriod: true, history: { start: `${first}-01`, end: todayKey } };
+}
+
+const BUILDERS = { history, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, general };
 
 // ---------------------------------------------------------------------------
 // Public
@@ -354,7 +439,7 @@ export function inferBasis(question = '') {
     return FULL_BASIS.test(String(question || '')) ? 'full' : 'share';
 }
 
-export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], period, config, today = new Date(), currency = 'EUR', basis: basisIn } = {}) {
+export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], period, config, today = new Date(), currency = 'EUR', basis: basisIn, categoryNames = [] } = {}) {
     const basis = basisIn === 'full' || basisIn === 'share' ? basisIn : inferBasis(question);
     const route = INTENTS.includes(intent) ? intent : routeQuestion(question);
     const txs = (transactions || []).filter((t) => t && !t.isDemo);
@@ -362,12 +447,12 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
     const progress = periodProgress(period, today);
     const cmp = range ? comparablePeriods(period, today, previousOfPeriod(period, config)) : null;
     const comparison = cmp && cmp.basis ? cmp : null;
-    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, period, today, basis, question, comparison };
+    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, period, today, basis, question, comparison, categoryNames };
     const book = new Book();
-    if (route !== 'owed') addPeriodSummary(book, ctx);
+    if (route !== 'owed' && route !== 'history') addPeriodSummary(book, ctx);
     const result = BUILDERS[route](book, ctx) || {};
     // Both totals when shared expenses make them differ, so the model can answer either way and say what the gap is.
-    if (route !== 'owed' && range) {
+    if (route !== 'owed' && route !== 'history' && range) {
         const share = totalSpend(txs, period, 'share');
         const full = totalSpend(txs, period, 'full');
         if (Math.abs(full - share) >= 0.01) book.fact('basis_totals', { share, full, difference: round2(full - share), used: basis });
@@ -377,7 +462,9 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
         version: PACK_VERSION,
         intent: route,
         question: String(question || '').slice(0, 300),
-        period: { kind: period?.kind || 'month', start: range?.start || null, end: range?.end || null, state: progress.state, day: progress.day, days: progress.days, daysLeft: progress.daysLeft, ...(result.skipPeriod ? { notUsed: true } : {}) },
+        period: result.history
+            ? { kind: 'history', start: result.history.start, end: result.history.end, state: 'history' }
+            : { kind: period?.kind || 'month', start: range?.start || null, end: range?.end || null, state: progress.state, day: progress.day, days: progress.days, daysLeft: progress.daysLeft, ...(result.skipPeriod ? { notUsed: true } : {}) },
         ...(comparison && ['change', 'grocery_breakdown', 'unit_price'].includes(route) ? { comparison: { basis: comparison.basis, elapsedDays: comparison.elapsedDays, totalDays: comparison.totalDays, current: comparison.current, previous: comparison.previous } } : {}),
         currency,
         basis,

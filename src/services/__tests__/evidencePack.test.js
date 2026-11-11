@@ -232,3 +232,44 @@ describe('basis comes from the question, not a toggle', () => {
         for (const q of ['How much did I pay at Conad?', 'What left my account this month?', 'What was the whole bill for the Lisbon trip?', 'Quanto ho pagato da Lidl?', 'Wie viel habe ich bezahlt?']) expect(inferBasis(q)).toBe('full');
     });
 });
+
+import { buildEvidencePack as buildPack, categoryFromQuestion, routeQuestion as route } from '../evidencePack';
+describe('history questions use the whole record, not the open period', () => {
+    const g = (id, total, date, category = 'Groceries') => ({ id, userId: 'u', merchant: 'Lidl', total, currency: 'EUR', category, date, lineItems: [], transactionType: 'expense', createdAt: `${date}T09:00:00Z` });
+    const transactions = [
+        g('a', 100, '2026-08-03'), g('b', 50, '2026-08-20'),
+        g('c', 200, '2026-09-10'),
+        // October: no groceries at all (counts as 0)
+        g('r', 380, '2026-10-01', 'Housing'),
+        g('d', 6, '2026-11-05'), // running month
+    ];
+    const pack = () => buildPack({ transactions, period: '2026-11', today: '2026-11-11', question: 'What is my average monthly spend on groceries?', categoryNames: ['Groceries', 'Housing'] }).pack;
+
+    it('routes averages, monthly and all-time questions to history', () => {
+        for (const q of ['What is my average monthly spend on groceries?', 'Check all my data till now', 'How much do I spend per month on dining?', 'Quanto spendo in media al mese?', 'Spending trend over time']) expect(route(q)).toBe('history');
+        expect(route('Where did grocery money go?')).toBe('grocery_breakdown');
+    });
+    it('finds the category in the question', () => {
+        expect(categoryFromQuestion('average monthly spend on groceries', ['Groceries'])).toBe('Groceries');
+        expect(categoryFromQuestion('quanto spendo di affitto', [])).toBe('Housing');
+        expect(categoryFromQuestion('check all my data', ['Groceries'])).toBeNull();
+    });
+    it('averages complete calendar months (empty months count 0) and keeps the running month apart', () => {
+        const p = pack();
+        expect(p.intent).toBe('history');
+        expect(p.period).toMatchObject({ kind: 'history', start: '2026-08-01', end: '2026-11-11', state: 'history' });
+        const avg = p.facts.find((f) => f.kind === 'history_average');
+        expect(avg.category).toBe('Groceries');
+        expect(avg.averagePerMonth).toBe(116.67); // (150 + 200 + 0) / 3
+        expect(avg.highest).toEqual({ month: '2026-09', amount: 200 });
+        expect(avg.runningMonthSoFar).toBe(6);
+        expect(p.facts.filter((f) => f.kind === 'history_month').map((f) => f.month)).toEqual(['2026-08', '2026-09', '2026-10', '2026-11']);
+        expect(p.facts.some((f) => f.kind === 'period_summary')).toBe(false);
+    });
+    it('without a category it ranks categories by monthly average', () => {
+        const p = buildPack({ transactions, period: '2026-11', today: '2026-11-11', question: 'Check all my data till now', categoryNames: ['Groceries', 'Housing'] }).pack;
+        const cats = p.facts.filter((f) => f.kind === 'history_category').map((f) => f.category);
+        expect(cats[0]).toBe('Housing');
+        expect(cats).toContain('Groceries');
+    });
+});

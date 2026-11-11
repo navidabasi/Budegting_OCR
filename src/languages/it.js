@@ -835,6 +835,7 @@ export const it = {
     budgets: {
         wholeMonth: "Intero mese",
         dayOf: "giorno {{day}} di {{days}}",
+        allData: "tutti i tuoi dati",
         of: "di {{amount}}",
         projectedOver: "Previsione {{projected}} · {{over}} oltre",
         projectedOk: "Previsione {{projected}} · in linea",
@@ -1560,6 +1561,7 @@ export const it = {
         insufficient: {
             no_spending: "In questo periodo non ci sono ancora spese, quindi non c’è nulla da spiegare.",
             no_grocery_receipts: "Non ci sono scontrini di spesa in questo periodo, quindi nulla da scomporre.",
+            no_history: "Non ci sono ancora spese registrate, quindi non c'è uno storico su cui fare la media.",
             no_comparison: "Non c’è un periodo precedente con cui confrontare.",
             no_comparable_units: "Nessun prodotto ha righe con unità compatibili (kg con kg, litri con litri) in entrambi i periodi: i prezzi per unità non si possono confrontare. Scansiona scontrini con le quantità per attivarlo.",
             no_shared: "Non ci sono spese condivise né saldi aperti.",
