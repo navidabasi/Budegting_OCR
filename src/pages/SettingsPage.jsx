@@ -25,6 +25,8 @@ import { buildCsv, downloadCsv } from '../utils/exportCsv';
 import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
 import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
+import ToggleRow from '../components/common/ToggleRow';
+import AiBoundarySettings from '../components/settings/AiBoundarySettings';
 import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
@@ -34,18 +36,6 @@ import {
     normalizeNotificationPreferences,
     requestNotificationPermission,
 } from '../services/notificationService';
-
-function ToggleRow({ label, hint, checked, onChange }) {
-    return (
-        <label className="flex min-h-[56px] cursor-pointer items-center justify-between gap-3 py-2">
-            <span className="flex flex-col">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{label}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{hint}</span>
-            </span>
-            <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-gray-300 transition-colors checked:bg-primary-500 dark:bg-gray-600 relative before:absolute before:left-0.5 before:top-0.5 before:h-5 before:w-5 before:rounded-full before:bg-white before:transition-transform checked:before:translate-x-5" />
-        </label>
-    );
-}
 
 export default function SettingsPage() {
     const { t } = useTranslation();
@@ -748,6 +738,7 @@ export default function SettingsPage() {
                     <ToggleRow label={t('prefs.aiScanning.saveImages')} hint={t('prefs.aiScanning.saveImagesHint')} checked={scanPrefs.saveImages} onChange={(v) => setScanPrefsState(setScanPrefs({ saveImages: v }))} />
                     <ToggleRow label={t('prefs.aiScanning.readItems')} hint={t('prefs.aiScanning.readItemsHint')} checked={scanPrefs.readItems} onChange={(v) => setScanPrefsState(setScanPrefs({ readItems: v }))} />
                 </div>
+                <AiBoundarySettings prefs={scanPrefs} onChange={(patch) => setScanPrefsState(setScanPrefs(patch))} />
                 <details className="group">
                     <summary className="flex items-center justify-between min-h-[44px] cursor-pointer select-none text-sm font-medium text-gray-900 dark:text-white">
                         {t('settings.ocr.advanced')}

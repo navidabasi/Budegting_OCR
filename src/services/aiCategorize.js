@@ -7,6 +7,7 @@ import { batchUpdateTransactions } from '../data/repo';
 import { displayName } from '../utils/merchant';
 import { upsertUserRule, keyOf } from './categoryLearning';
 import { isUncategorised } from '../utils/activityFilters';
+import { post } from './aiOutbound';
 
 export const CATEGORIZE_ENDPOINT = '/api/categorize';
 export const BATCH_SIZE = 50;
@@ -55,11 +56,7 @@ async function postBatch(merchants, categories, { getToken, fetchImpl }) {
     if (!token) throw new AiError('auth', 401);
     let res;
     try {
-        res = await fetchImpl(CATEGORIZE_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ merchants: merchants.map(payloadOf), categories }),
-        });
+        res = await post(CATEGORIZE_ENDPOINT, { merchants: merchants.map(payloadOf), categories }, { token, fetchImpl });
     } catch {
         throw new AiError('network');
     }
@@ -82,7 +79,7 @@ async function postBatch(merchants, categories, { getToken, fetchImpl }) {
  * -> [{ ...merchant, category, confidence, selected }] (confidence >= 0.8 and not "Other" are preselected).
  * Batches run one after another; the first failure aborts (nothing partial is applied here).
  */
-export async function categorizeMerchants({ merchants, categories, getToken, fetchImpl = (...a) => fetch(...a), onProgress }) {
+export async function categorizeMerchants({ merchants, categories, getToken, fetchImpl, onProgress }) {
     const out = [];
     const batches = chunk(merchants);
     for (let i = 0; i < batches.length; i++) {

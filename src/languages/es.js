@@ -1480,4 +1480,36 @@ export const es = {
         basisFullNote: "El importe completo de cada gasto, como dinero movido (no solo tu parte).",
     },
     // @i18n:end breakdown
+    // @i18n:begin aiBoundary
+    aiBoundary: {
+        sendPhotos: "Enviar fotos de recibos al proveedor de IA",
+        sendPhotosOn: "Activado: la foto que escaneas se envía una vez al proveedor de IA (DeepSeek) para leerla. Antes se eliminan la ubicación y los datos del dispositivo.",
+        sendPhotosOff: "Desactivado: las fotos se quedan en este dispositivo y nunca se envían. Los escaneos abren la entrada manual con la foto adjunta.",
+        cropFirst: "Recortar antes de enviar",
+        cropFirstHint: "Pausa tras cada foto para recortar lo que no sea el recibo.",
+        summary: "Lo que recibe el proveedor de IA además de fotos: totales, fechas, comercios y categorías minimizados y seudonimizados. Se eliminan nombres de personas, números de tarjeta y cuenta, IBAN, correos, teléfonos, direcciones e ids de fidelidad; las notas nunca se envían; las horas se redondean a fechas.",
+        seeSent: "Ver lo que se envía",
+        nothingSent: "Todavía no se ha enviado nada desde este dispositivo. Tras usar el asistente, los análisis, la categorización con IA o un escaneo, aquí aparece la solicitud exacta.",
+        lastSent: "Último envío: {date}",
+        clear: "Borrar este registro",
+        feature: {
+            chat: "Asistente",
+            insights: "Análisis",
+            categorize: "Categorización",
+            extract: "Escaneo de recibo",
+        },
+        cropTitle: "Recortar el recibo",
+        cropHint: "Recorta cada lado para enviar solo el recibo. Nada sale de tu dispositivo hasta que envíes.",
+        cropPreview: "Vista previa de la foto del recibo",
+        cropSend: "Recortar y enviar",
+        cropSkip: "Enviar sin recortar",
+        trim: {
+            top: "Arriba",
+            bottom: "Abajo",
+            left: "Izquierda",
+            right: "Derecha",
+        },
+        photosOffScan: "El envío de fotos al proveedor de IA está desactivado en Ajustes. Introduce el recibo a mano; la foto se queda en tu dispositivo.",
+    },
+    // @i18n:end aiBoundary
 };

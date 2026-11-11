@@ -10,6 +10,7 @@ import { applyItemRules } from '../utils/itemRules';
 import { queueImage, requestImageFlush, getSignedUrl } from '../data/images';
 import { db, openDb } from '../data/db';
 import { ScanError, extractReceipt, isRetryable } from './receiptScan';
+import { getScanPrefs } from '../utils/scanPrefs';
 import { dateKey } from '../utils/quickAdd';
 
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -54,6 +55,7 @@ export function processPendingScans({ userId, getToken, getHints, fetchImpl }) {
         const out = { processed: 0, failed: 0, remaining: 0 };
         try {
             if (typeof navigator !== 'undefined' && navigator.onLine === false) return out;
+            if (!getScanPrefs().sendPhotos) return out; // photos are not sent to the AI provider: the saved photos stay waiting, totals can be typed by hand
 
             const pending = (await listTransactions(userId)).filter((tx) => tx.extraction?.pending && tx.imagePath);
             for (const tx of pending) {

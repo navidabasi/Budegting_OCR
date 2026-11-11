@@ -6,12 +6,14 @@
  * paymentMethod, category, items[{ name, quantity, unitPrice, price, category }], tax, confidence{...}, notes },
  * extraction: { provider, model, confidence?, rawText?, durationMs? } }
  */
+import { AiBlockedError, post } from './aiOutbound';
+import { getScanPrefs } from '../utils/scanPrefs';
 export const EXTRACT_ENDPOINT = '/api/extract-receipt';
 export const LOW_CONFIDENCE = 0.7;
 const TIMEOUT_MS = 45000;
 
 /** Error kinds the UI knows plain-language messages for. */
-export const ERROR_KINDS = ['offline', 'rateLimit', 'server', 'unavailable', 'auth', 'invalid', 'network'];
+export const ERROR_KINDS = ['photosOff', 'offline', 'rateLimit', 'server', 'unavailable', 'auth', 'invalid', 'network'];
 
 export class ScanError extends Error {
     constructor(kind, message, status) {
@@ -120,18 +122,20 @@ export const isUnreadable = (it) => !String(it.name || '').trim() || it.price ==
  * POST the prepared image. `getToken` returns the Supabase access token. Resolves to the parsed response or
  * throws ScanError(kind).
  */
-export async function extractReceipt({ file, mime, hints, getToken, fetchImpl = (...a) => fetch(...a), signal }) {
+export async function extractReceipt({ file, mime, hints, getToken, fetchImpl, signal }) {
+    if (!getScanPrefs().sendPhotos) throw new ScanError('photosOff', 'Photos are not sent to the AI provider');
     if (isOffline()) throw new ScanError('offline', 'offline');
     const token = await getToken?.();
     if (!token) throw new ScanError('auth', 'Not signed in', 401);
-    const body = JSON.stringify({ file: await fileToBase64(file), mime: mime || file.type || 'image/jpeg', hints });
+    const body = { file: await fileToBase64(file), mime: mime || file.type || 'image/jpeg', hints };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     signal?.addEventListener?.('abort', () => controller.abort());
     let res;
     try {
-        res = await fetchImpl(EXTRACT_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body, signal: controller.signal });
+        res = await post(EXTRACT_ENDPOINT, body, { token, fetchImpl, signal: controller.signal });
     } catch (err) {
+        if (err instanceof AiBlockedError) throw new ScanError('photosOff', 'Photos are not sent to the AI provider');
         if (isOffline()) throw new ScanError('offline', 'offline');
         throw new ScanError('network', err?.message || 'network');
     } finally {
@@ -161,8 +165,8 @@ export const isRetryable = (err) => ['offline', 'network', 'server', 'rateLimit'
 export const initialScanState = { phase: 'idle', file: null, original: null, result: null, error: null, queued: false };
 
 /**
- * phases: idle -> preparing -> extracting -> review | error | queued
- * events: PICK(file) PREPARED(file) EXTRACTED(result) FAILED(kind) QUEUED RESCAN RESTORE(file, result?)
+ * phases: idle -> preparing -> [crop] -> extracting -> review | error | queued
+ * events: PICK(file) PREPARED(file, crop?) CROPPED(file) EXTRACTED(result) FAILED(kind) QUEUED RESCAN RESTORE(file, result?)
  */
 export function scanReducer(state, event) {
     switch (event.type) {
@@ -170,6 +174,9 @@ export function scanReducer(state, event) {
             return { ...initialScanState, phase: 'preparing', original: event.file };
         case 'PREPARED':
             if (state.phase !== 'preparing') return state;
+            return { ...state, phase: event.crop ? 'crop' : 'extracting', file: event.file }; // crop: the owner asked to trim the photo before it is sent
+        case 'CROPPED':
+            if (state.phase !== 'crop') return state;
             return { ...state, phase: 'extracting', file: event.file };
         case 'EXTRACTED':
             if (state.phase !== 'extracting') return state;

@@ -1480,4 +1480,36 @@ export const fr = {
         basisFullNote: "Le montant total de chaque dépense, comme argent déplacé (pas seulement votre part).",
     },
     // @i18n:end breakdown
+    // @i18n:begin aiBoundary
+    aiBoundary: {
+        sendPhotos: "Envoyer les photos de tickets au fournisseur d’IA",
+        sendPhotosOn: "Activé : la photo scannée est envoyée une fois au fournisseur d’IA (DeepSeek) pour être lue. La position et les données de l’appareil sont retirées avant.",
+        sendPhotosOff: "Désactivé : les photos restent sur cet appareil et ne sont jamais envoyées. Un scan ouvre la saisie manuelle avec la photo jointe.",
+        cropFirst: "Recadrer avant l’envoi",
+        cropFirstHint: "Pause après chaque photo pour retirer tout ce qui n’est pas le ticket.",
+        summary: "Ce que reçoit le fournisseur d’IA en plus des photos : totaux, dates, commerçants et catégories minimisés et pseudonymisés. Noms de personnes, numéros de carte et de compte, IBAN, e-mails, téléphones, adresses et identifiants de fidélité sont retirés ; les notes ne sont jamais envoyées ; les heures sont arrondies aux dates.",
+        seeSent: "Voir ce qui est envoyé",
+        nothingSent: "Rien n’a encore été envoyé depuis cet appareil. Après l’assistant, les analyses, la catégorisation IA ou un scan, la requête exacte apparaît ici.",
+        lastSent: "Dernier envoi : {date}",
+        clear: "Effacer cet enregistrement",
+        feature: {
+            chat: "Assistant",
+            insights: "Analyses",
+            categorize: "Catégorisation",
+            extract: "Scan de ticket",
+        },
+        cropTitle: "Recadrer le ticket",
+        cropHint: "Rognez chaque côté pour n’envoyer que le ticket. Rien ne quitte l’appareil avant l’envoi.",
+        cropPreview: "Aperçu de la photo du ticket",
+        cropSend: "Recadrer et envoyer",
+        cropSkip: "Envoyer sans recadrer",
+        trim: {
+            top: "Haut",
+            bottom: "Bas",
+            left: "Gauche",
+            right: "Droite",
+        },
+        photosOffScan: "L’envoi des photos au fournisseur d’IA est désactivé dans les Réglages. Saisissez le ticket à la main ; la photo reste sur votre appareil.",
+    },
+    // @i18n:end aiBoundary
 };

@@ -43,7 +43,7 @@ const loadImageFromFile = (file) =>
     });
 
 /** Resize/compress an image to JPEG (<= maxBytes, <= 2200 px). Non-images are returned untouched. */
-export const optimizeImage = async (file, { maxBytes = DEFAULT_MAX_BYTES } = {}) => {
+export const optimizeImage = async (file, { maxBytes = DEFAULT_MAX_BYTES, forceReencode = false } = {}) => {
     const originalSize = file.size;
 
     if (!file.type.startsWith('image/')) {
@@ -119,7 +119,8 @@ export const optimizeImage = async (file, { maxBytes = DEFAULT_MAX_BYTES } = {})
     const didShrink = optimizedSize < originalSize;
     const needsTypeChange = file.type !== 'image/jpeg';
 
-    if (!didResize && !didShrink && !needsTypeChange) {
+    // forceReencode: the canvas output always replaces the original, so EXIF/GPS metadata never survives (pass 2 section 7)
+    if (!forceReencode && !didResize && !didShrink && !needsTypeChange) {
         return {
             file,
             originalSize,
@@ -141,3 +142,29 @@ export const optimizeImage = async (file, { maxBytes = DEFAULT_MAX_BYTES } = {})
         optimized: true
     };
 };
+
+/**
+ * Crop a photo to the part inside the given trims (fractions 0..0.9 of each side) and re-encode it as JPEG via canvas, which
+ * also drops all metadata. Returns the cropped File, or the original when there is nothing to trim or no canvas.
+ */
+export async function cropImage(file, { top = 0, bottom = 0, left = 0, right = 0 } = {}) {
+    const clamp = (n) => Math.min(0.9, Math.max(0, Number(n) || 0));
+    const [t, b, l, r] = [clamp(top), clamp(bottom), clamp(left), clamp(right)];
+    if (!file.type?.startsWith('image/') || (t + b + l + r === 0 && file.type === 'image/jpeg')) return file;
+    const image = await loadImageFromFile(file);
+    const sw = image.naturalWidth || image.width;
+    const sh = image.naturalHeight || image.height;
+    const x = Math.round(sw * l);
+    const y = Math.round(sh * t);
+    const w = Math.max(1, Math.round(sw * (1 - l - r)));
+    const h = Math.max(1, Math.round(sh * (1 - t - b)));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(image, x, y, w, h, 0, 0, w, h);
+    const blob = await canvasToBlob(canvas, INITIAL_JPEG_QUALITY);
+    const base = (file.name || 'receipt').replace(/\.[^/.]+$/, '');
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+}

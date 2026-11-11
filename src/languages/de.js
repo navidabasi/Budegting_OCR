@@ -1593,4 +1593,36 @@ export const de = {
         basisFullNote: "Der volle Betrag jeder Ausgabe als bewegtes Geld (nicht nur dein Anteil).",
     },
     // @i18n:end breakdown
+    // @i18n:begin aiBoundary
+    aiBoundary: {
+        sendPhotos: "Belegfotos an den KI-Anbieter senden",
+        sendPhotosOn: "An: ein gescanntes Foto wird einmal zum Lesen an den KI-Anbieter (DeepSeek) gesendet. Standort und Gerätedaten werden vorher entfernt.",
+        sendPhotosOff: "Aus: Fotos bleiben auf diesem Gerät und werden nie gesendet. Scans öffnen die manuelle Eingabe mit angehängtem Foto.",
+        cropFirst: "Vor dem Senden zuschneiden",
+        cropFirstHint: "Nach jedem Foto pausieren, um alles abzuschneiden, was nicht der Beleg ist.",
+        summary: "Was der KI-Anbieter außer Fotos erhält: minimierte, pseudonymisierte Summen, Daten, Händler und Kategorien. Namen, Karten- und Kontonummern, IBANs, E-Mails, Telefonnummern, Adressen und Kundenkarten-IDs werden entfernt; Notizen werden nie gesendet; Uhrzeiten werden auf Daten gerundet.",
+        seeSent: "Gesendetes ansehen",
+        nothingSent: "Von diesem Gerät wurde noch nichts gesendet. Nach Nutzung von Assistent, Analysen, KI-Kategorisierung oder einem Scan erscheint hier die genaue Anfrage.",
+        lastSent: "Zuletzt gesendet: {date}",
+        clear: "Diesen Eintrag löschen",
+        feature: {
+            chat: "Assistent",
+            insights: "Analysen",
+            categorize: "Kategorisierung",
+            extract: "Belegscan",
+        },
+        cropTitle: "Beleg zuschneiden",
+        cropHint: "Schneide jede Seite zu, damit nur der Beleg gesendet wird. Nichts verlässt dein Gerät, bevor du sendest.",
+        cropPreview: "Vorschau des Belegfotos",
+        cropSend: "Zuschneiden und senden",
+        cropSkip: "Ohne Zuschneiden senden",
+        trim: {
+            top: "Oben",
+            bottom: "Unten",
+            left: "Links",
+            right: "Rechts",
+        },
+        photosOffScan: "Das Senden von Belegfotos an den KI-Anbieter ist in den Einstellungen ausgeschaltet. Gib den Beleg manuell ein; das Foto bleibt auf deinem Gerät.",
+    },
+    // @i18n:end aiBoundary
 };

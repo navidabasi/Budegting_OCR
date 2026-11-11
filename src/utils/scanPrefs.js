@@ -1,6 +1,9 @@
-/** Scanning preferences (per device): keep the receipt photo, read line items. Both default to on. */
+/**
+ * Scanning preferences (per device): keep the receipt photo, read line items, send the photo to the AI provider (default on, the
+ * owner allowed it), and pause to crop the photo before it is sent (default off).
+ */
 const KEY = 'wmw.scanPrefs';
-const DEFAULTS = { saveImages: true, readItems: true };
+const DEFAULTS = { saveImages: true, readItems: true, sendPhotos: true, cropFirst: false };
 
 export function getScanPrefs() {
     try {

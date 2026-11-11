@@ -17,6 +17,7 @@ import { processPendingScans } from './services/pendingScans';
 import { buildHints } from './services/receiptScan';
 import { useAccounts } from './data/hooks';
 import { useCategories } from './hooks/useCategories';
+import { useOutboundContext } from './hooks/useOutboundContext';
 import { notifyDataChanged } from './data/queryClient';
 import { fillMissingBaseAmounts } from './data/repo';
 import BottomNav from './components/ui/BottomNav';
@@ -121,6 +122,7 @@ function App() {
     const showToastRef = useRef(showToast);
     const { accounts: scanAccounts } = useAccounts();
     const scanCategories = useCategories();
+    useOutboundContext();
     const scanCtxRef = useRef({});
     scanCtxRef.current = { receipts, accounts: scanAccounts, categories: scanCategories, settings };
 

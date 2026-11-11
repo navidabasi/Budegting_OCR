@@ -1,14 +1,15 @@
 // Shared POST helper for the AI endpoints that take a bearer token (insights, chat). Errors are AiError kinds:
 // offline | auth | notConfigured | rateLimit | invalid | server | network.
 import { AiError } from './aiCategorize';
+import { post } from './aiOutbound';
 
-export async function postAi(endpoint, body, { getToken, fetchImpl = (...a) => fetch(...a) } = {}) {
+export async function postAi(endpoint, body, { getToken, fetchImpl } = {}) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new AiError('offline');
     const token = await getToken?.();
     if (!token) throw new AiError('auth', 401);
     let res;
     try {
-        res = await fetchImpl(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+        res = await post(endpoint, body, { token, fetchImpl });
     } catch {
         throw new AiError('network');
     }

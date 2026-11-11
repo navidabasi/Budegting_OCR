@@ -1593,4 +1593,36 @@ export const it = {
         basisFullNote: "L’importo intero di ogni spesa, come denaro mosso (non solo la tua parte).",
     },
     // @i18n:end breakdown
+    // @i18n:begin aiBoundary
+    aiBoundary: {
+        sendPhotos: "Invia le foto degli scontrini al fornitore AI",
+        sendPhotosOn: "Attivo: la foto che scansioni viene inviata una volta al fornitore AI (DeepSeek) per leggerla. Posizione e dati del dispositivo vengono prima rimossi.",
+        sendPhotosOff: "Disattivo: le foto restano su questo dispositivo e non vengono mai inviate. Le scansioni aprono l’inserimento manuale con la foto allegata.",
+        cropFirst: "Ritaglia prima di inviare",
+        cropFirstHint: "Pausa dopo ogni foto per tagliare via tutto ciò che non è lo scontrino.",
+        summary: "Cosa riceve il fornitore AI oltre alle foto: totali, date, esercenti e categorie minimizzati e pseudonimizzati. Nomi di persone, numeri di carta e conto, IBAN, email, telefoni, indirizzi e codici fedeltà vengono rimossi; le note non sono mai inviate; gli orari sono arrotondati alle date.",
+        seeSent: "Vedi cosa viene inviato",
+        nothingSent: "Da questo dispositivo non è stato ancora inviato nulla. Dopo aver usato assistente, analisi, categorizzazione AI o una scansione, la richiesta esatta compare qui.",
+        lastSent: "Ultimo invio: {date}",
+        clear: "Cancella questo registro",
+        feature: {
+            chat: "Assistente",
+            insights: "Analisi",
+            categorize: "Categorizzazione",
+            extract: "Scansione scontrino",
+        },
+        cropTitle: "Ritaglia lo scontrino",
+        cropHint: "Riduci ogni lato in modo che venga inviato solo lo scontrino. Nulla lascia il dispositivo finché non invii.",
+        cropPreview: "Anteprima della foto dello scontrino",
+        cropSend: "Ritaglia e invia",
+        cropSkip: "Invia senza ritagliare",
+        trim: {
+            top: "Sopra",
+            bottom: "Sotto",
+            left: "Sinistra",
+            right: "Destra",
+        },
+        photosOffScan: "L’invio delle foto al fornitore AI è disattivato nelle Impostazioni. Inserisci lo scontrino a mano; la foto resta sul dispositivo.",
+    },
+    // @i18n:end aiBoundary
 };

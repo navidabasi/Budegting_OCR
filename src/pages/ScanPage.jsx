@@ -10,7 +10,8 @@ import { useTranslation } from '../languages/useTranslation';
 import { buildHints, extractReceipt, initialScanState, ScanError, scanReducer } from '../services/receiptScan';
 import { createPendingScan } from '../services/pendingScans';
 import { queueImage, requestImageFlush } from '../data/images';
-import { optimizeImage } from '../utils/imageOptimize';
+import { cropImage, optimizeImage } from '../utils/imageOptimize';
+import CropStep from '../components/scan/CropStep';
 import { isPdf, renderPdfFirstPage } from '../utils/pdfRender';
 import { decimalSeparator, formatMoney, localeFor } from '../utils/format';
 import { getLastAccountId, setLastAccountId } from '../utils/quickAdd';
@@ -109,11 +110,12 @@ export default function ScanPage() {
             setForm(null);
             try {
                 const image = isPdf(file) ? await renderPdfFirstPage(file) : file;
-                const { file: prepared } = await optimizeImage(image);
+                const { file: prepared } = await optimizeImage(image, { forceReencode: true }); // always re-encoded: no EXIF/GPS leaves the device
                 // The photo is stored on the device before the (cloud) reading starts: closing the app now loses nothing
                 txIdRef.current = newId();
                 await saveDraft({ userId, kind: 'scan', data: { stage: 'extracting', txId: txIdRef.current }, blob: prepared });
-                dispatch({ type: 'PREPARED', file: prepared });
+                const prefs = getScanPrefs();
+                dispatch({ type: 'PREPARED', file: prepared, crop: prefs.cropFirst && prefs.sendPhotos });
             } catch (err) {
                 console.error('[Scan] prepare failed', err);
                 dispatch({ type: 'FAILED', kind: 'invalid' });
@@ -343,6 +345,28 @@ export default function ScanPage() {
         </button>
     );
 
+    if (state.phase === 'crop' && state.file) {
+        return (
+            <>
+                {inputs}
+                <CropStep
+                    file={state.file}
+                    imageUrl={previewUrl}
+                    onConfirm={async (trim) => {
+                        const cropped = await cropImage(state.file, trim);
+                        await saveDraft({ userId, kind: 'scan', data: { stage: 'extracting', txId: txIdRef.current }, blob: cropped });
+                        dispatch({ type: 'CROPPED', file: cropped });
+                    }}
+                    onSkip={() => dispatch({ type: 'CROPPED', file: state.file })}
+                    onCancel={async () => {
+                        await discardScan();
+                        navigate(-1);
+                    }}
+                />
+            </>
+        );
+    }
+
     if (state.phase === 'preparing' || state.phase === 'extracting') {
         return shell(
             <Loader2 size={26} className="animate-spin" aria-hidden="true" />,
@@ -364,9 +388,9 @@ export default function ScanPage() {
         return shell(
             <AlertTriangle size={26} aria-hidden="true" />,
             t('scan.errorTitle'),
-            t(`scan.err.${kind}`),
+            kind === 'photosOff' ? t('aiBoundary.photosOffScan') : t(`scan.err.${kind}`),
             <>
-                {state.file && kind !== 'invalid' ? primary(t('scan.tryAgain'), () => dispatch({ type: 'RETRY' })) : null}
+                {state.file && kind !== 'invalid' && kind !== 'photosOff' ? primary(t('scan.tryAgain'), () => dispatch({ type: 'RETRY' })) : null}
                 {primary(t('scan.enterManuallyPhoto'), () => openManual(false), <FileText size={18} aria-hidden="true" />)}
                 {secondary(t('scan.chooseAnother'), () => dispatch({ type: 'RESCAN' }))}
             </>

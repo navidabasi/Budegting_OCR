@@ -1749,4 +1749,36 @@ export const en = {
         basisFullNote: "The full amount of each expense, as money moved (not only your part).",
     },
     // @i18n:end breakdown
+    // @i18n:begin aiBoundary
+    aiBoundary: {
+        sendPhotos: "Send receipt photos to the AI provider",
+        sendPhotosOn: "On: a photo you scan is sent once to the AI provider (DeepSeek) to read it. Location and device data are removed first.",
+        sendPhotosOff: "Off: photos stay on this device and are never sent. Scans open manual entry with the photo attached.",
+        cropFirst: "Crop before sending",
+        cropFirstHint: "Pause after each photo so you can trim away anything that is not the receipt.",
+        summary: "What the AI provider gets besides photos: minimised, pseudonymised totals, dates, merchants and categories. Names of people, card and account numbers, IBANs, emails, phone numbers, addresses and loyalty ids are removed; notes are never sent; times are rounded to dates.",
+        seeSent: "See what’s sent",
+        nothingSent: "Nothing has been sent from this device yet. After you use the assistant, insights, AI categorising or a scan, the exact request appears here.",
+        lastSent: "Last sent: {date}",
+        clear: "Clear this record",
+        feature: {
+            chat: "Assistant",
+            insights: "Insights",
+            categorize: "Categorising",
+            extract: "Receipt scan",
+        },
+        cropTitle: "Crop the receipt",
+        cropHint: "Trim each side so only the receipt is sent. Nothing leaves your device until you send.",
+        cropPreview: "Receipt photo preview",
+        cropSend: "Crop and send",
+        cropSkip: "Send without cropping",
+        trim: {
+            top: "Top",
+            bottom: "Bottom",
+            left: "Left",
+            right: "Right",
+        },
+        photosOffScan: "Sending receipt photos to the AI provider is switched off in Settings. Enter the receipt by hand; the photo stays on your device.",
+    },
+    // @i18n:end aiBoundary
 };

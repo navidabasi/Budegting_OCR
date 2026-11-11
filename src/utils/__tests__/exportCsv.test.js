@@ -29,8 +29,8 @@ describe('csv export', () => {
 describe('scan prefs', () => {
     it('defaults on and persists', () => {
         localStorage.clear();
-        expect(getScanPrefs()).toEqual({ saveImages: true, readItems: true });
+        expect(getScanPrefs()).toEqual({ saveImages: true, readItems: true, sendPhotos: true, cropFirst: false });
         setScanPrefs({ saveImages: false });
-        expect(getScanPrefs()).toEqual({ saveImages: false, readItems: true });
+        expect(getScanPrefs()).toEqual({ saveImages: false, readItems: true, sendPhotos: true, cropFirst: false });
     });
 });
