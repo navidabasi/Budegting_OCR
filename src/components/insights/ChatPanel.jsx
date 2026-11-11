@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight } from 'lucide-react';
-import { Chip, Segmented } from '../ui';
+import { Chip } from '../ui';
 import EvidenceAnswer from './EvidenceAnswer';
 import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
@@ -21,14 +21,6 @@ import { localProposals, resolveProposals } from '../../services/aiActions';
 import { restoreAliases } from '../../services/aiOutbound';
 
 const CHIPS = ['top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals'];
-const BASIS_KEY = 'wmw.aiBasis';
-const readBasis = () => {
-    try {
-        return localStorage.getItem(BASIS_KEY) === 'full' ? 'full' : 'share';
-    } catch {
-        return 'share';
-    }
-};
 
 /**
  * "Ask about your money". Every question is answered from an evidence pack computed on the device (services/evidencePack.js); the
@@ -52,7 +44,6 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
     const thread = useMemo(() => (persist ? stored.messages.map(unpackMessage) : session), [persist, stored.messages, session]);
     const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
-    const [basis, setBasis] = useState(readBasis);
     const [proposal, setProposal] = useState(null);
     const [historyKey, setHistoryKey] = useState(0);
     const endRef = useRef(null);
@@ -142,14 +133,6 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
         return () => io.disconnect();
     }, [armed, stored.hasOlder, loadOlder]);
 
-    const changeBasis = (b) => {
-        setBasis(b);
-        try {
-            localStorage.setItem(BASIS_KEY, b);
-        } catch {
-            /* per-device convenience only */
-        }
-    };
 
     const errorKey = (err) => (['offline', 'rateLimit', 'notConfigured', 'auth'].includes(err?.kind) ? err.kind : 'server');
 
@@ -182,7 +165,7 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
         try {
             if (!retryOf) await post(convRef, userMsg);
             const route = intent || routeQuestion(q);
-            const { pack, refs } = buildEvidencePack({ ...ctx, intent: route, question: q, basis });
+            const { pack, refs } = buildEvidencePack({ ...ctx, intent: route, question: q });
             const locals = route === 'review' ? localProposals(ctx.transactions, { period: ctx.period, today: ctx.today, suggest: ctx.suggest, categories: ctx.categoryNames }) : [];
             if (pack.insufficient) {
                 // nothing to explain: answered here, no request is made
@@ -221,10 +204,7 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
 
     return (
         <section className="flex flex-col gap-2.5 pt-2" aria-label={t('chat.title')} data-testid="chat">
-            <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xs font-semibold uppercase tracking-[.06em] text-ink-muted">{t('chat.title')}</h2>
-                <Segmented ariaLabel={t('evidence.basisToggle')} value={basis} onChange={changeBasis} options={[{ value: 'share', label: t('evidence.basis.share') }, { value: 'full', label: t('evidence.basis.full') }]} />
-            </div>
+            <h2 className="text-xs font-semibold uppercase tracking-[.06em] text-ink-muted">{t('chat.title')}</h2>
             {thread.length > 0 ? (
                 <ol className="flex flex-col gap-2" aria-live="polite">
                     {persist && stored.hasOlder ? (

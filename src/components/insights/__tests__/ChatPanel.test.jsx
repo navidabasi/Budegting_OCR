@@ -70,13 +70,17 @@ describe('ChatPanel with evidence', () => {
         expect(screen.queryByTestId('evidence-list')).toBeNull();
     });
 
-    it('switches to the full-amount basis and sends it', async () => {
+    it('has no basis toggle: the question decides share vs full amount', async () => {
         const fetchImpl = reply({ answer: 'ok', citations: ['F1'], proposals: [] });
         mount(fetchImpl);
-        fireEvent.click(screen.getByRole('radio', { name: 'Full amount paid' }));
+        expect(screen.queryByRole('radio', { name: 'Full amount paid' })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
         await screen.findByText('ok');
-        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).evidence.basis).toBe('full');
+        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).evidence.basis).toBe('share');
+        fireEvent.change(screen.getByLabelText('Ask about your spending'), { target: { value: 'How much did I pay at Lidl?' } });
+        fireEvent.submit(screen.getByLabelText('Ask about your spending').closest('form'));
+        await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+        expect(JSON.parse(fetchImpl.mock.calls[1][1].body).evidence.basis).toBe('full');
     });
 
     it('warns when the answer cites nothing or quotes figures that are not in the evidence', async () => {

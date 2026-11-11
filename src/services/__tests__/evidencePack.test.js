@@ -222,3 +222,13 @@ describe('asking with a mocked /api/chat', () => {
         expect(body.aggregates).toBeUndefined();
     });
 });
+
+import { inferBasis } from '../evidencePack';
+describe('basis comes from the question, not a toggle', () => {
+    it('spending questions use my share', () => {
+        for (const q of ['What did I spend on groceries?', 'Where did grocery money go?', 'Top supermarket this cycle', 'Quanto ho speso al supermercato?']) expect(inferBasis(q)).toBe('share');
+    });
+    it('payment and cash-flow questions use the full amount', () => {
+        for (const q of ['How much did I pay at Conad?', 'What left my account this month?', 'What was the whole bill for the Lisbon trip?', 'Quanto ho pagato da Lidl?', 'Wie viel habe ich bezahlt?']) expect(inferBasis(q)).toBe('full');
+    });
+});

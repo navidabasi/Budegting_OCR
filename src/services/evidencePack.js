@@ -347,7 +347,15 @@ const BUILDERS = { top_merchant: topMerchant, grocery_breakdown: groceryBreakdow
  * buildEvidencePack({ intent?, question, transactions, trips, accounts, budgets, goals, people, period, config, today, currency, basis })
  * `period` is a period object (usePeriod().period) or a month key; `today` a Date or 'YYYY-MM-DD'.
  */
-export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], period, config, today = new Date(), currency = 'EUR', basis = 'share' } = {}) {
+// Questions about money that physically left the user's accounts (or the whole bill including other people's part) are
+// answered on the full amount paid; everything else ("what did I spend", "my groceries") on the user's own share.
+const FULL_BASIS = /\b(paid|pay(?:ing)?|payed|full amount|whole (?:bill|amount)|in total including|including (?:others|their|the others)|left (?:my|the) account|out of (?:my|the) account|cash ?flow|ho pagato|pagat[oaie]|in totale|uscit[oaie]|bezahlt|gezahlt|pagu[eé]|pagado|pay[ée]|pay[ée]s|پرداخت|دفعت|المبلغ الكامل)\b/iu;
+export function inferBasis(question = '') {
+    return FULL_BASIS.test(String(question || '')) ? 'full' : 'share';
+}
+
+export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], period, config, today = new Date(), currency = 'EUR', basis: basisIn } = {}) {
+    const basis = basisIn === 'full' || basisIn === 'share' ? basisIn : inferBasis(question);
     const route = INTENTS.includes(intent) ? intent : routeQuestion(question);
     const txs = (transactions || []).filter((t) => t && !t.isDemo);
     const range = toRange(period);
@@ -358,6 +366,12 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
     const book = new Book();
     if (route !== 'owed') addPeriodSummary(book, ctx);
     const result = BUILDERS[route](book, ctx) || {};
+    // Both totals when shared expenses make them differ, so the model can answer either way and say what the gap is.
+    if (route !== 'owed' && range) {
+        const share = totalSpend(txs, period, 'share');
+        const full = totalSpend(txs, period, 'full');
+        if (Math.abs(full - share) >= 0.01) book.fact('basis_totals', { share, full, difference: round2(full - share), used: basis });
+    }
     const conv = pendingConversionCount(txs, period, currency);
     const pack = {
         version: PACK_VERSION,

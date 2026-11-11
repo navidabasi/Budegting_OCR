@@ -12,7 +12,7 @@ import { EXPENSE_CATEGORIES, FALLBACK_CATEGORY, canonicalCategory } from '../src
 
 export const MAX_MERCHANTS = 50;
 
-const inputSchema = z.object({
+export const inputSchema = z.object({
     merchants: z
         .array(
             z.object({

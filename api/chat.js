@@ -30,7 +30,7 @@ const evidenceSchema = z
     })
     .passthrough();
 
-const inputSchema = z.object({
+export const inputSchema = z.object({
     aggregates: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).passthrough().optional(),
     evidence: evidenceSchema.optional(),
     messages: z

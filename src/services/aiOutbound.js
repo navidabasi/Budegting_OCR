@@ -144,6 +144,9 @@ const ACCOUNT_KEYS = new Set(['accountId', 'toAccountId', 'fromAccountId']);
 const PERSON_KEYS = new Set(['personId', 'payerId', 'payer', 'participantId']);
 const TRIP_KEYS = new Set(['tripId', 'groupId']);
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+// Fields the app itself generates (protocol values, never user data): passed through untouched. Scrubbing them broke
+// the /api/insights contract once: a hex `inputHash` looks like an identifier and was erased (400, no summary).
+const PROTOCOL_KEYS = new Set(['inputHash', 'hash', 'sourceHash', 'version', 'intent', 'kind', 'basis', 'state', 'monthState', 'type', 'screen', 'role']);
 
 export function sanitizeValue(value, ctx = context, key = '') {
     if (value === null || value === undefined) return value;
@@ -164,6 +167,7 @@ export function sanitizeValue(value, ctx = context, key = '') {
         return out;
     }
     if (typeof value === 'string') {
+        if (PROTOCOL_KEYS.has(key) && /^[\w.:-]{1,80}$/.test(value)) return value;
         if (ISO_DATETIME.test(value)) return value.slice(0, 10);
         if (/^\d{4}-\d{2}(-\d{2})?$/.test(value) || key === 'language' || key === 'mime' || key === 'currency' || key === 'category' || key === 'subcategory') return value;
         return scrubText(value, ctx);

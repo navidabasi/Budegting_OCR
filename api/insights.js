@@ -13,7 +13,7 @@ import { hashObject } from '../src/utils/stableHash.js';
 
 export const MAX_AGGREGATE_BYTES = 80 * 1024;
 
-const inputSchema = z.object({
+export const inputSchema = z.object({
     aggregates: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).passthrough(),
     language: z.string().regex(/^[a-z]{2}(-[A-Za-z]{2})?$/).optional().default('en'),
     inputHash: z.string().regex(/^[0-9a-f]{8,64}$/).optional(),
