@@ -12,7 +12,7 @@ export default function Chip({ selected = false, tone = 'default', size = 'md', 
         <button
             type="button"
             aria-pressed={selected}
-            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink active:opacity-80 ${sizing} ${look} ${className}`}
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border font-medium transition-colors duration-press ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink active:opacity-80 ${sizing} ${look} ${className}`}
             {...rest}
         >
             {Icon ? <Icon size={size === 'sm' ? 14 : 15} aria-hidden="true" /> : null}

@@ -15,7 +15,8 @@ export default function ProgressBar({ value = 0, max = 100, pace = null, status 
             aria-valuenow={Math.min(value, max)}
             className={`relative h-2.5 w-full rounded-full bg-line ${className}`}
         >
-            <div className={`h-full rounded-full transition-[width] duration-300 ${FILL[status] || FILL.ok}`} style={{ width: `${ratio * 100}%` }} />
+            {/* the fill is full width and scaled (transform only, no layout work); it animates when the value changes, i.e. on a new selection */}
+            <div className={`h-full w-full origin-left rounded-full transition-transform duration-sheet ease-out rtl:origin-right ${FILL[status] || FILL.ok}`} style={{ transform: `scaleX(${ratio})` }} data-ratio={ratio.toFixed(3)} />
             {pace !== null && pace >= 0 && pace <= 1 ? (
                 <span aria-hidden="true" className="absolute -top-1 h-[18px] w-0.5 rounded bg-ink" style={{ insetInlineStart: `calc(${pace * 100}% - 1px)` }} />
             ) : null}

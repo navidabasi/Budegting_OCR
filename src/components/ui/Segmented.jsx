@@ -15,7 +15,7 @@ export default function Segmented({ options, value, onChange, ariaLabel, classNa
                         role="radio"
                         aria-checked={on}
                         onClick={() => onChange(o.value)}
-                        className={`h-11 min-w-[44px] rounded-[11px] px-3.5 text-sm ${fill ? 'flex-1' : ''} transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest-ink ${
+                        className={`h-11 min-w-[44px] rounded-[11px] px-3.5 text-sm ${fill ? 'flex-1' : ''} transition-colors duration-press ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest-ink ${
                             on ? 'bg-surface font-semibold text-ink shadow-[0_1px_2px_rgba(16,33,27,.1)]' : `font-medium ${TONE_TEXT[o.tone] || 'text-ink-muted'}`
                         }`}
                     >

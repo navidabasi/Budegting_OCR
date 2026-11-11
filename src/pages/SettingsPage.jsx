@@ -26,6 +26,7 @@ import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
 import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
 import ToggleRow from '../components/common/ToggleRow';
+import MotionSettings from '../components/settings/MotionSettings';
 import AiBoundarySettings from '../components/settings/AiBoundarySettings';
 import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
@@ -594,6 +595,7 @@ export default function SettingsPage() {
                             {t('settings.appearance.resetSystem')}
                         </button>
                     )}
+                    <MotionSettings />
                 </div>
             </SettingsCard>
 

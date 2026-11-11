@@ -19,6 +19,7 @@ import { useAccounts } from './data/hooks';
 import { useCategories } from './hooks/useCategories';
 import { useOutboundContext } from './hooks/useOutboundContext';
 import { setBaseCurrency } from './utils/baseCurrency';
+import { useReducedMotion } from './hooks/useReducedMotion';
 import { notifyDataChanged } from './data/queryClient';
 import { fillMissingBaseAmounts } from './data/repo';
 import BottomNav from './components/ui/BottomNav';
@@ -127,6 +128,7 @@ function App() {
     const { accounts: scanAccounts } = useAccounts();
     const scanCategories = useCategories();
     useOutboundContext();
+    useReducedMotion(); // keeps <html data-motion> in step with the app setting and the device
     const scanCtxRef = useRef({});
     scanCtxRef.current = { receipts, accounts: scanAccounts, categories: scanCategories, settings };
 

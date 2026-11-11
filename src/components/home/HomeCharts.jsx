@@ -1,4 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { chartAnimation } from '../../utils/motion';
+import { periodKey } from '../../utils/period';
 import { Doughnut, Line } from 'react-chartjs-2';
 import { ArcElement, CategoryScale, Chart as ChartJS, Filler, Legend, LineElement, LinearScale, PointElement, Tooltip } from 'chart.js';
 import { Card } from '../ui';
@@ -24,6 +27,14 @@ export default function HomeCharts({ transactions, trips, month, today, customCo
         () => Object.entries(spentByCategory(transactions, month, { trips, includeTrips: true })).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]),
         [transactions, month, trips]
     );
+    // Charts are drawn in their final state at once; they animate only when the selection (period) changes
+    const reduced = useReducedMotion();
+    const lastSel = useRef(periodKey(month));
+    const selectionChanged = lastSel.current !== periodKey(month);
+    useEffect(() => {
+        lastSel.current = periodKey(month);
+    });
+    const animation = chartAnimation({ reduced, selectionChanged });
     const total = cats.reduce((s, [, v]) => s + v, 0);
     const progress = periodProgress(month, today);
     const prev = previousPeriods(month, 1)[0];
@@ -39,7 +50,7 @@ export default function HomeCharts({ transactions, trips, month, today, customCo
                     <div className="mx-auto h-44 w-44" role="img" aria-label={t('home.whereItWent')}>
                         <Doughnut
                             data={{ labels: cats.map(([c]) => localizeCategory(c)), datasets: [{ data: cats.map(([, v]) => v), backgroundColor: cats.map(([c]) => categoryColor(c, dark, customColors?.[c])), borderWidth: 0 }] }}
-                            options={{ cutout: '68%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.label}: ${num(c.parsed)}` } } }, maintainAspectRatio: false }}
+                            options={{ animation, cutout: '68%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.label}: ${num(c.parsed)}` } } }, maintainAspectRatio: false }}
                         />
                     </div>
                     <ul className="flex flex-col">
@@ -67,6 +78,7 @@ export default function HomeCharts({ transactions, trips, month, today, customCo
                                 ],
                             }}
                             options={{
+                                animation,
                                 maintainAspectRatio: false,
                                 interaction: { mode: 'index', intersect: false },
                                 plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12, usePointStyle: true } }, tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${num(c.parsed.y)}` } } },

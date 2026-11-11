@@ -63,13 +63,22 @@ export default {
                 }
             },
             borderRadius: { sheet: '28px' },
+            // Motion tokens (values in src/index.css :root, mirrored in src/utils/motion.js): press 120 ms, inline 190 ms, sheet/nav 260 ms
+            transitionDuration: { press: 'var(--mo-press)', inline: 'var(--mo-inline)', sheet: 'var(--mo-sheet)' },
+            transitionTimingFunction: { out: 'var(--ease-out)', standard: 'var(--ease-standard)' },
             keyframes: {
                 'sheet-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
+                'sheet-down': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(100%)' } },
                 'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+                'fade-out': { from: { opacity: '1' }, to: { opacity: '0' } },
+                'row-in': { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
             },
             animation: {
-                'sheet-up': 'sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-                'fade-in': 'fade-in 200ms ease-out',
+                'sheet-up': 'sheet-up var(--mo-sheet) var(--ease-out)',
+                'sheet-down': 'sheet-down var(--mo-inline) var(--ease-standard) forwards',
+                'fade-in': 'fade-in var(--mo-inline) var(--ease-out)',
+                'fade-out': 'fade-out var(--mo-inline) var(--ease-standard) forwards',
+                'row-in': 'row-in var(--mo-inline) var(--ease-out)',
             },
         },
     },

@@ -1,0 +1,10 @@
+const L = (en, it, de, es, fr, fa, ar) => [en, it, de, es, fr, fa, ar];
+export default {
+    'motion.title': L('Reduce motion', 'Riduci i movimenti', 'Bewegung reduzieren', 'Reducir movimiento', 'Réduire les animations', 'کاهش حرکت', 'تقليل الحركة'),
+    'motion.hint': L('Removes sliding, scaling and staggered effects. Colour changes and progress indicators stay.', 'Toglie scorrimenti, ingrandimenti ed effetti a cascata. Restano i cambi di colore e gli indicatori di avanzamento.', 'Entfernt Gleit-, Skalier- und Staffeleffekte. Farbwechsel und Fortschrittsanzeigen bleiben.', 'Quita deslizamientos, escalados y efectos escalonados. Se mantienen los cambios de color y los indicadores de progreso.', 'Supprime les glissements, mises à l’échelle et effets décalés. Les changements de couleur et indicateurs de progression restent.', 'لغزش، تغییر مقیاس و جلوه‌های پله‌ای را حذف می‌کند. تغییر رنگ و نشانگرهای پیشرفت می‌مانند.', 'يزيل الانزلاق والتكبير والتأثيرات المتتالية. تبقى تغييرات اللون ومؤشرات التقدم.'),
+    'motion.system': L('Follow my device', 'Segui il dispositivo', 'Wie mein Gerät', 'Seguir mi dispositivo', 'Suivre mon appareil', 'مطابق دستگاه من', 'اتباع جهازي'),
+    'motion.reduced': L('Always reduce', 'Riduci sempre', 'Immer reduzieren', 'Reducir siempre', 'Toujours réduire', 'همیشه کاهش', 'التقليل دائماً'),
+    'motion.full': L('Full motion', 'Movimento completo', 'Volle Bewegung', 'Movimiento completo', 'Animations complètes', 'حرکت کامل', 'حركة كاملة'),
+    'motion.nowReduced': L('Motion is reduced right now.', 'Al momento i movimenti sono ridotti.', 'Die Bewegung ist gerade reduziert.', 'El movimiento está reducido ahora.', 'Les animations sont réduites actuellement.', 'اکنون حرکت کاهش یافته است.', 'الحركة مخفّضة الآن.'),
+    'motion.nowFull': L('Full motion is on.', 'Il movimento completo è attivo.', 'Volle Bewegung ist aktiv.', 'El movimiento completo está activo.', 'Les animations complètes sont actives.', 'حرکت کامل فعال است.', 'الحركة الكاملة مفعّلة.'),
+};

@@ -1,4 +1,4 @@
-import { RefreshCw, WifiOff } from 'lucide-react';
+import { Loader2, RefreshCw, WifiOff } from 'lucide-react';
 import { useTranslation } from '../../languages/useTranslation';
 
 const when = (iso, lang) => {
@@ -14,11 +14,11 @@ export default function NarrativeCard({ status, data, onRetry, stale = false, on
     if (status === 'idle' || (status === 'loading' && !data)) {
         return (
             <section className={card} aria-busy="true" aria-label={t('insights.narrative')} data-testid="narrative-loading">
-                <div className="h-5 w-4/5 animate-pulse rounded bg-white/20" />
-                <div className="h-3.5 w-full animate-pulse rounded bg-white/15" />
-                <div className="h-3.5 w-11/12 animate-pulse rounded bg-white/15" />
-                <div className="h-3.5 w-2/3 animate-pulse rounded bg-white/15" />
-                <span className="text-[11px] opacity-60">{t('insights.generating')}</span>
+                {/* a still skeleton plus a real spinner: no endless pulsing, and a hung request ends in a retry (aiOutbound timeout) */}
+                <div className="h-5 w-4/5 rounded bg-white/20" />
+                <div className="h-3.5 w-full rounded bg-white/15" />
+                <div className="h-3.5 w-2/3 rounded bg-white/15" />
+                <span className="flex items-center gap-1.5 text-[11px] opacity-70"><Loader2 size={12} className="animate-spin" aria-hidden="true" />{t('insights.generating')}</span>
             </section>
         );
     }

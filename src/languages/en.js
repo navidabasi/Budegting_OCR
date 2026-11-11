@@ -1978,4 +1978,15 @@ export const en = {
         reviewForm: "Receipt details",
     },
     // @i18n:end pane
+    // @i18n:begin motion
+    motion: {
+        title: "Reduce motion",
+        hint: "Removes sliding, scaling and staggered effects. Colour changes and progress indicators stay.",
+        system: "Follow my device",
+        reduced: "Always reduce",
+        full: "Full motion",
+        nowReduced: "Motion is reduced right now.",
+        nowFull: "Full motion is on.",
+    },
+    // @i18n:end motion
 };

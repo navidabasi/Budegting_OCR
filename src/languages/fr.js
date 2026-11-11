@@ -1709,4 +1709,15 @@ export const fr = {
         reviewForm: "Données du ticket",
     },
     // @i18n:end pane
+    // @i18n:begin motion
+    motion: {
+        title: "Réduire les animations",
+        hint: "Supprime les glissements, mises à l’échelle et effets décalés. Les changements de couleur et indicateurs de progression restent.",
+        system: "Suivre mon appareil",
+        reduced: "Toujours réduire",
+        full: "Animations complètes",
+        nowReduced: "Les animations sont réduites actuellement.",
+        nowFull: "Les animations complètes sont actives.",
+    },
+    // @i18n:end motion
 };

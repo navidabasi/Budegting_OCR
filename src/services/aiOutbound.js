@@ -11,6 +11,7 @@
 // recorded payload. The provider keys live on the server.
 import { getScanPrefs } from '../utils/scanPrefs';
 
+export const REQUEST_TIMEOUT_MS = 60000;
 export const FEATURES = { '/api/chat': 'chat', '/api/insights': 'insights', '/api/categorize': 'categorize', '/api/extract-receipt': 'extract' };
 export const featureOf = (endpoint) => FEATURES[endpoint] || 'other';
 
@@ -313,10 +314,18 @@ export async function post(endpoint, body, { token, fetchImpl = (...a) => fetch(
         shown = outgoing;
     }
     recordOutbound(feature, endpoint, shown);
-    return fetchImpl(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(outgoing),
-        ...(signal ? { signal } : {}),
-    });
+    // A request that never answers must end in a retry state, not an endless spinner
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    signal?.addEventListener?.('abort', () => controller.abort());
+    try {
+        return await fetchImpl(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(outgoing),
+            signal: controller.signal,
+        });
+    } finally {
+        clearTimeout(timer);
+    }
 }

@@ -42,7 +42,7 @@ export default function BottomNav() {
                     type="button"
                     onClick={() => setAddReceiptModalOpen(true)}
                     aria-label={t('navigation.addReceipt')}
-                    className="-mt-[72px] flex h-[60px] w-[60px] items-center justify-center rounded-full bg-forest text-white shadow-[0_6px_16px_rgba(0,87,63,.35)] transition-transform active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink"
+                    className="-mt-[72px] flex h-[60px] w-[60px] items-center justify-center rounded-full bg-forest text-white shadow-[0_6px_16px_rgba(0,87,63,.35)] transition-transform duration-press ease-out active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink"
                 >
                     <Plus size={28} strokeWidth={2.4} aria-hidden="true" />
                 </button>

@@ -14,7 +14,7 @@ const IconButton = forwardRef(function IconButton({ icon: Icon, label, variant =
             ref={ref}
             type="button"
             aria-label={label}
-            className={`inline-flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink active:opacity-80 ${VARIANTS[variant] || VARIANTS.plain} ${className}`}
+            className={`inline-flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full transition-colors duration-press ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink active:opacity-80 ${VARIANTS[variant] || VARIANTS.plain} ${className}`}
             {...rest}
         >
             {Icon ? <Icon size={size} aria-hidden="true" /> : null}

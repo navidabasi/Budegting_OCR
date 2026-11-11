@@ -1709,4 +1709,15 @@ export const es = {
         reviewForm: "Datos del recibo",
     },
     // @i18n:end pane
+    // @i18n:begin motion
+    motion: {
+        title: "Reducir movimiento",
+        hint: "Quita deslizamientos, escalados y efectos escalonados. Se mantienen los cambios de color y los indicadores de progreso.",
+        system: "Seguir mi dispositivo",
+        reduced: "Reducir siempre",
+        full: "Movimiento completo",
+        nowReduced: "El movimiento está reducido ahora.",
+        nowFull: "El movimiento completo está activo.",
+    },
+    // @i18n:end motion
 };

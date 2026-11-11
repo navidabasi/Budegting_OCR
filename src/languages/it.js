@@ -1822,4 +1822,15 @@ export const it = {
         reviewForm: "Dati dello scontrino",
     },
     // @i18n:end pane
+    // @i18n:begin motion
+    motion: {
+        title: "Riduci i movimenti",
+        hint: "Toglie scorrimenti, ingrandimenti ed effetti a cascata. Restano i cambi di colore e gli indicatori di avanzamento.",
+        system: "Segui il dispositivo",
+        reduced: "Riduci sempre",
+        full: "Movimento completo",
+        nowReduced: "Al momento i movimenti sono ridotti.",
+        nowFull: "Il movimento completo è attivo.",
+    },
+    // @i18n:end motion
 };

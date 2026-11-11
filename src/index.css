@@ -65,12 +65,26 @@
     .lead { flex: 1; border-bottom: 2px dotted currentColor; opacity: 0.3; margin: 0 8px 4px; min-width: 12px; }
     .no-scrollbar { scrollbar-width: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* Motion tokens (section 11): press/selection 120 ms, expand/filter/inline 190 ms, sheets and navigation 260 ms, ease-out entrances.
+       Only transform and opacity are animated. Mirrored in tailwind.config.js and src/utils/motion.js. */
+    :root { --mo-press: 120ms; --mo-inline: 190ms; --mo-sheet: 260ms; --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --ease-standard: cubic-bezier(0.2, 0, 0, 1); }
+    /* Reduced motion (device setting, or Settings > Appearance > Reduce motion; html[data-motion] is set from the app setting):
+       no travel, scale, stagger or pulsing; colour and opacity feedback stays, spinners stay (they show real work). */
+    html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after { scroll-behavior: auto !important; transition-property: color, background-color, border-color, opacity, box-shadow !important; }
+    html[data-motion="reduced"] .animate-sheet-up, html[data-motion="reduced"] .animate-row-in { animation-name: fade-in !important; }
+    html[data-motion="reduced"] .animate-sheet-down { animation-name: fade-out !important; }
+    html[data-motion="reduced"] .animate-pulse { animation: none !important; }
+    html[data-motion="reduced"] [class*="active:scale"]:active { transform: none !important; }
     @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        html:not([data-motion="full"]) *, html:not([data-motion="full"]) *::before, html:not([data-motion="full"]) *::after { scroll-behavior: auto !important; transition-property: color, background-color, border-color, opacity, box-shadow !important; }
+        html:not([data-motion="full"]) .animate-sheet-up, html:not([data-motion="full"]) .animate-row-in { animation-name: fade-in !important; }
+        html:not([data-motion="full"]) .animate-sheet-down { animation-name: fade-out !important; }
+        html:not([data-motion="full"]) .animate-pulse { animation: none !important; }
+        html:not([data-motion="full"]) [class*="active:scale"]:active { transform: none !important; }
     }
     body {
         @apply bg-ground text-ink;
-        transition: background-color 0.2s, color 0.2s;
+        transition: background-color var(--mo-inline), color var(--mo-inline);
     }
 }
 

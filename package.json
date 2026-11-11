@@ -10,7 +10,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "e2e:layout": "node scripts/e2e/layout.mjs",
-        "e2e:audit": "node scripts/e2e/audit.mjs"
+        "e2e:audit": "node scripts/e2e/audit.mjs",
+        "e2e:motion": "node scripts/e2e/motion.mjs"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.89.0",

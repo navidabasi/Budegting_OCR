@@ -86,7 +86,7 @@ export default function HomePage() {
                     <BreakdownLink month={periodSpecOf(month)} />
                     <SharedLink />
                     <UpcomingBills unpaid={unpaid} today={today} />
-                    <Suspense fallback={<div className="h-48 animate-pulse rounded-[20px] bg-line" aria-hidden="true" />}>
+                    <Suspense fallback={<div className="h-48 rounded-[20px] bg-line" aria-hidden="true" />}>
                         <HomeCharts transactions={transactions} trips={trips} month={month} today={today} />
                     </Suspense>
                 </>

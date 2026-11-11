@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { createPortal } from 'react-dom';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -11,6 +12,20 @@ export default function Sheet({ open, onClose, label, children, className = '', 
     const panelRef = useRef(null);
     const dragRef = useRef(null);
     const returnFocusRef = useRef(null);
+    // Exit: the sheet slides down for one inline duration before it unmounts (no travel when motion is reduced)
+    const reduced = useReducedMotion();
+    const [leaving, setLeaving] = useState(false);
+    const lastChildren = useRef(children);
+    if (open) lastChildren.current = children;
+    const wasOpen = useRef(false);
+    useEffect(() => {
+        const was = wasOpen.current;
+        wasOpen.current = open;
+        if (open || !was || reduced) return undefined; // only a sheet that was open leaves
+        setLeaving(true);
+        const timer = setTimeout(() => setLeaving(false), 190);
+        return () => clearTimeout(timer);
+    }, [open, reduced]);
     // The effect below must run when the sheet opens or closes only: a parent that passes a new onClose on every render (typing in a
     // field re-renders it) would otherwise move the focus back to the first control each time.
     const onCloseRef = useRef(onClose);
@@ -57,7 +72,8 @@ export default function Sheet({ open, onClose, label, children, className = '', 
         };
     }, [open]);
 
-    if (!open) return null;
+    if (!open && !leaving) return null;
+    const shown = open ? children : lastChildren.current;
 
     const onHandleDown = (e) => {
         dragRef.current = { startY: e.clientY, dy: 0 };
@@ -79,14 +95,14 @@ export default function Sheet({ open, onClose, label, children, className = '', 
 
     return createPortal(
         <div className="fixed inset-0 z-[60] flex flex-col justify-end" data-testid="sheet-root">
-            <div className="absolute inset-0 animate-fade-in bg-[#10211B]/45" onClick={onClose} aria-hidden="true" data-testid="sheet-backdrop" />
+            <div className={`absolute inset-0 ${open ? 'animate-fade-in' : 'animate-fade-out'} bg-[#10211B]/45`} onClick={open ? onClose : undefined} aria-hidden="true" data-testid="sheet-backdrop" />
             <div
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label={label}
                 tabIndex={-1}
-                className={`relative mx-auto flex w-full max-w-[520px] animate-sheet-up flex-col rounded-t-sheet bg-ground shadow-[0_-8px_30px_rgba(16,33,27,.18)] outline-none ${fullHeight ? 'h-[94dvh]' : 'max-h-[96dvh]'} ${className}`}
+                className={`relative mx-auto flex w-full max-w-[520px] ${open ? 'animate-sheet-up' : 'animate-sheet-down pointer-events-none'} flex-col rounded-t-sheet bg-ground shadow-[0_-8px_30px_rgba(16,33,27,.18)] outline-none ${fullHeight ? 'h-[94dvh]' : 'max-h-[96dvh]'} ${className}`}
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
             >
                 <div
@@ -99,7 +115,7 @@ export default function Sheet({ open, onClose, label, children, className = '', 
                 >
                     <div className="h-1 w-10 rounded-full bg-line-strong" />
                 </div>
-                {children}
+                {shown}
             </div>
         </div>,
         document.body

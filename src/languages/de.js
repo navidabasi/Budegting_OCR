@@ -1822,4 +1822,15 @@ export const de = {
         reviewForm: "Belegdaten",
     },
     // @i18n:end pane
+    // @i18n:begin motion
+    motion: {
+        title: "Bewegung reduzieren",
+        hint: "Entfernt Gleit-, Skalier- und Staffeleffekte. Farbwechsel und Fortschrittsanzeigen bleiben.",
+        system: "Wie mein Gerät",
+        reduced: "Immer reduzieren",
+        full: "Volle Bewegung",
+        nowReduced: "Die Bewegung ist gerade reduziert.",
+        nowFull: "Volle Bewegung ist aktiv.",
+    },
+    // @i18n:end motion
 };

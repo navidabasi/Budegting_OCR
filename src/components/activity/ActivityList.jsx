@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual';
 
 const DAY_H = 44;
@@ -6,11 +6,27 @@ const ROW_H = 62;
 const sizeOf = (items) => (i) => (items[i].kind === 'day' ? DAY_H : ROW_H);
 const keyOf = (item) => (item.kind === 'day' ? `d-${item.key}` : item.tx.id);
 
+// Rows that appear after the first paint (a new transaction) fade in; the rows below slide to their new place (transform transition)
+// instead of jumping. The first paint and rows that only scroll into view do not animate.
+function useNewIds(items) {
+    const known = useRef(null);
+    const fresh = new Set();
+    if (known.current && known.current.size > 0) {
+        const added = items.filter((i) => i.kind === 'tx' && !known.current.has(i.tx.id));
+        if (added.length > 0 && added.length <= 3) added.forEach((i) => fresh.add(i.tx.id));
+    }
+    useEffect(() => {
+        known.current = new Set(items.filter((i) => i.kind === 'tx').map((i) => i.tx.id));
+    });
+    return fresh;
+}
+
 function Rows({ virtualizer, items, renderItem, listRef, label }) {
+    const fresh = useNewIds(items);
     return (
         <div ref={listRef} className="relative mx-5" style={{ height: virtualizer.getTotalSize() }} role="list" aria-label={label}>
             {virtualizer.getVirtualItems().map((v) => (
-                <div key={keyOf(items[v.index])} role="listitem" className="absolute inset-x-0 top-0" style={{ height: v.size, transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)` }}>
+                <div key={keyOf(items[v.index])} role="listitem" className={`absolute inset-x-0 top-0 transition-transform duration-inline ease-out ${items[v.index].kind === 'tx' && fresh.has(items[v.index].tx.id) ? 'animate-row-in' : ''}`} style={{ height: v.size, transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)` }}>
                     {renderItem(items[v.index])}
                 </div>
             ))}
