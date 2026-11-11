@@ -120,8 +120,8 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
                                     {t('insights.retry')}
                                 </button>
                             ) : null}
-                            {m.action && actionHref(m.action, month) ? (
-                                <Link to={actionHref(m.action, month)} className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-forest-ink bg-surface px-3.5 text-sm font-semibold text-forest-ink">
+                            {m.action && actionHref(m.action, month, m.ev?.pack?.period) ? (
+                                <Link to={actionHref(m.action, month, m.ev?.pack?.period)} className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-forest-ink bg-surface px-3.5 text-sm font-semibold text-forest-ink">
                                     {actionLabel(m.action)}
                                     <ArrowUpRight size={15} aria-hidden="true" className="rtl:-scale-x-100" />
                                 </Link>

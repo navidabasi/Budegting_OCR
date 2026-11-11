@@ -57,7 +57,11 @@ export async function sendChat({ aggregates, thread, language = 'en', getToken, 
 }
 
 /** Route that opens the matching prefilled sheet / filtered screen for a suggestedAction, or null. */
-export function actionHref(action, month) {
+/**
+ * `period` ({ start, end }) is the exact period an evidence-based answer was computed for. When given, an Activity link
+ * opens that exact date range (a pay cycle is not a calendar month), unless the answer explicitly spans all time.
+ */
+export function actionHref(action, month, period) {
     if (!action || typeof action !== 'object') return null;
     const p = action.payload || {};
     const q = new URLSearchParams();
@@ -77,7 +81,9 @@ export function actionHref(action, month) {
     if (action.type === 'open_filter') {
         // An answer's link must show what the answer talks about. Without an explicit month the model is talking
         // about the history (averages, trends), so open all time rather than silently narrowing to the current period.
-        const m = p.month || (p.screen === 'activity' || !p.screen ? 'all' : month);
+        const toActivity = p.screen === 'activity' || !p.screen;
+        const exact = toActivity && p.month !== 'all' && period?.start && period?.end ? `r:${period.start}..${period.end}` : null;
+        const m = exact || p.month || (toActivity ? 'all' : month);
         if (m) q.set('m', m);
         if (p.screen === 'budgets') return `/plan?${q.toString()}`;
         if (p.screen === 'savings') {

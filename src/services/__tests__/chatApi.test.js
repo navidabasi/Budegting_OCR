@@ -60,6 +60,10 @@ describe('actionHref', () => {
         // A multi-month answer ("average grocery spend") links to every matching transaction, not the current period
         expect(actionHref({ type: 'open_filter', payload: { screen: 'activity', category: 'Groceries', month: 'all' } }, '2026-11')).toBe('/activity?m=all&cat=Groceries');
         expect(actionHref({ type: 'open_filter', payload: { category: 'Groceries' } }, '2026-11')).toBe('/activity?m=all&cat=Groceries');
+        // An evidence answer about a pay cycle links to that exact cycle, not the calendar month the model named
+        const cycle = { start: '2026-10-12', end: '2026-11-11' };
+        expect(actionHref({ type: 'open_filter', payload: { screen: 'activity', category: 'Groceries', month: '2026-10' } }, '2026-11', cycle)).toBe('/activity?m=r%3A2026-10-12..2026-11-11&cat=Groceries');
+        expect(actionHref({ type: 'open_filter', payload: { category: 'Groceries', month: 'all' } }, '2026-11', cycle)).toBe('/activity?m=all&cat=Groceries');
         expect(actionHref({ type: 'nope', payload: {} })).toBeNull();
     });
 });
