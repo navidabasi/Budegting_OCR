@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { accountBalances, monthTotals, totalBalance, fullAmount, shareAmount, spentByCategory, excludedTripIds } from '../money'
+import { accountBalances, monthTotals, totalBalance, fullAmount, shareAmount, spentByCategory, excludedTripIds, cumulativeSpend } from '../money'
 
 let n = 0
 const tx = (o) => ({ id: `t${++n}`, date: '2026-11-05', total: 10, currency: 'EUR', category: 'Groceries', transactionType: 'expense', ...o })
@@ -162,3 +162,12 @@ describe('spentByCategory / excludedTripIds', () => {
         expect([...ids]).toEqual(['a'])
     })
 })
+
+describe('cumulativeSpend', () => {
+    const e = (date, total, extra = {}) => ({ id: date + total, date, total, transactionType: 'expense', ...extra });
+    it('runs a cumulative total per day, skipping planned and other months', () => {
+        const txs = [e('2026-11-01', 10), e('2026-11-03', 5), e('2026-11-03', 5), e('2026-10-31', 99), e('2026-11-02', 50, { trackingData: { isTracked: true, status: 'open' } })];
+        expect(cumulativeSpend(txs, '2026-11', { upToDay: 4 })).toEqual([10, 10, 20, 20]);
+        expect(cumulativeSpend(txs, '2026-11')).toHaveLength(30);
+    });
+});

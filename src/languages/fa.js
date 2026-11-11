@@ -1123,4 +1123,89 @@ export const fa = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} {{pct}}٪ افزایش یافته",
+            body: "{{category}} این ماه {{current}} است، در برابر میانگین ۳ ماه {{average}} (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} {{pct}}٪ کاهش یافته",
+            body: "{{category}} این ماه {{current}} است، در برابر میانگین ۳ ماه {{average}} (−{{amount}}).",
+        },
+        budget_over: {
+            title: "{{label}} از بودجه گذشت",
+            body: "{{spent}} از {{budget}} خرج کرده‌ای، {{over}} بیشتر.",
+        },
+        budget_pace: {
+            title: "{{label}} با این روند از بودجه می‌گذرد",
+            body: "با این سرعت حدود {{projected}} از {{budget}} خرج می‌کنی. برای ماندن در بودجه، روزی حداکثر {{perDay}}.",
+        },
+        unusual_transaction: {
+            title: "پرداخت غیرعادی بزرگ در {{category}}",
+            body: "{{name}} در {{date}}: {{amount}}، در حالی که معمول {{category}} حدود {{typical}} است.",
+        },
+        subscription: {
+            title: "{{name}} شبیه یک اشتراک است",
+            body: "{{name}} {{count}} ماه پشت‌سرهم حدود {{amount}} کسر کرده و تکرارشونده علامت نخورده است. سالانه {{yearly}}.",
+        },
+        savings_rate_up: {
+            title: "بیشتر از معمول پس‌انداز می‌کنی",
+            body: "نرخ پس‌انداز این ماه {{rate}}٪ است، در برابر میانگین {{averageRate}}٪ ({{saved}} از {{income}} درآمد).",
+        },
+        savings_rate_down: {
+            title: "کمتر از معمول پس‌انداز می‌کنی",
+            body: "نرخ پس‌انداز این ماه {{rate}}٪ است، در برابر میانگین {{averageRate}}٪ ({{saved}} از {{income}} درآمد).",
+        },
+        top_merchant: {
+            title: "{{name}} {{pct}}٪ از هزینه‌هایت است",
+            body: "{{amount}} از {{total}} این ماه به {{name}} رفت ({{count}} پرداخت).",
+        },
+        no_income: {
+            title: "این ماه درآمدی ثبت نشده",
+            body: "{{spent}} هزینه ثبت کرده‌ای ولی درآمدی نه؛ پس نرخ پس‌انداز و مبلغ قابل خرج ممکن است دقیق نباشد.",
+        },
+        uncategorised: {
+            title: "{{count}} تراکنش بدون دسته",
+            body: "{{count}} پرداخت ({{amount}}) دسته ندارد و تحلیل دسته‌ها کم‌دقت می‌شود.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "پولم کجا رفت",
+        spentSoFar: "تاکنون خرج شده",
+        spentInMonth: "خرج‌شده",
+        dateLeft: "{{date}} · {{count}} روز مانده",
+        pctOfBudget: "{{pct}}٪ از بودجه {{budget}}",
+        aheadOfPace: "جلوتر از روند · روز {{day}}",
+        onPace: "طبق روند",
+        setBudget: "یک بودجه ماهانه تعیین کن تا روندت را ببینی",
+        income: "درآمد",
+        saved: "پس‌انداز",
+        stillToPay: "هنوز باید پرداخت شود",
+        travel: "سفر ({{name}})",
+        safeToSpend: "مبلغ قابل خرج",
+        perDay: "{{amount}} در روز",
+        tripDayOf: "در سفر · {{name}}، روز {{day}} از {{days}}",
+        tripDay: "در سفر · {{name}}، روز {{day}}",
+        tripJoin: "تراکنش‌های جدید به این سفر اضافه می‌شوند",
+        seeAll: "همه",
+        noBudgets: "هنوز بودجه دسته‌ای نیست. برای ساخت لمس کن.",
+        upcoming: "پیش رو",
+        unpaid: "پرداخت‌نشده · {{count}}",
+        paid: "پرداخت شد",
+        markedPaid: "{{name}} پرداخت‌شده علامت خورد",
+        overdue: "عقب‌افتاده",
+        dueToday: "امروز سررسید",
+        dueIn: "{{count}} روز دیگر سررسید",
+        whereItWent: "کجا خرج شد",
+        monthVsLast: "این ماه در برابر ماه قبل",
+        emptyTitle: "با اولین رسیدت شروع کن",
+        emptyBody: "اسکنش کن، دستی وارد کن یا با داده‌های نمونه نگاهی بینداز.",
+        scan: "اسکن رسید",
+        addManually: "افزودن دستی",
+        trySample: "امتحان با داده نمونه",
+    },
+    // @i18n:end home
 };

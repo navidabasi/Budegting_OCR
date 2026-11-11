@@ -960,4 +960,89 @@ export const fr = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} est en hausse de {{pct}}%",
+            body: "{{category}} est à {{current}} ce mois-ci contre une moyenne de {{average}} sur 3 mois (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} est en baisse de {{pct}}%",
+            body: "{{category}} est à {{current}} ce mois-ci contre une moyenne de {{average}} sur 3 mois (−{{amount}}).",
+        },
+        budget_over: {
+            title: "{{label}} dépassé",
+            body: "Tu as dépensé {{spent}} sur {{budget}}, soit {{over}} de trop.",
+        },
+        budget_pace: {
+            title: "{{label}} va être dépassé à ce rythme",
+            body: "À ce rythme tu dépenseras environ {{projected}} sur {{budget}}. Pour rester dans le budget, vise {{perDay}} par jour.",
+        },
+        unusual_transaction: {
+            title: "Paiement inhabituellement élevé en {{category}}",
+            body: "{{name}} le {{date}} : {{amount}}, contre {{typical}} d’habitude pour {{category}}.",
+        },
+        subscription: {
+            title: "{{name}} ressemble à un abonnement",
+            body: "{{name}} a prélevé environ {{amount}} {{count}} mois de suite sans être marqué comme récurrent. Cela fait {{yearly}} par an.",
+        },
+        savings_rate_up: {
+            title: "Tu épargnes plus que d’habitude",
+            body: "Le taux d’épargne est de {{rate}}% ce mois-ci contre {{averageRate}}% en moyenne ({{saved}} épargnés sur {{income}} de revenu).",
+        },
+        savings_rate_down: {
+            title: "Tu épargnes moins que d’habitude",
+            body: "Le taux d’épargne est de {{rate}}% ce mois-ci contre {{averageRate}}% en moyenne ({{saved}} épargnés sur {{income}} de revenu).",
+        },
+        top_merchant: {
+            title: "{{name}} représente {{pct}}% de tes dépenses",
+            body: "{{amount}} sur {{total}} ce mois-ci sont allés chez {{name}} ({{count}} paiements).",
+        },
+        no_income: {
+            title: "Aucun revenu saisi ce mois-ci",
+            body: "Tu as saisi {{spent}} de dépenses mais aucun revenu : le taux d’épargne et le montant dépensable peuvent être faussés.",
+        },
+        uncategorised: {
+            title: "{{count}} transactions sans catégorie",
+            body: "{{count}} paiements ({{amount}}) n’ont pas de catégorie, ce qui rend les analyses par catégorie moins fiables.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "Où est passé mon argent",
+        spentSoFar: "Dépensé jusqu’ici",
+        spentInMonth: "Dépensé",
+        dateLeft: "{{date}} · {{count}} jours restants",
+        pctOfBudget: "{{pct}}% du budget de {{budget}}",
+        aheadOfPace: "au-dessus du rythme · jour {{day}}",
+        onPace: "dans le rythme",
+        setBudget: "Fixe un budget mensuel pour voir ton rythme",
+        income: "Revenus",
+        saved: "Épargné",
+        stillToPay: "Reste à payer",
+        travel: "Voyage ({{name}})",
+        safeToSpend: "Dépensable sans risque",
+        perDay: "{{amount}}/jour",
+        tripDayOf: "En voyage · {{name}}, jour {{day}} sur {{days}}",
+        tripDay: "En voyage · {{name}}, jour {{day}}",
+        tripJoin: "Les nouvelles transactions rejoignent ce voyage",
+        seeAll: "Tout voir",
+        noBudgets: "Aucun budget par catégorie. Touche pour en créer un.",
+        upcoming: "À venir",
+        unpaid: "Impayé · {{count}}",
+        paid: "Payé",
+        markedPaid: "{{name}} marqué comme payé",
+        overdue: "en retard",
+        dueToday: "dû aujourd’hui",
+        dueIn: "dû dans {{count}} jours",
+        whereItWent: "Où c’est passé",
+        monthVsLast: "Ce mois-ci et le mois dernier",
+        emptyTitle: "Commence par ton premier reçu",
+        emptyBody: "Scanne-le, saisis-le ou explore avec des données d’exemple.",
+        scan: "Scanner un reçu",
+        addManually: "Ajouter à la main",
+        trySample: "Essayer avec des données d’exemple",
+    },
+    // @i18n:end home
 };

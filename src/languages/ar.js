@@ -1105,4 +1105,89 @@ export const ar = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} ارتفعت بنسبة {{pct}}٪",
+            body: "{{category}} بلغت {{current}} هذا الشهر مقابل متوسط 3 أشهر قدره {{average}} (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} انخفضت بنسبة {{pct}}٪",
+            body: "{{category}} بلغت {{current}} هذا الشهر مقابل متوسط 3 أشهر قدره {{average}} (−{{amount}}).",
+        },
+        budget_over: {
+            title: "تم تجاوز {{label}}",
+            body: "أنفقت {{spent}} من {{budget}}، بزيادة {{over}}.",
+        },
+        budget_pace: {
+            title: "{{label}} في طريقه للتجاوز",
+            body: "بهذا المعدل ستنفق نحو {{projected}} من {{budget}}. للبقاء ضمن الميزانية التزم بـ {{perDay}} يوميًا.",
+        },
+        unusual_transaction: {
+            title: "دفعة {{category}} كبيرة بشكل غير معتاد",
+            body: "{{name}} في {{date}}: {{amount}}، مقابل المعتاد {{typical}} في {{category}}.",
+        },
+        subscription: {
+            title: "{{name}} يبدو كاشتراك",
+            body: "{{name}} خصم نحو {{amount}} لمدة {{count}} أشهر متتالية وغير مُعلَّم كمتكرر. أي {{yearly}} في السنة.",
+        },
+        savings_rate_up: {
+            title: "تدّخر أكثر من المعتاد",
+            body: "معدل الادخار {{rate}}٪ هذا الشهر مقابل {{averageRate}}٪ في المتوسط ({{saved}} من دخل {{income}}).",
+        },
+        savings_rate_down: {
+            title: "تدّخر أقل من المعتاد",
+            body: "معدل الادخار {{rate}}٪ هذا الشهر مقابل {{averageRate}}٪ في المتوسط ({{saved}} من دخل {{income}}).",
+        },
+        top_merchant: {
+            title: "{{name}} يمثل {{pct}}٪ من إنفاقك",
+            body: "{{amount}} من {{total}} هذا الشهر ذهبت إلى {{name}} ({{count}} دفعات).",
+        },
+        no_income: {
+            title: "لم يُسجَّل دخل هذا الشهر",
+            body: "سجّلت إنفاقًا بقيمة {{spent}} دون دخل، لذا قد يكون معدل الادخار والمبلغ الآمن غير دقيقين.",
+        },
+        uncategorised: {
+            title: "{{count}} معاملات بلا فئة",
+            body: "{{count}} دفعات ({{amount}}) بلا فئة مما يقلل موثوقية تحليل الفئات.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "أين ذهب مالي",
+        spentSoFar: "المنفق حتى الآن",
+        spentInMonth: "المنفق",
+        dateLeft: "{{date}} · متبقٍ {{count}} يومًا",
+        pctOfBudget: "{{pct}}٪ من ميزانية {{budget}}",
+        aheadOfPace: "أسرع من المعدل · اليوم {{day}}",
+        onPace: "ضمن المعدل",
+        setBudget: "حدّد ميزانية شهرية لترى معدلك",
+        income: "الدخل",
+        saved: "المدخر",
+        stillToPay: "متبقٍ للدفع",
+        travel: "سفر ({{name}})",
+        safeToSpend: "المبلغ الآمن للإنفاق",
+        perDay: "{{amount}}/يوم",
+        tripDayOf: "في رحلة · {{name}}، اليوم {{day}} من {{days}}",
+        tripDay: "في رحلة · {{name}}، اليوم {{day}}",
+        tripJoin: "تنضم المعاملات الجديدة إلى هذه الرحلة",
+        seeAll: "عرض الكل",
+        noBudgets: "لا ميزانيات للفئات بعد. اضغط لإنشاء واحدة.",
+        upcoming: "القادمة",
+        unpaid: "غير مدفوع · {{count}}",
+        paid: "مدفوع",
+        markedPaid: "تم تعليم {{name}} كمدفوع",
+        overdue: "متأخر",
+        dueToday: "مستحق اليوم",
+        dueIn: "مستحق بعد {{count}} أيام",
+        whereItWent: "أين ذهب",
+        monthVsLast: "هذا الشهر مقابل الشهر الماضي",
+        emptyTitle: "ابدأ بأول إيصال",
+        emptyBody: "امسحه أو اكتبه أو تصفّح ببيانات تجريبية.",
+        scan: "امسح إيصالًا",
+        addManually: "إضافة يدويًا",
+        trySample: "جرّب ببيانات تجريبية",
+    },
+    // @i18n:end home
 };

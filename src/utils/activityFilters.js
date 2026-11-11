@@ -6,6 +6,7 @@
  * Legacy dashboard links keep working: month+year (1-based month), category (+filter=category), merchant, type, tracking.
  */
 import { normalizeCategoryName } from './categoryNames';
+import { merchantKey } from './merchant';
 import { getTrackingStatus, shouldIncludeInSpendingTotals } from './tracking';
 
 export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', groupId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
@@ -98,7 +99,7 @@ export function applyFilters(transactions, f, { ignoreMonth = false } = {}) {
         if (f.categories.length && !f.categories.includes(tx.category)) return false;
         if (f.accountId && tx.accountId !== f.accountId && tx.toAccountId !== f.accountId) return false;
         if (f.groupId && tx.groupId !== f.groupId) return false;
-        if (f.merchant && tx.merchant !== f.merchant) return false;
+        if (f.merchant && tx.merchant !== f.merchant && (tx.merchantKey || merchantKey(tx.merchant)) !== f.merchant) return false; // insights link by merchant key
         if (f.tracking) {
             const status = getTrackingStatus(tx);
             if (f.tracking === 'tracked' ? !status : status !== f.tracking) return false;

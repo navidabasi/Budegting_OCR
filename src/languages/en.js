@@ -1229,4 +1229,89 @@ export const en = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} is up {{pct}}%",
+            body: "{{category}} is {{current}} this month against a 3-month average of {{average}} (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} is down {{pct}}%",
+            body: "{{category}} is {{current}} this month against a 3-month average of {{average}} (−{{amount}}).",
+        },
+        budget_over: {
+            title: "{{label}} exceeded",
+            body: "You spent {{spent}} of {{budget}}, {{over}} over.",
+        },
+        budget_pace: {
+            title: "{{label}} on track to be exceeded",
+            body: "At this pace you will spend about {{projected}} of {{budget}}. To stay on budget, keep to {{perDay}} a day.",
+        },
+        unusual_transaction: {
+            title: "Unusually large {{category}} payment",
+            body: "{{name}} on {{date}}: {{amount}}, against a typical {{typical}} for {{category}}.",
+        },
+        subscription: {
+            title: "{{name}} looks like a subscription",
+            body: "{{name}} charged about {{amount}} {{count}} months in a row and is not marked as recurring. That is {{yearly}} a year.",
+        },
+        savings_rate_up: {
+            title: "You are saving more than usual",
+            body: "Savings rate is {{rate}}% this month against {{averageRate}}% on average ({{saved}} saved of {{income}} income).",
+        },
+        savings_rate_down: {
+            title: "You are saving less than usual",
+            body: "Savings rate is {{rate}}% this month against {{averageRate}}% on average ({{saved}} saved of {{income}} income).",
+        },
+        top_merchant: {
+            title: "{{name}} is {{pct}}% of your spending",
+            body: "{{amount}} of {{total}} this month went to {{name}} ({{count}} payments).",
+        },
+        no_income: {
+            title: "No income logged this month",
+            body: "You logged {{spent}} of spending but no income, so savings rate and safe-to-spend may be off.",
+        },
+        uncategorised: {
+            title: "{{count}} transactions have no category",
+            body: "{{count}} payments ({{amount}}) are uncategorised, which makes the category insights less reliable.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "Where my money went",
+        spentSoFar: "Spent so far",
+        spentInMonth: "Spent",
+        dateLeft: "{{date}} · {{count}} days left",
+        pctOfBudget: "{{pct}}% of {{budget}} budget",
+        aheadOfPace: "ahead of pace · day {{day}}",
+        onPace: "on pace",
+        setBudget: "Set a monthly budget to see your pace",
+        income: "Income",
+        saved: "Saved",
+        stillToPay: "Still to pay",
+        travel: "Travel ({{name}})",
+        safeToSpend: "Safe to spend",
+        perDay: "{{amount}}/day",
+        tripDayOf: "On a trip · {{name}}, day {{day}} of {{days}}",
+        tripDay: "On a trip · {{name}}, day {{day}}",
+        tripJoin: "New transactions join this trip",
+        seeAll: "See all",
+        noBudgets: "No category budgets yet. Tap to set one.",
+        upcoming: "Upcoming",
+        unpaid: "Unpaid · {{count}}",
+        paid: "Paid",
+        markedPaid: "{{name}} marked as paid",
+        overdue: "overdue",
+        dueToday: "due today",
+        dueIn: "due in {{count}} days",
+        whereItWent: "Where it went",
+        monthVsLast: "This month vs last month",
+        emptyTitle: "Start with your first receipt",
+        emptyBody: "Scan it, type it in, or look around with sample data.",
+        scan: "Scan a receipt",
+        addManually: "Add manually",
+        trySample: "Try with sample data",
+    },
+    // @i18n:end home
 };

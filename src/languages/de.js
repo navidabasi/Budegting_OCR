@@ -1073,4 +1073,89 @@ export const de = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} ist um {{pct}}% gestiegen",
+            body: "{{category}} liegt diesen Monat bei {{current}} gegenüber einem 3-Monats-Schnitt von {{average}} (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} ist um {{pct}}% gesunken",
+            body: "{{category}} liegt diesen Monat bei {{current}} gegenüber einem 3-Monats-Schnitt von {{average}} (−{{amount}}).",
+        },
+        budget_over: {
+            title: "{{label}} überschritten",
+            body: "Du hast {{spent}} von {{budget}} ausgegeben, {{over}} zu viel.",
+        },
+        budget_pace: {
+            title: "{{label}} wird voraussichtlich überschritten",
+            body: "In diesem Tempo gibst du etwa {{projected}} von {{budget}} aus. Um im Budget zu bleiben, halte dich an {{perDay}} pro Tag.",
+        },
+        unusual_transaction: {
+            title: "Ungewöhnlich hohe Zahlung in {{category}}",
+            body: "{{name}} am {{date}}: {{amount}}, typisch sind {{typical}} für {{category}}.",
+        },
+        subscription: {
+            title: "{{name}} sieht wie ein Abo aus",
+            body: "{{name}} hat {{count}} Monate in Folge etwa {{amount}} abgebucht und ist nicht als wiederkehrend markiert. Das sind {{yearly}} im Jahr.",
+        },
+        savings_rate_up: {
+            title: "Du sparst mehr als sonst",
+            body: "Die Sparquote liegt diesen Monat bei {{rate}}% gegenüber {{averageRate}}% im Schnitt ({{saved}} gespart von {{income}} Einkommen).",
+        },
+        savings_rate_down: {
+            title: "Du sparst weniger als sonst",
+            body: "Die Sparquote liegt diesen Monat bei {{rate}}% gegenüber {{averageRate}}% im Schnitt ({{saved}} gespart von {{income}} Einkommen).",
+        },
+        top_merchant: {
+            title: "{{name}} macht {{pct}}% deiner Ausgaben aus",
+            body: "{{amount}} von {{total}} gingen diesen Monat an {{name}} ({{count}} Zahlungen).",
+        },
+        no_income: {
+            title: "Kein Einkommen diesen Monat erfasst",
+            body: "Du hast {{spent}} Ausgaben, aber kein Einkommen erfasst, daher können Sparquote und sicher ausgebbarer Betrag abweichen.",
+        },
+        uncategorised: {
+            title: "{{count}} Transaktionen ohne Kategorie",
+            body: "{{count}} Zahlungen ({{amount}}) haben keine Kategorie, das macht die Kategorie-Auswertungen weniger verlässlich.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "Wohin mein Geld ging",
+        spentSoFar: "Bisher ausgegeben",
+        spentInMonth: "Ausgegeben",
+        dateLeft: "{{date}} · noch {{count}} Tage",
+        pctOfBudget: "{{pct}}% von {{budget}} Budget",
+        aheadOfPace: "über dem Tempo · Tag {{day}}",
+        onPace: "im Plan",
+        setBudget: "Lege ein Monatsbudget fest, um dein Tempo zu sehen",
+        income: "Einkommen",
+        saved: "Gespart",
+        stillToPay: "Noch zu zahlen",
+        travel: "Reise ({{name}})",
+        safeToSpend: "Sicher ausgebbar",
+        perDay: "{{amount}}/Tag",
+        tripDayOf: "Auf Reise · {{name}}, Tag {{day}} von {{days}}",
+        tripDay: "Auf Reise · {{name}}, Tag {{day}}",
+        tripJoin: "Neue Transaktionen gehören zu dieser Reise",
+        seeAll: "Alle ansehen",
+        noBudgets: "Noch keine Kategorie-Budgets. Tippe, um eines anzulegen.",
+        upcoming: "Anstehend",
+        unpaid: "Unbezahlt · {{count}}",
+        paid: "Bezahlt",
+        markedPaid: "{{name}} als bezahlt markiert",
+        overdue: "überfällig",
+        dueToday: "heute fällig",
+        dueIn: "fällig in {{count}} Tagen",
+        whereItWent: "Wohin es ging",
+        monthVsLast: "Dieser Monat im Vergleich zum Vormonat",
+        emptyTitle: "Beginne mit deinem ersten Beleg",
+        emptyBody: "Scanne ihn, tippe ihn ein oder schau dich mit Beispieldaten um.",
+        scan: "Beleg scannen",
+        addManually: "Manuell hinzufügen",
+        trySample: "Mit Beispieldaten testen",
+    },
+    // @i18n:end home
 };

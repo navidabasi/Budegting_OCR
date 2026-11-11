@@ -7,7 +7,7 @@
 //    excluded from totals and balances and reported as `upcoming`.
 import { getEffectiveAmount } from './helpers';
 import { shouldIncludeInFinancialTotals } from './tracking';
-import { dateKey, monthKey } from './monthMath';
+import { dateKey, daysInMonth, monthKey } from './monthMath';
 
 export const SAVINGS_KINDS = ['savings', 'investment'];
 
@@ -208,4 +208,26 @@ export function displayBalance(b) {
 /** Net worth in one currency: every non-archived account by displayBalance (debts subtract, receivables add). */
 export function netWorth(balances = [], { currency } = {}) {
     return round2(balances.filter((b) => !b.isArchived && (!currency || b.currency === currency)).reduce((s, b) => s + displayBalance(b), 0));
+}
+
+/**
+ * cumulativeSpend(transactions, month, { trips, upToDay }) -> number[] (index 0 = day 1), the running total of
+ * expenses (your share, trip spend included, planned/unpaid and transfers left out). Stops at `upToDay` when given.
+ */
+export function cumulativeSpend(transactions = [], month, { upToDay } = {}) {
+    const days = daysInMonth(month);
+    const last = Math.min(days, upToDay ?? days);
+    const perDay = new Array(days).fill(0);
+    for (const tx of transactions || []) {
+        if (!tx || typeOf(tx) !== 'expense' || isPlanned(tx) || monthKey(tx.date) !== month) continue;
+        const d = Number(dateKey(tx.date).slice(8, 10));
+        if (d >= 1 && d <= days) perDay[d - 1] += shareAmount(tx);
+    }
+    const out = [];
+    let run = 0;
+    for (let i = 0; i < last; i++) {
+        run += perDay[i];
+        out.push(round2(run));
+    }
+    return out;
 }

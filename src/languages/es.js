@@ -960,4 +960,89 @@ export const es = {
         },
     },
     // @i18n:end trips
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{category}} sube un {{pct}}%",
+            body: "{{category}} lleva {{current}} este mes frente a una media de 3 meses de {{average}} (+{{amount}}).",
+        },
+        category_down: {
+            title: "{{category}} baja un {{pct}}%",
+            body: "{{category}} lleva {{current}} este mes frente a una media de 3 meses de {{average}} (−{{amount}}).",
+        },
+        budget_over: {
+            title: "{{label}} superado",
+            body: "Has gastado {{spent}} de {{budget}}, {{over}} de más.",
+        },
+        budget_pace: {
+            title: "{{label}} va camino de superarse",
+            body: "A este ritmo gastarás unos {{projected}} de {{budget}}. Para ajustarte al presupuesto, no pases de {{perDay}} al día.",
+        },
+        unusual_transaction: {
+            title: "Pago inusualmente alto en {{category}}",
+            body: "{{name}} el {{date}}: {{amount}}, frente a unos {{typical}} habituales en {{category}}.",
+        },
+        subscription: {
+            title: "{{name}} parece una suscripción",
+            body: "{{name}} cobró unos {{amount}} durante {{count}} meses seguidos y no está marcado como recurrente. Son {{yearly}} al año.",
+        },
+        savings_rate_up: {
+            title: "Estás ahorrando más de lo habitual",
+            body: "La tasa de ahorro es del {{rate}}% este mes frente al {{averageRate}}% de media ({{saved}} ahorrados de {{income}} de ingresos).",
+        },
+        savings_rate_down: {
+            title: "Estás ahorrando menos de lo habitual",
+            body: "La tasa de ahorro es del {{rate}}% este mes frente al {{averageRate}}% de media ({{saved}} ahorrados de {{income}} de ingresos).",
+        },
+        top_merchant: {
+            title: "{{name}} es el {{pct}}% de tu gasto",
+            body: "{{amount}} de {{total}} este mes fueron a {{name}} ({{count}} pagos).",
+        },
+        no_income: {
+            title: "Sin ingresos registrados este mes",
+            body: "Has registrado {{spent}} de gastos pero ningún ingreso, así que la tasa de ahorro y lo que puedes gastar pueden fallar.",
+        },
+        uncategorised: {
+            title: "{{count}} transacciones sin categoría",
+            body: "{{count}} pagos ({{amount}}) no tienen categoría, lo que resta fiabilidad a los análisis por categoría.",
+        },
+    },
+    // @i18n:end insight
+    // @i18n:begin home
+    home: {
+        eyebrow: "Adónde fue mi dinero",
+        spentSoFar: "Gastado hasta ahora",
+        spentInMonth: "Gastado",
+        dateLeft: "{{date}} · quedan {{count}} días",
+        pctOfBudget: "{{pct}}% del presupuesto de {{budget}}",
+        aheadOfPace: "por encima del ritmo · día {{day}}",
+        onPace: "al ritmo",
+        setBudget: "Fija un presupuesto mensual para ver tu ritmo",
+        income: "Ingresos",
+        saved: "Ahorrado",
+        stillToPay: "Pendiente de pago",
+        travel: "Viaje ({{name}})",
+        safeToSpend: "Gasto seguro",
+        perDay: "{{amount}}/día",
+        tripDayOf: "De viaje · {{name}}, día {{day}} de {{days}}",
+        tripDay: "De viaje · {{name}}, día {{day}}",
+        tripJoin: "Las nuevas transacciones se unen a este viaje",
+        seeAll: "Ver todo",
+        noBudgets: "Aún no hay presupuestos por categoría. Toca para crear uno.",
+        upcoming: "Próximos",
+        unpaid: "Sin pagar · {{count}}",
+        paid: "Pagado",
+        markedPaid: "{{name}} marcado como pagado",
+        overdue: "vencido",
+        dueToday: "vence hoy",
+        dueIn: "vence en {{count}} días",
+        whereItWent: "Adónde fue",
+        monthVsLast: "Este mes frente al anterior",
+        emptyTitle: "Empieza con tu primer recibo",
+        emptyBody: "Escanéalo, escríbelo o echa un vistazo con datos de ejemplo.",
+        scan: "Escanear un recibo",
+        addManually: "Añadir a mano",
+        trySample: "Probar con datos de ejemplo",
+    },
+    // @i18n:end home
 };
