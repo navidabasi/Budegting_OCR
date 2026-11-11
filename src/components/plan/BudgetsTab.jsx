@@ -10,14 +10,14 @@ import { useBudgetActions } from '../../hooks/useBudgetActions';
 import { useCopyForwardBudgets } from '../../hooks/useCopyForwardBudgets';
 import { useCategories } from '../../hooks/useCategories';
 import { WHOLE_MONTH, categoryBudgets, notBudgeted, topVisits } from '../../utils/budgetMath';
-import { monthProgress } from '../../utils/monthMath';
+import { periodProgress, periodSpecOf } from '../../utils/period';
 import { monthTotals } from '../../utils/money';
 
 const BAR = { ok: 'ok', warning: 'warn', over: 'over' };
 const TONE = { ok: 'text-ink-muted', warning: 'text-warn-ink', over: 'text-over-ink' };
 
 const activityLink = (month, category) => {
-    const p = new URLSearchParams({ m: month, type: 'expense' });
+    const p = new URLSearchParams({ m: periodSpecOf(month), type: 'expense' });
     if (category && category !== WHOLE_MONTH) p.set('cat', category);
     return `/activity?${p.toString()}`;
 };
@@ -35,7 +35,7 @@ export default function BudgetsTab({ month, data, sheetPreset, onSheetClosed }) 
     const preset = sheetPreset || null;
 
     const today = new Date();
-    const progress = monthProgress(month, today);
+    const progress = periodProgress(month, today);
     const current = progress.state === 'current';
     const rows = useMemo(() => categoryBudgets(budgets, transactions, month, trips, { today, accounts }), [budgets, transactions, month, trips, accounts]); // eslint-disable-line react-hooks/exhaustive-deps
     const whole = rows.find((r) => r.category === WHOLE_MONTH);
@@ -152,7 +152,7 @@ export default function BudgetsTab({ month, data, sheetPreset, onSheetClosed }) 
                 </button>
             </div>
 
-            <BreakdownLink month={month} />
+            <BreakdownLink month={periodSpecOf(month)} />
 
             <BudgetSheet
                 open={sheetOpen}

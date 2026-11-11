@@ -1,4 +1,12 @@
 import { format, subDays } from 'date-fns';
+import { addDays } from './monthMath';
+import { todayInTimezone } from './payCycle';
+
+let clockTimezone = null;
+/** The user's timezone (settings): "today" for new entries is the date there. null = the device's own date. */
+export const setClockTimezone = (tz) => {
+    clockTimezone = tz || null;
+};
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
@@ -67,4 +75,4 @@ export function setLastAccountId(id) {
     }
 }
 
-export const dateKey = (offsetDays = 0, now = new Date()) => format(subDays(now, offsetDays), 'yyyy-MM-dd');
+export const dateKey = (offsetDays = 0, now = new Date()) => (clockTimezone ? addDays(todayInTimezone(clockTimezone, now), -offsetDays) : format(subDays(now, offsetDays), 'yyyy-MM-dd'));

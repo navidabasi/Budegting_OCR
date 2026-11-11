@@ -4,11 +4,10 @@ import { ArcElement, CategoryScale, Chart as ChartJS, Filler, Legend, LineElemen
 import { Card } from '../ui';
 import { useAppStore } from '../../store/appStore';
 import { useTranslation } from '../../languages/useTranslation';
-import { monthLabel, useMoney } from '../../hooks/useMoney';
+import { useMoney } from '../../hooks/useMoney';
 import { categoryColor } from '../../utils/categoryColors';
-import { addMonths } from '../../utils/monthMath';
 import { cumulativeSpend, spentByCategory } from '../../utils/money';
-import { monthProgress } from '../../utils/monthMath';
+import { labelOf, periodProgress, previousPeriods } from '../../utils/period';
 
 ChartJS.register(ArcElement, CategoryScale, Filler, Legend, LineElement, LinearScale, PointElement, Tooltip);
 
@@ -26,8 +25,8 @@ export default function HomeCharts({ transactions, trips, month, today, customCo
         [transactions, month, trips]
     );
     const total = cats.reduce((s, [, v]) => s + v, 0);
-    const progress = monthProgress(month, today);
-    const prev = addMonths(month, -1);
+    const progress = periodProgress(month, today);
+    const prev = previousPeriods(month, 1)[0];
     const thisSeries = useMemo(() => cumulativeSpend(transactions, month, { upToDay: progress.state === 'current' ? progress.day : undefined }), [transactions, month, progress.day, progress.state]);
     const prevSeries = useMemo(() => cumulativeSpend(transactions, prev), [transactions, prev]);
     const days = Math.max(thisSeries.length, prevSeries.length, progress.days);
@@ -57,14 +56,14 @@ export default function HomeCharts({ transactions, trips, month, today, customCo
             ) : null}
             {thisSeries.length > 0 ? (
                 <Card className="!rounded-[20px] flex flex-col gap-2" data-testid="month-line">
-                    <h2 className="font-display text-[17px] font-bold text-ink">{t('home.monthVsLast')}</h2>
-                    <div className="h-48" role="img" aria-label={t('home.monthVsLast')}>
+                    <h2 className="font-display text-[17px] font-bold text-ink">{t('period.vsPrevious')}</h2>
+                    <div className="h-48" role="img" aria-label={t('period.vsPrevious')}>
                         <Line
                             data={{
                                 labels: Array.from({ length: days }, (_, i) => i + 1),
                                 datasets: [
-                                    { label: monthLabel(month, languageCode), data: thisSeries, borderColor: dark ? '#4FD19B' : '#00573F', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, tension: 0.2 },
-                                    { label: monthLabel(prev, languageCode), data: prevSeries, borderColor: muted, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, tension: 0.2 },
+                                    { label: labelOf(month, languageCode), data: thisSeries, borderColor: dark ? '#4FD19B' : '#00573F', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, tension: 0.2 },
+                                    { label: labelOf(prev, languageCode), data: prevSeries, borderColor: muted, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, tension: 0.2 },
                                 ],
                             }}
                             options={{

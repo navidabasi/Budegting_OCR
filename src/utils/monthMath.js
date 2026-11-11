@@ -115,9 +115,9 @@ export function monthProgress(month, today = new Date()) {
  * still to be paid (upcoming), spread over the remaining days (today included).
  * Returns null when there is no budget or the month is over; never negative.
  */
-export function safeToSpendPerDay({ budget, spent = 0, upcoming = 0, month, today = new Date() } = {}) {
+export function safeToSpendPerDay({ budget, spent = 0, upcoming = 0, month, today = new Date(), progress } = {}) {
     if (!(Number(budget) > 0)) return null;
-    const { daysLeft } = monthProgress(month || today, today);
+    const { daysLeft } = progress || monthProgress(month || today, today); // `progress`: periodProgress() of a pay cycle or range
     if (daysLeft <= 0) return null;
     const left = Number(budget) - (Number(spent) || 0) - (Number(upcoming) || 0);
     return Math.max(0, left) / daysLeft;

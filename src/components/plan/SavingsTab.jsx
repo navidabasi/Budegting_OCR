@@ -9,6 +9,7 @@ import { useAppStore } from '../../store/appStore';
 import { useRowMutations } from '../../data/hooks';
 import { useTranslation } from '../../languages/useTranslation';
 import { monthLabel, useMoney } from '../../hooks/useMoney';
+import { labelOf } from '../../utils/period';
 import { useUserPrefs } from '../../hooks/useUserPrefs';
 import { goalProgress } from '../../services/insightsAggregates';
 import { goalMonthlyPace, goalStatus, savingsOverview } from '../../utils/savingsMath';
@@ -71,9 +72,9 @@ export default function SavingsTab({ month, data, goalPreset, onGoalSheetClosed 
 
     return (
         <div className="flex flex-col gap-3">
-            <section aria-label={t('savings.savedIn', { month: monthLabel(month, languageCode, { long: true }) })} className="flex flex-col gap-2 rounded-[20px] bg-[#2458D6] p-4 text-white dark:bg-[#1B3F9E]" data-testid="saved-card">
+            <section aria-label={t('savings.savedIn', { month: labelOf(month, languageCode, { long: true }) })} className="flex flex-col gap-2 rounded-[20px] bg-[#2458D6] p-4 text-white dark:bg-[#1B3F9E]" data-testid="saved-card">
                 <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[13px] font-semibold uppercase tracking-[.06em] opacity-85">{t('savings.savedIn', { month: monthLabel(month, languageCode, { long: true }).split(' ')[0] })}</span>
+                    <span className="text-[13px] font-semibold uppercase tracking-[.06em] opacity-85">{t('savings.savedIn', { month: labelOf(month, languageCode, { long: true }) })}</span>
                     <span className="text-xs opacity-85">{overview.savingsRate !== null ? t('savings.ofIncome', { pct: Math.round(overview.savingsRate * 100) }) : ''}</span>
                 </div>
                 <div className="flex items-baseline gap-1.5">

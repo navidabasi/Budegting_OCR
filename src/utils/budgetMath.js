@@ -1,12 +1,14 @@
 // Budget math (plan P4-T3). Pure.
-import { daysInMonth, monthEnd, monthKey, monthProgress, monthStart, previousMonths, toYmd } from './monthMath';
+import { dateKey, daysBetween, daysInMonth, toYmd } from './monthMath';
+import { inPeriod, periodEnd, periodProgress, periodStart, previousPeriods, rangeDays } from './period';
 import { excludedTripIds, isPlanned, monthTotals, round2, spentByCategory, typeOf } from './money';
 
 export const WHOLE_MONTH = '*';
 
 /**
  * budgetStatus({ budget, spent, date })
- *   date: any day inside the budget month (usually today; use the month end for a closed month)
+ *   date: any day inside the budget period (usually today; use the period end for a closed one)
+ *   period: optional month key or period object (pay cycle, custom range); pace and per-day figures then follow its length
  * -> { remaining, spentPct, pacePct, projected, status: 'ok'|'warning'|'over', perDayToStay }
  *
  *   pacePct      how far through the month we are (the "pace tick")
@@ -15,12 +17,16 @@ export const WHOLE_MONTH = '*';
  *                exceeds it; otherwise ok
  *   perDayToStay what you may still spend per day (today included) to end on budget; 0 when over
  */
-export function budgetStatus({ budget, spent = 0, date = new Date() } = {}) {
+export function budgetStatus({ budget, spent = 0, date = new Date(), period } = {}) {
     const amount = Number(budget);
     const used = Number(spent) || 0;
     const p = toYmd(date);
-    const days = p ? daysInMonth(date) : 30;
-    const day = p ? p.d : 1;
+    let days = p ? daysInMonth(date) : 30;
+    let day = p ? p.d : 1;
+    if (period && p) {
+        days = rangeDays(period) || days;
+        day = Math.min(days, Math.max(1, daysBetween(periodStart(period), dateKey(date)) + 1));
+    }
     const pacePct = (day / days) * 100;
     const projected = day > 0 ? (used / day) * days : used;
 
@@ -44,9 +50,13 @@ export function budgetStatus({ budget, spent = 0, date = new Date() } = {}) {
     };
 }
 
-/** Budgets that apply to a month: latest row per category that started on/before it and has not ended. */
+/**
+ * Budgets that apply to a period: the latest row per category that started on/before the period's first day and has not ended.
+ * `starts_on` is read as "from the cycle starting on/after this date": rows saved for a calendar month (the 1st) keep applying to
+ * the cycles that start after them.
+ */
 export function activeBudgets(budgets = [], month) {
-    const start = monthStart(month);
+    const start = periodStart(month);
     const best = new Map();
     for (const b of budgets || []) {
         if (!b || !b.category || !b.startsOn) continue;
@@ -68,8 +78,8 @@ export function activeBudgets(budgets = [], month) {
 export function categoryBudgets(budgets = [], transactions = [], month, trips = [], { today = new Date(), accounts = [] } = {}) {
     const byCategory = spentByCategory(transactions, month, { trips, includeTrips: false });
     const wholeMonthSpent = monthTotals(transactions, month, { trips, accounts }).spent;
-    const progress = monthProgress(month, today);
-    const date = progress.state === 'past' ? monthEnd(month) : progress.state === 'future' ? monthStart(month) : today;
+    const progress = periodProgress(month, today);
+    const date = progress.state === 'past' ? periodEnd(month) : progress.state === 'future' ? periodStart(month) : today;
 
     const rows = activeBudgets(budgets, month).map((b) => {
         const spent = b.category === WHOLE_MONTH ? wholeMonthSpent : byCategory[b.category] || 0;
@@ -79,7 +89,7 @@ export function categoryBudgets(budgets = [], transactions = [], month, trips = 
             amount: Number(b.amount),
             currency: b.currency,
             spent: round2(spent),
-            ...budgetStatus({ budget: b.amount, spent, date }),
+            ...budgetStatus({ budget: b.amount, spent, date, period: month }),
         };
     });
     return rows.sort((a, b) => {
@@ -94,7 +104,7 @@ export function categoryBudgets(budgets = [], transactions = [], month, trips = 
  * has no row starting on that month yet.
  */
 export function copyForward(budgets = [], month) {
-    const start = monthStart(month);
+    const start = periodStart(month);
     const hasThisMonth = new Set((budgets || []).filter((b) => b && String(b.startsOn).slice(0, 10) === start).map((b) => b.category));
     return activeBudgets(budgets, month)
         .filter((b) => !hasThisMonth.has(b.category) && String(b.startsOn).slice(0, 10) < start)
@@ -107,7 +117,7 @@ export function copyForward(budgets = [], month) {
  * category '*' averages total spending. Trip spend is left out of category suggestions.
  */
 export function suggestBudget(transactions = [], category, month, { trips = [], accounts = [] } = {}) {
-    const months = previousMonths(month, 3);
+    const months = previousPeriods(month, 3);
     const totals = months.map((m) => {
         if (category === WHOLE_MONTH) return monthTotals(transactions, m, { trips, accounts }).spent;
         return spentByCategory(transactions, m, { trips, includeTrips: false })[category] || 0;
@@ -126,7 +136,7 @@ export function topVisits(transactions = [], month, category, { trips = [], min 
     const excluded = excludedTripIds(trips);
     const counts = new Map();
     for (const tx of transactions || []) {
-        if (!tx || monthKey(tx.date) !== month || typeOf(tx) !== 'expense' || isPlanned(tx) || (tx.category || 'Other') !== category) continue;
+        if (!tx || !inPeriod(tx.date, month) || typeOf(tx) !== 'expense' || isPlanned(tx) || (tx.category || 'Other') !== category) continue;
         if (tx.groupId && excluded.has(tx.groupId)) continue;
         const name = String(tx.merchant || '').trim();
         if (!name) continue;

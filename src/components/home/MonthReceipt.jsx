@@ -2,18 +2,19 @@ import { Link } from 'react-router-dom';
 import { Amount } from '../ui';
 import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
-import { monthProgress, safeToSpendPerDay } from '../../utils/monthMath';
+import { safeToSpendPerDay } from '../../utils/monthMath';
+import { periodProgress } from '../../utils/period';
 
 /** "The month as a receipt" (docs/design/Main.dc.html): spent vs whole-month budget with pace tick, income, saved, travel, safe to spend. */
 export default function MonthReceipt({ month, totals, wholeBudget, today }) {
     const { t, languageCode } = useTranslation();
     const { short, num, currency } = useMoney();
-    const progress = monthProgress(month, today);
+    const progress = periodProgress(month, today);
     const current = progress.state === 'current';
     const budget = wholeBudget ? wholeBudget.amount : null;
     const pct = budget ? Math.round((totals.spent / budget) * 100) : null;
     const ahead = wholeBudget && current && wholeBudget.status !== 'ok';
-    const safe = budget && current ? safeToSpendPerDay({ budget, spent: totals.spent, upcoming: totals.upcoming, month, today }) : null;
+    const safe = budget && current ? safeToSpendPerDay({ budget, spent: totals.spent, upcoming: totals.upcoming, month, today, progress }) : null;
     const dateText = current ? new Intl.DateTimeFormat(languageCode, { day: 'numeric', month: 'short' }).format(today) : '';
     const row = 'flex items-baseline text-sm';
     const val = 'mono-num font-medium';

@@ -7,6 +7,7 @@
  */
 import { normalizeCategoryName } from './categoryNames';
 import { merchantKey } from './merchant';
+import { inPeriod } from './period';
 import { getTrackingStatus, shouldIncludeInSpendingTotals } from './tracking';
 
 export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', groupId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
@@ -15,7 +16,10 @@ const pad = (n) => String(n).padStart(2, '0');
 export const monthKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 const SORTS = ['date', 'amount'];
 
-export function parseFilters(params, now = new Date()) {
+const SPEC = /^(\d{4}-\d{2}|c:\d{4}-\d{2}|r:\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})$/;
+
+/** `defaultSpec`: the current period (pay cycle spec) when the URL has no m; defaults to the calendar month. */
+export function parseFilters(params, now = new Date(), { defaultSpec } = {}) {
     const get = (k) => params.get(k) || '';
     const legacyMonth = get('month');
     const legacyYear = get('year');
@@ -26,8 +30,9 @@ export function parseFilters(params, now = new Date()) {
     let month = get('m');
     if (!month && /^\d{1,2}$/.test(legacyMonth) && /^\d{4}$/.test(legacyYear)) month = `${legacyYear}-${pad(Number(legacyMonth))}`;
     const hasOtherFilter = !!(get('type') || categories.length || get('merchant') || get('tracking') || get('acct') || get('group') || get('uncat') || get('q'));
-    if (!month) month = hasOtherFilter || legacyYear ? 'all' : monthKey(now); // old links without a month meant "all time"
-    if (month !== 'all' && !/^\d{4}-\d{2}$/.test(month)) month = monthKey(now);
+    const fallback = defaultSpec || monthKey(now);
+    if (!month) month = hasOtherFilter || legacyYear ? 'all' : fallback; // old links without a month meant "all time"
+    if (month !== 'all' && !SPEC.test(month)) month = fallback;
 
     const type = ['expense', 'income', 'transfer'].includes(get('type')) ? get('type') : '';
     const tracking = ['tracked', 'open', 'done'].includes(get('tracking')) ? get('tracking') : '';
@@ -47,9 +52,9 @@ export function parseFilters(params, now = new Date()) {
 }
 
 /** Filters -> URLSearchParams, omitting defaults (the current month is the default month). */
-export function serializeFilters(f, now = new Date()) {
+export function serializeFilters(f, now = new Date(), { defaultSpec } = {}) {
     const p = new URLSearchParams();
-    if (f.month !== monthKey(now)) p.set('m', f.month);
+    if (f.month !== (defaultSpec || monthKey(now))) p.set('m', f.month);
     if (f.type) p.set('type', f.type);
     if (f.categories.length) p.set('cat', f.categories.join(','));
     if (f.accountId) p.set('acct', f.accountId);
@@ -92,9 +97,9 @@ export const isUncategorised = (tx) => (tx.transactionType || 'expense') === 'ex
 export const isUnpaid = (tx) => getTrackingStatus(tx) === 'open';
 
 /** Apply every filter except the month when `ignoreMonth` (used for the chip counts). */
-export function applyFilters(transactions, f, { ignoreMonth = false } = {}) {
+export function applyFilters(transactions, f, { ignoreMonth = false, period = null } = {}) {
     const out = transactions.filter((tx) => {
-        if (!ignoreMonth && f.month !== 'all' && String(tx.date || '').slice(0, 7) !== f.month) return false;
+        if (!ignoreMonth && f.month !== 'all' && (period ? !inPeriod(tx.date, period) : String(tx.date || '').slice(0, 7) !== f.month)) return false;
         if (f.type && (tx.transactionType || 'expense') !== f.type) return false;
         if (f.categories.length && !f.categories.includes(tx.category)) return false;
         if (f.accountId && tx.accountId !== f.accountId && tx.toAccountId !== f.accountId) return false;

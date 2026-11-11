@@ -28,7 +28,7 @@ describe('buildAggregates', () => {
     const agg = buildAggregates(input)
 
     it('has the documented sections', () => {
-        expect(Object.keys(agg).sort()).toEqual(['budgets', 'categoriesByMonth', 'currency', 'dayOfMonth', 'daysInMonth', 'findings', 'goals', 'month', 'monthState', 'recurring', 'savingsSeries', 'summary', 'topMerchants', 'trips', 'version'])
+        expect(Object.keys(agg).sort()).toEqual(['budgets', 'categoriesByMonth', 'currency', 'dayOfMonth', 'daysInMonth', 'findings', 'goals', 'month', 'monthState', 'period', 'recurring', 'savingsSeries', 'summary', 'topMerchants', 'trips', 'version'])
         expect(agg.month).toBe('2026-11')
         expect(agg.dayOfMonth).toBe(20)
         expect(agg.summary).toMatchObject({ spent: 50, income: 2000, saved: 400 })
@@ -120,5 +120,27 @@ describe('stableHash', () => {
         expect(hashObject({ a: 1, b: 2 })).toBe(hashObject({ b: 2, a: 1 }))
         expect(hashObject({ a: 1 })).not.toBe(hashObject({ a: 2 }))
         expect(stableStringify(null)).toBe('null')
+    })
+})
+
+describe('buildAggregates on a pay cycle', () => {
+    it('aggregates the cycle (not the calendar month), keys the series by cycle and states the exact dates', async () => {
+        const { cyclePeriod } = await import('../../utils/payCycle')
+        const cfg = { rules: [{ from: '0000-01', payday: 12, weekendRule: 'none' }] }
+        const cycle = cyclePeriod('2026-10', cfg) // 12 Oct - 11 Nov
+        const txs = [
+            { id: 'a', transactionType: 'expense', merchant: 'Lidl', total: 30, currency: 'EUR', date: '2026-10-20', category: 'Groceries' },
+            { id: 'b', transactionType: 'expense', merchant: 'Lidl', total: 20, currency: 'EUR', date: '2026-11-05', category: 'Groceries' },
+            { id: 'c', transactionType: 'expense', merchant: 'Lidl', total: 99, currency: 'EUR', date: '2026-11-12', category: 'Groceries' }, // next cycle
+        ]
+        const agg = buildAggregates({ transactions: txs, month: cycle, today: '2026-11-02' })
+        expect(agg.period).toEqual({ kind: 'cycle', start: '2026-10-12', end: '2026-11-11' })
+        expect(agg.month).toBe('2026-10')
+        expect(agg.summary.spent).toBe(50)
+        expect(agg.dayOfMonth).toBe(22)
+        expect(agg.daysInMonth).toBe(31)
+        expect(agg.categoriesByMonth['2026-10']).toEqual({ Groceries: 50 })
+        expect(Object.keys(agg.categoriesByMonth)).toHaveLength(12)
+        expect(agg.findings.every((f) => !f.link || String(f.link.params.m).startsWith('c:'))).toBe(true)
     })
 })

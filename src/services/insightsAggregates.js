@@ -3,7 +3,8 @@
 // recurring charges and the engine's findings. NEVER contains notes, raw bank descriptions, line items,
 // receipt images or transaction ids.
 import { displayName, merchantKey } from '../utils/merchant';
-import { dateKey, monthKey, monthProgress, previousMonths } from '../utils/monthMath';
+import { dateKey, monthKey } from '../utils/monthMath';
+import { anchorMonth, inPeriod, periodKey, periodProgress, previousPeriods, toRange } from '../utils/period';
 import { accountBalances, isPlanned, monthTotals, round2, shareAmount, spentByCategory, typeOf, fullAmount } from '../utils/money';
 import { categoryBudgets } from '../utils/budgetMath';
 import { hashObject } from '../utils/stableHash';
@@ -30,8 +31,9 @@ export function goalProgress(goal, transactions = [], balances = []) {
     return round2(saved);
 }
 
-function goalsSummary(goals, transactions, balances, month, today) {
-    const progress = monthProgress(month, today);
+function goalsSummary(goals, transactions, balances, periodOrMonth, today) {
+    const progress = periodProgress(periodOrMonth, today);
+    const month = typeof periodOrMonth === 'string' ? periodOrMonth : anchorMonth(periodOrMonth);
     return (goals || [])
         .filter((g) => g && !g.isArchived)
         .map((g) => {
@@ -61,23 +63,27 @@ function goalsSummary(goals, transactions, balances, month, today) {
  * -> plain JSON-safe object; stable for the same inputs (see hashAggregates).
  */
 export function buildAggregates({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], month, today = new Date(), currency = 'EUR' } = {}) {
-    const m = month || monthKey(today);
+    // `month` is a calendar-month key or a period object (pay cycle, custom range); series are per period of the same kind
+    const P = month || monthKey(today);
+    const m = typeof P !== 'string' && P.kind === 'range' ? P.start.slice(0, 7) : periodKey(P); // the API wants a YYYY-MM; the exact dates are in `period`
     const txs = (transactions || []).filter(Boolean);
-    const progress = monthProgress(m, today);
-    const months = [...previousMonths(m, MONTHS_OF_HISTORY - 1), m];
+    const progress = periodProgress(P, today);
+    const range = toRange(P);
+    const periods = [...previousPeriods(P, MONTHS_OF_HISTORY - 1), P];
 
     const categoriesByMonth = {};
     const savingsSeries = [];
-    for (const mk of months) {
-        categoriesByMonth[mk] = spentByCategory(txs, mk, { trips, includeTrips: true });
-        const t = monthTotals(txs, mk, { trips, accounts });
+    for (const p of periods) {
+        const mk = periodKey(p);
+        categoriesByMonth[mk] = spentByCategory(txs, p, { trips, includeTrips: true });
+        const t = monthTotals(txs, p, { trips, accounts });
         savingsSeries.push({ month: mk, income: t.income, spent: t.spent, saved: t.saved, savingsRate: t.savingsRate });
     }
 
     // Top merchants of the month by merchantKey (+ display name). Raw descriptions never leave.
     const byMerchant = new Map();
     for (const tx of txs) {
-        if (typeOf(tx) !== 'expense' || isPlanned(tx) || monthKey(tx.date) !== m) continue;
+        if (typeOf(tx) !== 'expense' || isPlanned(tx) || !inPeriod(tx.date, P)) continue;
         const key = tx.merchantKey || merchantKey(tx.merchant);
         if (!key) continue;
         const e = byMerchant.get(key) || { key, name: displayName(tx.merchant) || key, total: 0, count: 0 };
@@ -90,7 +96,7 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
         .slice(0, 10)
         .map((e) => ({ key: e.key, name: e.name, total: round2(e.total), count: e.count }));
 
-    const budgetRows = categoryBudgets(budgets, txs, m, trips, { today, accounts }).map((r) => ({
+    const budgetRows = categoryBudgets(budgets, txs, P, trips, { today, accounts }).map((r) => ({
         category: r.category === '*' ? 'Total' : r.category,
         budget: r.amount,
         spent: r.spent,
@@ -104,7 +110,7 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
         .slice(0, 10)
         .map((s) => ({ key: s.key, name: s.name, amount: s.amount, months: s.count }));
 
-    const findings = computeInsights({ transactions: txs, budgets, goals, accounts, trips, month: m, today, currency }).map((f) => ({
+    const findings = computeInsights({ transactions: txs, budgets, goals, accounts, trips, month: P, today, currency }).map((f) => ({
         type: f.type,
         severity: f.severity,
         title: f.title,
@@ -117,16 +123,18 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
     return {
         version: AGGREGATE_VERSION,
         month: m,
+        // what `month` means: a calendar month, a salary-to-salary cycle or a custom range, with its exact dates
+        period: { kind: typeof P === 'string' ? 'month' : P.kind, start: range?.start || null, end: range?.end || null },
         currency,
         dayOfMonth: progress.day,
         daysInMonth: progress.days,
         monthState: progress.state,
-        summary: monthTotals(txs, m, { trips, accounts }),
+        summary: monthTotals(txs, P, { trips, accounts }),
         categoriesByMonth,
         savingsSeries,
         topMerchants,
         budgets: budgetRows,
-        goals: goalsSummary(goals, txs, balances, m, today),
+        goals: goalsSummary(goals, txs, balances, P, today),
         trips: (trips || [])
             .filter((t) => t && t.kind === 'trip')
             .slice(0, 5)

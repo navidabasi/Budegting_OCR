@@ -1,7 +1,7 @@
 // Period ranges shared by money, item analysis and the screens (pass 2). A period is either a calendar month key
 // ('YYYY-MM') or a range object { start, end } of inclusive 'YYYY-MM-DD' dates (pay cycles and custom ranges, see payCycle.js).
 // Pure; date strings only, no timezone drift.
-import { addDays, dateKey, daysBetween, monthEnd, monthStart, toYmd } from './monthMath';
+import { addDays, addMonths, dateKey, daysBetween, monthEnd, monthKey, monthStart, previousMonths, toYmd } from './monthMath';
 
 /** { start, end } inclusive for a month key or a range-like object; null when invalid. */
 export function toRange(period) {
@@ -89,4 +89,64 @@ export function formatRange(period, languageCode = 'en', today = new Date()) {
     const sameYear = toYmd(r.start).y === toYmd(r.end).y;
     const showYear = !sameYear || toYmd(r.end).y !== ty;
     return `${fmt(r.start, showYear && !sameYear)} – ${fmt(r.end, showYear)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Adapters so month-based maths accept a month key or a period object (payCycle.js builds the objects)
+// ---------------------------------------------------------------------------
+
+/** Stable id of a period for maps and cache keys: the month key, the cycle id or 'start..end'. */
+export function periodKey(period) {
+    if (typeof period === 'string') return period;
+    if (period?.id) return period.id;
+    const r = toRange(period);
+    return r ? `${r.start}..${r.end}` : '';
+}
+
+export const periodStart = (period) => toRange(period)?.start || '';
+export const periodEnd = (period) => toRange(period)?.end || '';
+
+/**
+ * The `n` periods before `period`, oldest first, of the same kind. A month key gives month keys (as previousMonths);
+ * a period object gives the period objects of its precomputed history.
+ */
+export function previousPeriods(period, n = 3) {
+    if (typeof period === 'string') return previousMonths(period, n);
+    const h = Array.isArray(period?.history) ? period.history : [];
+    if (h.length >= n) return h.slice(h.length - n);
+    // no (or short) history: equal-length ranges directly before
+    const out = [...h];
+    let cur = out.length ? toRange(out[0]) : toRange(period);
+    while (out.length < n && cur) {
+        cur = defaultPrevious(cur);
+        out.unshift({ kind: 'range', id: `${cur.start}..${cur.end}`, start: cur.start, end: cur.end });
+    }
+    return out.slice(out.length - n);
+}
+
+/** The calendar month a period mostly belongs to (its end month): used where a month is still needed (goal target months). */
+export const anchorMonth = (period) => monthKey(periodEnd(period)) || (typeof period === 'string' ? period : '');
+export { addMonths };
+
+/** URL/state spec of any period: a month key stays as is, a cycle is 'c:YYYY-MM', a range 'r:start..end'. */
+export const periodSpecOf = (period) => {
+    if (typeof period === 'string') return period;
+    if (period?.kind === 'cycle') return `c:${period.id}`;
+    if (period?.kind === 'range') return `r:${period.start}..${period.end}`;
+    return period?.id || '';
+};
+
+/** Readable name of a period: "November 2026" for a month, "12 Oct – 11 Nov" for a cycle or range. */
+export function labelOf(period, languageCode = 'en', { long = false, today = new Date() } = {}) {
+    const month = typeof period === 'string' ? period : period?.kind === 'month' ? period.id : null;
+    if (month) {
+        const [y, m] = month.split('-').map(Number);
+        try {
+            const text = new Intl.DateTimeFormat(`${languageCode}-u-ca-gregory-nu-latn`, { month: long ? 'long' : 'short', year: 'numeric' }).format(new Date(y, m - 1, 1));
+            return text.charAt(0).toUpperCase() + text.slice(1);
+        } catch {
+            return month;
+        }
+    }
+    return formatRange(period, languageCode, today);
 }

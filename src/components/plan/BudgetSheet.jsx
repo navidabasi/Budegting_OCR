@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Chip, Sheet } from '../ui';
 import { useAppStore } from '../../store/appStore';
 import { useTranslation } from '../../languages/useTranslation';
-import { useMoney, monthLabel } from '../../hooks/useMoney';
+import { useMoney } from '../../hooks/useMoney';
+import { labelOf } from '../../utils/period';
 import { WHOLE_MONTH, activeBudgets, suggestBudget } from '../../utils/budgetMath';
 import { parseLocalNumber } from '../../utils/helpers';
 
@@ -90,7 +91,7 @@ export default function BudgetSheet({ open, onClose, month, budgets, categoryNam
                 </div>
                 <label className="flex flex-col gap-1.5">
                     <span className={lbl}>
-                        {t('budgets.sheet.amount')} · {monthLabel(month, languageCode)}
+                        {t('budgets.sheet.amount')} · {labelOf(month, languageCode)}
                     </span>
                     <input className={field} inputMode="decimal" dir="ltr" value={text} placeholder="0" onChange={(e) => setText(e.target.value.replace(/[^\d.,]/g, ''))} data-autofocus={editing || !!category ? true : undefined} />
                 </label>
@@ -102,7 +103,7 @@ export default function BudgetSheet({ open, onClose, month, budgets, categoryNam
                         </button>
                     </div>
                 ) : null}
-                {confirmRemove ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('budgets.sheet.removeNote', { month: monthLabel(month, languageCode) })}</p> : null}
+                {confirmRemove ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('budgets.sheet.removeNote', { month: labelOf(month, languageCode) })}</p> : null}
             </div>
             <div className="flex flex-col gap-2 px-5 pt-3">
                 {confirmRemove ? (

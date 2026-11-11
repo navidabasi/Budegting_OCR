@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { MonthSwitcher } from '../components/ui';
+import { PeriodSwitcher } from '../components/ui';
 import NarrativeCard from '../components/insights/NarrativeCard';
 import FindingsList from '../components/insights/FindingsList';
 import ChatPanel from '../components/insights/ChatPanel';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
-import { useSelectedMonth } from '../hooks/useSelectedMonth';
+import { usePeriod } from '../hooks/usePayCycle';
 import { useInsightsNarrative } from '../hooks/useInsightsNarrative';
-import { monthLabel } from '../hooks/useMoney';
 import { useTranslation } from '../languages/useTranslation';
 import { buildAggregates } from '../services/insightsAggregates';
 import { computeInsights } from '../services/insightsEngine';
@@ -16,7 +15,8 @@ import { computeInsights } from '../services/insightsEngine';
 /** Insights (docs/design/Insights.dc.html): AI narrative on top, deterministic findings below (chat is added by ChatPanel). */
 export default function InsightsPage() {
     const { t, languageCode } = useTranslation();
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const p = usePeriod();
+    const month = p.period;
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
     const today = useMemo(() => new Date(), []);
     const aggregates = useMemo(
@@ -27,7 +27,7 @@ export default function InsightsPage() {
     const narrative = useInsightsNarrative({ aggregates, language: languageCode, enabled: transactions.length > 0 });
 
     if (loading) return <LoadingSpinner className="pb-20" />;
-    const title = isCurrent ? t('insights.soFar', { month: monthLabel(month, languageCode, { long: true }).split(' ')[0] }) : monthLabel(month, languageCode, { long: true });
+    const title = p.label;
     const busy = narrative.status === 'loading';
 
     return (
@@ -47,10 +47,10 @@ export default function InsightsPage() {
                     {t('insights.refresh')}
                 </button>
             </div>
-            <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+            <PeriodSwitcher p={p} />
             {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} /> : null}
             <FindingsList findings={findings} />
-            <ChatPanel aggregates={aggregates} month={month} language={languageCode} extraQuestions={narrative.data?.questions || []} />
+            <ChatPanel aggregates={aggregates} month={aggregates?.month || p.key} language={languageCode} extraQuestions={narrative.data?.questions || []} />
         </main>
     );
 }

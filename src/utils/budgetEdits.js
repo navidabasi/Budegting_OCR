@@ -1,7 +1,8 @@
 // Budget edit planning (P4-T3). Pure: turns "set this category's amount from <month> on" / "remove it from <month> on"
 // into row operations the page executes through the data layer.
 import { activeBudgets } from './budgetMath';
-import { addDays, monthStart } from './monthMath';
+import { addDays } from './monthMath';
+import { periodStart } from './period';
 
 const day = (v) => String(v || '').slice(0, 10);
 
@@ -11,7 +12,7 @@ const day = (v) => String(v || '').slice(0, 10);
  * new row starting on `month` is created, so earlier months keep their old amount.
  */
 export function planBudgetSave({ budgets = [], category, amount, month, currency = 'EUR' }) {
-    const start = monthStart(month);
+    const start = periodStart(month);
     const active = activeBudgets(budgets, month).find((b) => b.category === category);
     if (active && day(active.startsOn) === start) return [{ op: 'update', id: active.id, patch: { amount: Number(amount), currency: active.currency || currency, endsOn: null } }];
     return [{ op: 'create', data: { category, amount: Number(amount), currency, startsOn: start, endsOn: null } }];
@@ -19,7 +20,7 @@ export function planBudgetSave({ budgets = [], category, amount, month, currency
 
 /** planBudgetRemove({ budgets, category, month }): stop the budget from `month` on (earlier months keep it). */
 export function planBudgetRemove({ budgets = [], category, month }) {
-    const start = monthStart(month);
+    const start = periodStart(month);
     const prevEnd = addDays(start, -1);
     const active = activeBudgets(budgets, month).find((b) => b.category === category);
     if (!active) return [];

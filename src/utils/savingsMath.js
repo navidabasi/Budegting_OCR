@@ -1,5 +1,6 @@
 // Savings and goal maths (plan P4-T1 / P4-T4). Pure.
-import { addMonths, monthKey, monthsBetween, previousMonths } from './monthMath';
+import { addMonths, monthsBetween } from './monthMath';
+import { inPeriod, anchorMonth, previousPeriods } from './period';
 import { fullAmount, isPlanned, monthTotals, round2, typeOf } from './money';
 
 /**
@@ -9,7 +10,7 @@ import { fullAmount, isPlanned, monthTotals, round2, typeOf } from './money';
  */
 export function savingsOverview(transactions = [], month, { trips = [], accounts = [] } = {}) {
     const now = monthTotals(transactions, month, { trips, accounts });
-    const past = previousMonths(month, 3)
+    const past = previousPeriods(month, 3)
         .map((m) => monthTotals(transactions, m, { trips, accounts }))
         .filter((t) => t.income > 0 || t.saved !== 0);
     const avgSaved = past.length ? round2(past.reduce((s, t) => s + t.saved, 0) / past.length) : null;
@@ -20,11 +21,12 @@ export function savingsOverview(transactions = [], month, { trips = [], accounts
 
 /** Average monthly contribution to a goal over the last 3 months plus the current one (transfers carrying its id). */
 export function goalMonthlyPace(goal, transactions = [], month) {
-    const window = [...previousMonths(month, 3), month];
-    const tagged = (transactions || []).filter((tx) => tx && !isPlanned(tx) && typeOf(tx) === 'transfer' && tx.goalId === goal.id && window.includes(monthKey(tx.date)));
+    const window = [...previousPeriods(month, 3), month]; // months or pay cycles: "per month" then means per period
+    const idx = (tx) => window.findIndex((p) => inPeriod(tx.date, p));
+    const tagged = (transactions || []).filter((tx) => tx && !isPlanned(tx) && typeOf(tx) === 'transfer' && tx.goalId === goal.id && idx(tx) >= 0);
     if (tagged.length === 0) return 0;
-    const first = tagged.map((tx) => monthKey(tx.date)).sort()[0];
-    const span = Math.min(4, Math.max(1, monthsBetween(first, month) + 1));
+    const first = Math.min(...tagged.map(idx));
+    const span = Math.min(4, Math.max(1, window.length - first));
     return round2(tagged.reduce((s, tx) => s + fullAmount(tx), 0) / span);
 }
 
@@ -34,7 +36,8 @@ export function goalMonthlyPace(goal, transactions = [], month) {
  *   monthsToTarget  months until saved reaches the target at `pace` per month (null when pace is 0)
  *   neededPerMonth  what the target date asks per month (null without a date, or when the date has passed / goal done)
  */
-export function goalStatus({ goal, saved = 0, pace = 0, month }) {
+export function goalStatus({ goal, saved = 0, pace = 0, month: periodOrMonth }) {
+    const month = typeof periodOrMonth === 'string' ? periodOrMonth : anchorMonth(periodOrMonth);
     const target = Number(goal?.targetAmount) || 0;
     const remaining = Math.max(0, round2(target - saved));
     const done = target > 0 && remaining === 0;

@@ -5,7 +5,8 @@
 //
 // severity: 'high' | 'medium' | 'low' | 'positive'. Ordering: severity, then amount (desc), then id.
 import { displayName, merchantKey } from '../utils/merchant';
-import { daysBetween, dateKey, monthEnd, monthKey, monthProgress, previousMonths } from '../utils/monthMath';
+import { daysBetween, dateKey, monthKey } from '../utils/monthMath';
+import { inPeriod, periodEnd, periodKey, periodProgress, periodSpecOf, previousPeriods } from '../utils/period';
 import { isPlanned, monthTotals, round2, shareAmount, spentByCategory, typeOf } from '../utils/money';
 import { WHOLE_MONTH, categoryBudgets } from '../utils/budgetMath';
 
@@ -60,14 +61,14 @@ function makeFormat(currency) {
     return (n) => `${symbol}${Math.round(Math.abs(n)).toLocaleString('en-US')}`;
 }
 
-const activityLink = (month, extra = {}) => ({ screen: 'activity', params: { m: month, ...extra } });
-const budgetsLink = (month, extra = {}) => ({ screen: 'budgets', params: { m: month, ...extra } });
+const activityLink = (month, extra = {}) => ({ screen: 'activity', params: { m: periodSpecOf(month), ...extra } });
+const budgetsLink = (month, extra = {}) => ({ screen: 'budgets', params: { m: periodSpecOf(month), ...extra } });
 
 // ---- rule 1: category change vs 3-month average ----------------------------------------
 function categoryChanges(ctx) {
     const { transactions, trips, month, progress, fmt, t } = ctx;
     const cur = spentByCategory(transactions, month, { trips, includeTrips: false });
-    const prev = previousMonths(month, 3).map((m) => spentByCategory(transactions, m, { trips, includeTrips: false }));
+    const prev = previousPeriods(month, 3).map((m) => spentByCategory(transactions, m, { trips, includeTrips: false }));
     const categories = new Set([...Object.keys(cur), ...prev.flatMap((p) => Object.keys(p))]);
     const out = [];
     for (const category of categories) {
@@ -84,7 +85,7 @@ function categoryChanges(ctx) {
         const up = diff > 0;
         const params = { category, amount: round2(Math.abs(diff)), pct: Math.round(Math.abs(pct) * 100), current: round2(value), average: round2(avg) };
         out.push({
-            id: `category_${up ? 'up' : 'down'}:${category}:${month}`,
+            id: `category_${up ? 'up' : 'down'}:${category}:${periodKey(month)}`,
             type: up ? 'category_up' : 'category_down',
             severity: up ? (pct >= t.categoryChangeHighPct && diff >= t.categoryChangeHighAmount ? 'high' : 'medium') : 'positive',
             title: up ? `${category} is up ${params.pct}%` : `${category} is down ${params.pct}%`,
@@ -110,7 +111,7 @@ function budgetFindings(ctx) {
         if (row.status === 'over') {
             const over = row.spent - row.amount;
             out.push({
-                id: `budget_over:${row.category}:${month}`,
+                id: `budget_over:${row.category}:${periodKey(month)}`,
                 type: 'budget_over',
                 severity: 'high',
                 title: `${label} exceeded`,
@@ -125,7 +126,7 @@ function budgetFindings(ctx) {
         } else if (row.status === 'warning' && progress.state === 'current' && row.projected > row.amount) {
             const over = row.projected - row.amount;
             out.push({
-                id: `budget_pace:${row.category}:${month}`,
+                id: `budget_pace:${row.category}:${periodKey(month)}`,
                 type: 'budget_pace',
                 severity: 'medium',
                 title: `${label} on track to be exceeded`,
@@ -146,18 +147,18 @@ function budgetFindings(ctx) {
 function unusualTransactions(ctx) {
     const { transactions, trips, month, fmt, t } = ctx;
     const tripIds = new Set((trips || []).filter((g) => g && g.kind === 'trip').map((g) => g.id));
-    const lookback = previousMonths(month, t.unusualLookbackMonths);
+    const lookback = previousPeriods(month, t.unusualLookbackMonths);
     const samples = new Map();
     for (const tx of transactions) {
         if (!isExpense(tx) || (tx.groupId && tripIds.has(tx.groupId))) continue;
-        if (!lookback.includes(monthKey(tx.date))) continue;
+        if (!lookback.some((p) => inPeriod(tx.date, p))) continue;
         const cat = tx.category || 'Other';
         if (!samples.has(cat)) samples.set(cat, []);
         samples.get(cat).push(shareAmount(tx));
     }
     const found = [];
     for (const tx of transactions) {
-        if (!isExpense(tx) || monthKey(tx.date) !== month || (tx.groupId && tripIds.has(tx.groupId))) continue;
+        if (!isExpense(tx) || !inPeriod(tx.date, month) || (tx.groupId && tripIds.has(tx.groupId))) continue;
         const cat = tx.category || 'Other';
         const xs = samples.get(cat);
         if (!xs || xs.length < t.unusualMinSamples) continue;
@@ -226,11 +227,11 @@ export function detectSubscriptions(transactions, { until, thresholds = THRESHOL
 
 function subscriptionFindings(ctx) {
     const { transactions, month, fmt, t } = ctx;
-    const prevMonth = previousMonths(month, 1)[0];
-    return detectSubscriptions(transactions, { until: monthEnd(month), thresholds: t })
-        .filter((s) => [month, prevMonth].includes(s.lastDate.slice(0, 7)))
+    const prevPeriod = previousPeriods(month, 1)[0];
+    return detectSubscriptions(transactions, { until: periodEnd(month), thresholds: t })
+        .filter((s) => inPeriod(s.lastDate, month) || inPeriod(s.lastDate, prevPeriod))
         .map((s) => ({
-            id: `subscription:${s.key}:${month}`,
+            id: `subscription:${s.key}:${periodKey(month)}`,
             type: 'subscription',
             severity: 'low',
             title: `${s.name} looks like a subscription`,
@@ -251,7 +252,7 @@ function savingsRate(ctx) {
     if (progress.state === 'current' && progress.day < t.savingsMinDayOfMonth) return [];
     const cur = monthTotals(transactions, month, { trips, accounts });
     if (cur.savingsRate === null) return [];
-    const prev = previousMonths(month, 3).map((m) => monthTotals(transactions, m, { trips, accounts })).filter((x) => x.savingsRate !== null);
+    const prev = previousPeriods(month, 3).map((m) => monthTotals(transactions, m, { trips, accounts })).filter((x) => x.savingsRate !== null);
     if (prev.length === 0) return [];
     const avgRate = mean(prev.map((x) => x.savingsRate));
     const avgSaved = mean(prev.map((x) => x.saved));
@@ -261,7 +262,7 @@ function savingsRate(ctx) {
     const pct = (v) => Math.round(v * 100);
     return [
         {
-            id: `savings_rate_${up ? 'up' : 'down'}:${month}`,
+            id: `savings_rate_${up ? 'up' : 'down'}:${periodKey(month)}`,
             type: up ? 'savings_rate_up' : 'savings_rate_down',
             severity: up ? 'positive' : cur.savingsRate < 0 ? 'high' : 'medium',
             title: up ? 'You are saving more than usual' : cur.savingsRate < 0 ? 'You took money out of savings' : 'You are saving less than usual',
@@ -269,7 +270,7 @@ function savingsRate(ctx) {
             amount: round2(Math.abs(cur.saved - avgSaved)),
             category: null,
             merchant: null,
-            link: { screen: 'savings', params: { m: month } },
+            link: { screen: 'savings', params: { m: periodSpecOf(month) } },
             i18nKey: up ? 'insight.savings_rate_up' : 'insight.savings_rate_down',
             params: { rate: pct(cur.savingsRate), averageRate: pct(avgRate), saved: cur.saved, income: cur.income },
         },
@@ -283,7 +284,7 @@ function topMerchant(ctx) {
     if (total < t.topMerchantMinSpent) return [];
     const by = new Map();
     for (const tx of transactions) {
-        if (!isExpense(tx) || monthKey(tx.date) !== month) continue;
+        if (!isExpense(tx) || !inPeriod(tx.date, month)) continue;
         const key = keyOf(tx);
         if (!key) continue;
         const e = by.get(key) || { total: 0, name: displayName(tx.merchant) || key, count: 0 };
@@ -298,7 +299,7 @@ function topMerchant(ctx) {
     const pct = Math.round(share * 100);
     return [
         {
-            id: `top_merchant:${top[0]}:${month}`,
+            id: `top_merchant:${top[0]}:${periodKey(month)}`,
             type: 'top_merchant',
             severity: 'low',
             title: `${top[1].name} is ${pct}% of your spending`,
@@ -322,7 +323,7 @@ function noIncome(ctx) {
     if (totals.income > 0 || totals.spent < t.noIncomeMinSpent) return [];
     return [
         {
-            id: `no_income:${month}`,
+            id: `no_income:${periodKey(month)}`,
             type: 'no_income',
             severity: 'low',
             title: 'No income logged this month',
@@ -340,12 +341,12 @@ function noIncome(ctx) {
 // ---- rule 8: uncategorised ---------------------------------------------------------------
 function uncategorised(ctx) {
     const { transactions, month, fmt, t } = ctx;
-    const list = transactions.filter((tx) => isExpense(tx) && monthKey(tx.date) === month && isUncategorised(tx));
+    const list = transactions.filter((tx) => isExpense(tx) && inPeriod(tx.date, month) && isUncategorised(tx));
     if (list.length < t.uncategorisedMin) return [];
     const amount = round2(list.reduce((s, tx) => s + shareAmount(tx), 0));
     return [
         {
-            id: `uncategorised:${month}`,
+            id: `uncategorised:${periodKey(month)}`,
             type: 'uncategorised',
             severity: 'low',
             title: `${list.length} transactions have no category`,
@@ -374,7 +375,7 @@ export function computeInsights({ transactions = [], budgets = [], goals = [], a
         trips,
         month: m,
         today,
-        progress: monthProgress(m, today),
+        progress: periodProgress(m, today),
         fmt: makeFormat(currency),
         t: { ...THRESHOLDS, ...thresholds },
     };

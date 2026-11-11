@@ -81,3 +81,16 @@ describe('applyFilters / summarize / groupByDay', () => {
         expect(items[0].kind).toBe('day');
     });
 });
+
+describe('period specs in the month filter (pay cycles)', () => {
+    it('accepts cycle and range specs and omits the default period from the URL', async () => {
+        const { parseFilters, serializeFilters, applyFilters } = await import('../activityFilters');
+        const f = parseFilters(new URLSearchParams('m=c%3A2026-10'), new Date(2026, 10, 11), { defaultSpec: 'c:2026-10' });
+        expect(f.month).toBe('c:2026-10');
+        expect(serializeFilters(f, new Date(2026, 10, 11), { defaultSpec: 'c:2026-10' }).toString()).toBe('');
+        expect(parseFilters(new URLSearchParams('m=r%3A2026-10-01..2026-10-20')).month).toBe('r:2026-10-01..2026-10-20');
+        expect(parseFilters(new URLSearchParams('m=junk'), new Date(2026, 10, 11), { defaultSpec: 'c:2026-10' }).month).toBe('c:2026-10');
+        const txs = [{ id: 'a', date: '2026-10-12' }, { id: 'b', date: '2026-11-12' }];
+        expect(applyFilters(txs, f, { period: { start: '2026-10-12', end: '2026-11-11' } }).map((t) => t.id)).toEqual(['a']);
+    });
+});

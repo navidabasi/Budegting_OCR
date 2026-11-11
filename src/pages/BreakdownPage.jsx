@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Card, Chip, ChipRow, IconButton, MonthSwitcher } from '../components/ui';
+import { Card, Chip, ChipRow, IconButton, PeriodSwitcher } from '../components/ui';
 import DrillSheet from '../components/breakdown/DrillSheet';
 import { subcategoryLabel } from '../components/receipts/subcategoryLabel';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
-import { useSelectedMonth } from '../hooks/useSelectedMonth';
-import { monthLabel, useMoney } from '../hooks/useMoney';
+import { usePeriod } from '../hooks/usePayCycle';
+import { useMoney } from '../hooks/useMoney';
 import { useTranslation } from '../languages/useTranslation';
 import { changeBetween, comparableUnitPrices, coverage, recurringProducts, spendByCategory, spendByMerchant, spendBySubcategory } from '../utils/itemAnalysis';
-import { comparablePeriods, previousMonthRange } from '../utils/period';
+import { comparablePeriods, labelOf } from '../utils/period';
+import { previousOfPeriod } from '../utils/payCycle';
 
 const cap = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
 
@@ -39,7 +40,9 @@ export default function BreakdownPage() {
     const navigate = useNavigate();
     const { money, num } = useMoney();
     const { transactions, loading } = usePlanData();
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const p = usePeriod();
+    const month = p.period;
+    const isCurrent = p.isCurrent;
     const [category, setCategory] = useState('Groceries');
     const [drill, setDrill] = useState(null);
     const today = useMemo(() => new Date(), []);
@@ -52,7 +55,7 @@ export default function BreakdownPage() {
     const cover = useMemo(() => coverage(transactions, period, { category: category || undefined }), [transactions, period, category]);
     const recurring = useMemo(() => recurringProducts(transactions, period, { minReceipts: 2 }).slice(0, 6), [transactions, period]);
     const unitPrices = useMemo(() => comparableUnitPrices(transactions, period).slice(0, 5), [transactions, period]);
-    const cmp = useMemo(() => comparablePeriods(period, today, previousMonthRange), [period, today]);
+    const cmp = useMemo(() => comparablePeriods(period, today, previousOfPeriod(period, p.config)), [period, today, p.config]);
     const change = useMemo(
         () => (cmp ? changeBetween(transactions, cmp.current, cmp.previous, { by: category ? 'subcategory' : 'category', category: category || undefined }) : null),
         [transactions, cmp, category]
@@ -60,7 +63,7 @@ export default function BreakdownPage() {
 
     if (loading) return <LoadingSpinner className="pb-20" />;
 
-    const periodText = isCurrent ? t('breakdown.thisPeriod') : monthLabel(month, languageCode);
+    const periodText = isCurrent ? t('breakdown.thisPeriod') : p.label;
     const scopeName = category ? localizeCategory(category) : t('breakdown.allSpending');
     const maxMerchant = Math.max(1, ...merchants.map((m) => m.total));
     const maxGroup = Math.max(1, ...groups.map((g) => g.total));
@@ -72,7 +75,7 @@ export default function BreakdownPage() {
                 <IconButton label={t('common.actions.back')} icon={Back} size={22} onClick={() => navigate(-1)} />
                 <h1 className="font-display text-[26px] font-bold tracking-tight text-ink">{t('breakdown.title')}</h1>
             </div>
-            <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+            <PeriodSwitcher p={p} />
             <p className="text-xs text-ink-muted">{t('breakdown.basisShare')}</p>
 
             <ChipRow>
@@ -136,8 +139,8 @@ export default function BreakdownPage() {
                     <Card className="!rounded-[18px] !py-2">
                         <p className="pb-1 text-xs text-ink-muted">
                             {cmp.basis === 'elapsed'
-                                ? t('breakdown.basisElapsed', { days: cmp.elapsedDays, previous: monthLabel(cmp.previous.start.slice(0, 7), languageCode) })
-                                : t('breakdown.basisCompleted', { previous: monthLabel(cmp.previous.start.slice(0, 7), languageCode) })}
+                                ? t('breakdown.basisElapsed', { days: cmp.elapsedDays, previous: labelOf(cmp.full.previous, languageCode) })
+                                : t('breakdown.basisCompleted', { previous: labelOf(cmp.full.previous, languageCode) })}
                         </p>
                         <p className="pb-1 text-sm font-semibold text-ink">
                             {money(change.current)} <span className="font-normal text-ink-muted">{t('breakdown.vs', { previous: money(change.previous) })}</span>

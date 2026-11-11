@@ -16,6 +16,9 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
 import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useGroupsData, useSettings, useTransactions } from '../data/hooks';
 import { useRecordSyncStates } from '../data/syncHooks';
+import { usePeriod } from '../hooks/usePayCycle';
+import { periodSpecOf } from '../utils/period';
+import { periodFromSpec } from '../utils/payCycle';
 import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
 import { useCategoryChange } from '../hooks/useCategoryChange';
@@ -62,24 +65,26 @@ export default function ActivityPage() {
     const [hidden, setHidden] = useState(() => new Set()); // swiped-away rows waiting for the undo window to end
     const timers = useRef(new Map());
 
-    const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+    const p = usePeriod();
+    const defaultSpec = periodSpecOf(p.current);
+    const filters = useMemo(() => parseFilters(searchParams, new Date(), { defaultSpec }), [searchParams, defaultSpec]);
+    const activePeriod = useMemo(() => periodFromSpec(filters.month, p.config) || p.period, [filters.month, p.config, p.period]);
     const setFilters = useCallback(
-        (patch) => setSearchParams(serializeFilters({ ...filters, ...patch }), { replace: true }),
-        [filters, setSearchParams]
+        (patch) => setSearchParams(serializeFilters({ ...filters, ...patch }, new Date(), { defaultSpec }), { replace: true }),
+        [filters, setSearchParams, defaultSpec]
     );
 
     const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
 
     const visible = useMemo(() => transactions.filter((tx) => !hidden.has(tx.id)), [transactions, hidden]);
-    const filtered = useMemo(() => applyFilters(visible, filters), [visible, filters]);
+    const filtered = useMemo(() => applyFilters(visible, filters, { period: activePeriod }), [visible, filters, activePeriod]);
     const items = useMemo(() => groupByDay(filtered), [filtered]);
     const summary = useMemo(() => summarize(filtered), [filtered]);
     const counts = useMemo(() => {
-        const rest = applyFilters(visible, { ...filters, tracking: '', uncategorised: false }, { ignoreMonth: false });
+        const rest = applyFilters(visible, { ...filters, tracking: '', uncategorised: false }, { ignoreMonth: false, period: activePeriod });
         return { unpaid: rest.filter(isUnpaid).length, uncategorised: rest.filter(isUncategorised).length };
-    }, [visible, filters]);
-    const monthsWithData = useMemo(() => [...new Set(transactions.map((tx) => String(tx.date || '').slice(0, 7)).filter((m) => /^\d{4}-\d{2}$/.test(m)))], [transactions]);
+    }, [visible, filters, activePeriod]);
 
     // ----- delete with undo (the real delete waits for the undo window) -----
     const commitDelete = useCallback(
@@ -197,7 +202,7 @@ export default function ActivityPage() {
 
             <div className="px-5">
                 <SyncChip className="mb-1" />
-                <FilterBar filters={filters} onChange={setFilters} monthsWithData={monthsWithData} categoryNames={categoryNames} accounts={accounts} unpaidCount={counts.unpaid} uncategorisedCount={counts.uncategorised} />
+                <FilterBar filters={filters} onChange={setFilters} p={p} categoryNames={categoryNames} accounts={accounts} unpaidCount={counts.unpaid} uncategorisedCount={counts.uncategorised} />
                 {filters.groupId ? (
                     <div className="pb-2">
                         <Chip size="sm" selected icon={X} onClick={() => setFilters({ groupId: '' })}>

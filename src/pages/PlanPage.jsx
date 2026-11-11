@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { MonthSwitcher, Segmented } from '../components/ui';
+import { PeriodSwitcher, Segmented } from '../components/ui';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import BudgetsTab from '../components/plan/BudgetsTab';
 import SavingsTab from '../components/plan/SavingsTab';
 import TripsTab from '../components/plan/TripsTab';
-import { useSelectedMonth } from '../hooks/useSelectedMonth';
+import { usePeriod } from '../hooks/usePayCycle';
 import { usePlanData } from '../hooks/usePlanData';
 import { useTranslation } from '../languages/useTranslation';
 
@@ -15,7 +15,8 @@ const TABS = ['budgets', 'savings', 'trips'];
 export default function PlanPage() {
     const { t } = useTranslation();
     const [params, setParams] = useSearchParams();
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const p = usePeriod();
+    const month = p.period;
     const data = usePlanData();
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'budgets';
     const setTab = useCallback(
@@ -55,7 +56,7 @@ export default function PlanPage() {
         <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-center justify-between pt-4">
                 <h1 className="font-display text-[28px] font-bold tracking-tight text-ink">{t('plan.title')}</h1>
-                {tab !== 'trips' ? <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} /> : null}
+                {tab !== 'trips' ? <PeriodSwitcher p={p} /> : null}
             </div>
             {TABS.length > 1 ? (
                 <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: t(`plan.tab.${v}`) }))} />

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useMemo, useState } from 'react';
 import { Plane, Settings } from 'lucide-react';
-import { IconButton, MonthSwitcher } from '../components/ui';
+import { IconButton, PeriodSwitcher } from '../components/ui';
 import MonthReceipt from '../components/home/MonthReceipt';
 import TripBanner from '../components/home/TripBanner';
 import InsightCard from '../components/home/InsightCard';
@@ -15,7 +15,8 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
 import { useActiveTrip } from '../data/hooks';
 import { usePlanData } from '../hooks/usePlanData';
-import { useSelectedMonth } from '../hooks/useSelectedMonth';
+import { usePeriod } from '../hooks/usePayCycle';
+import { periodSpecOf } from '../utils/period';
 import { useTranslation } from '../languages/useTranslation';
 import { computeInsights } from '../services/insightsEngine';
 import { categoryBudgets, WHOLE_MONTH } from '../utils/budgetMath';
@@ -29,7 +30,8 @@ const HomeCharts = lazy(() => import('../components/home/HomeCharts'));
 export default function HomePage() {
     const { t, languageCode } = useTranslation();
     const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const p = usePeriod();
+    const month = p.period;
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
     const { trip: activeTrip } = useActiveTrip();
     const [tripOpen, setTripOpen] = useState(false);
@@ -46,8 +48,7 @@ export default function HomePage() {
 
     if (loading) return <LoadingSpinner className="pb-20" />;
 
-    const title = new Intl.DateTimeFormat(`${languageCode}-u-ca-gregory-nu-latn`, { month: 'long' }).format(new Date(`${month}-01T00:00:00`));
-    const showYear = month.slice(0, 4) !== String(today.getFullYear());
+    const title = p.kind === 'month' ? p.label : p.kind === 'cycle' ? (p.isCurrent ? t('period.titleCurrent') : t('period.titleCycle')) : t('period.custom');
     const empty = transactions.length === 0;
 
     return (
@@ -57,7 +58,6 @@ export default function HomePage() {
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('home.eyebrow')}</span>
                     <h1 className="font-display text-[32px] font-bold leading-[1.05] tracking-tight text-ink">
                         {title.charAt(0).toUpperCase() + title.slice(1)}
-                        {showYear ? <span className="ms-2 text-xl font-medium text-ink-muted">{month.slice(0, 4)}</span> : null}
                     </h1>
                 </div>
                 <div className="flex gap-2">
@@ -65,7 +65,7 @@ export default function HomePage() {
                     <IconButton label={t('navigation.settings')} icon={Settings} variant="surface" onClick={() => setSidebarOpen(true)} />
                 </div>
             </div>
-            <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+            <PeriodSwitcher p={p} />
 
             <SyncChip />
             <DraftBanner />
@@ -78,8 +78,8 @@ export default function HomePage() {
                 <>
                     <MonthReceipt month={month} totals={totals} wholeBudget={rows.find((r) => r.category === WHOLE_MONTH) || null} today={today} />
                     <InsightCard finding={finding} />
-                    <BudgetStrip rows={rows} month={month} />
-                    <BreakdownLink month={month} />
+                    <BudgetStrip rows={rows} month={periodSpecOf(month)} />
+                    <BreakdownLink month={periodSpecOf(month)} />
                     <UpcomingBills unpaid={unpaid} today={today} />
                     <Suspense fallback={<div className="h-48 animate-pulse rounded-[20px] bg-line" aria-hidden="true" />}>
                         <HomeCharts transactions={transactions} trips={trips} month={month} today={today} />

@@ -1,34 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Chip, ChipRow } from '../ui';
 import PickerSheet from './PickerSheet';
-import { monthKey } from '../../utils/activityFilters';
+import { PeriodPickerSheet } from '../ui/PeriodSwitcher';
 import { useTranslation } from '../../languages/useTranslation';
-
-function monthLabel(key, languageCode, t, withYear = false) {
-    if (key === 'all') return t('activity.allTime');
-    const [y, m] = key.split('-').map(Number);
-    try {
-        const text = new Intl.DateTimeFormat(languageCode, { month: 'long', year: withYear || new Date().getFullYear() !== y ? 'numeric' : undefined }).format(new Date(y, m - 1, 1));
-        return text.charAt(0).toUpperCase() + text.slice(1);
-    } catch {
-        return key;
-    }
-}
 
 /**
  * Filter chips: month, type, category (multi), account, Unpaid, Uncategorised. Month/type/category/account open
  * a picker sheet; Unpaid and Uncategorised toggle. Counts ignore the month so the chips stay meaningful.
  */
-export default function FilterBar({ filters, onChange, monthsWithData, categoryNames, accounts, unpaidCount, uncategorisedCount }) {
+export default function FilterBar({ filters, onChange, p, categoryNames, accounts, unpaidCount, uncategorisedCount }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [picker, setPicker] = useState(null); // 'month' | 'type' | 'category' | 'account'
     const close = () => setPicker(null);
-
-    const months = useMemo(() => {
-        const set = new Set([monthKey(), ...monthsWithData]);
-        if (filters.month !== 'all') set.add(filters.month);
-        return [...set].sort().reverse();
-    }, [monthsWithData, filters.month]);
 
     const typeLabels = { expense: t('quickAdd.expense'), income: t('quickAdd.income'), transfer: t('quickAdd.transfer') };
     const accountName = accounts.find((a) => a.id === filters.accountId)?.name;
@@ -38,7 +21,7 @@ export default function FilterBar({ filters, onChange, monthsWithData, categoryN
         <>
             <ChipRow className="py-1.5">
                 <Chip size="sm" selected={filters.month !== 'all'} onClick={() => setPicker('month')}>
-                    {monthLabel(filters.month, languageCode, t)}
+                    {filters.month === 'all' ? t('activity.allTime') : p.label}
                 </Chip>
                 <Chip size="sm" selected={!!filters.type} onClick={() => setPicker('type')}>
                     {filters.type ? typeLabels[filters.type] : t('activity.allTypes')}
@@ -59,17 +42,7 @@ export default function FilterBar({ filters, onChange, monthsWithData, categoryN
                 </Chip>
             </ChipRow>
 
-            <PickerSheet
-                open={picker === 'month'}
-                title={t('activity.pickMonth')}
-                options={[{ value: 'all', label: t('activity.allTime') }, ...months.map((m) => ({ value: m, label: monthLabel(m, languageCode, t, true) }))]}
-                selected={filters.month}
-                onPick={(m) => {
-                    onChange({ month: m });
-                    close();
-                }}
-                onClose={close}
-            />
+            <PeriodPickerSheet open={picker === 'month'} onClose={close} p={p} onAll={() => onChange({ month: 'all' })} allSelected={filters.month === 'all'} />
             <PickerSheet
                 open={picker === 'type'}
                 title={t('activity.pickType')}

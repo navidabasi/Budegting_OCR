@@ -20,6 +20,7 @@ import SettingsCard from '../components/common/SettingsCard';
 import AccountsManager from '../components/settings/AccountsManager';
 import ImportSheet from '../components/import/ImportSheet';
 import DataSafety from '../components/settings/DataSafety';
+import PayCycleSettings from '../components/settings/PayCycleSettings';
 import { buildCsv, downloadCsv } from '../utils/exportCsv';
 import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
@@ -850,6 +851,8 @@ export default function SettingsPage() {
                     )}
                 </div>
             </SettingsCard>
+
+            <PayCycleSettings />
 
             <DataSafety />
 

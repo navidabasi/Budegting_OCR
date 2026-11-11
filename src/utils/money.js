@@ -7,7 +7,8 @@
 //    excluded from totals and balances and reported as `upcoming`.
 import { getEffectiveAmount } from './helpers';
 import { shouldIncludeInFinancialTotals } from './tracking';
-import { dateKey, daysInMonth, monthKey } from './monthMath';
+import { dateKey, daysBetween } from './monthMath';
+import { inPeriod, rangeDays, toRange } from './period';
 
 export const SAVINGS_KINDS = ['savings', 'investment'];
 
@@ -126,7 +127,7 @@ export function totalBalance(balances = [], { kinds, currency } = {}) {
 // ---------------------------------------------------------------------------------------
 
 /**
- * monthTotals(transactions, 'YYYY-MM', { trips, accounts })
+ * monthTotals(transactions, period, { trips, accounts })   (period: 'YYYY-MM' or a period object, see period.js)
  *  -> { spent, income, saved, savingsRate, upcoming, travel, travelByTrip }
  *
  *  spent         expenses (your share), transfers excluded. Includes trip spend.
@@ -151,7 +152,7 @@ export function monthTotals(transactions = [], month, { trips = [], accounts = [
     let travel = 0;
 
     for (const tx of transactions || []) {
-        if (!tx || monthKey(tx.date) !== month) continue;
+        if (!tx || !inPeriod(tx.date, month)) continue;
         const type = typeOf(tx);
         const planned = isPlanned(tx);
 
@@ -195,7 +196,7 @@ export function spentByCategory(transactions = [], month, { trips = [], includeT
     const excluded = excludedTripIds(trips);
     const out = {};
     for (const tx of transactions || []) {
-        if (!tx || monthKey(tx.date) !== month || typeOf(tx) !== 'expense' || isPlanned(tx)) continue;
+        if (!tx || !inPeriod(tx.date, month) || typeOf(tx) !== 'expense' || isPlanned(tx)) continue;
         if (!includeTrips && tx.groupId && excluded.has(tx.groupId)) continue;
         const cat = tx.category || 'Other';
         out[cat] = (out[cat] || 0) + shareAmount(tx);
@@ -226,13 +227,14 @@ export function netWorth(balances = [], { currency } = {}) {
  * expenses (your share, trip spend included, planned/unpaid and transfers left out). Stops at `upToDay` when given.
  */
 export function cumulativeSpend(transactions = [], month, { upToDay } = {}) {
-    const days = daysInMonth(month);
+    const days = rangeDays(month);
+    const start = toRange(month)?.start;
     const last = Math.min(days, upToDay ?? days);
     const perDay = new Array(days).fill(0);
     for (const tx of transactions || []) {
-        if (!tx || typeOf(tx) !== 'expense' || isPlanned(tx) || monthKey(tx.date) !== month) continue;
-        const d = Number(dateKey(tx.date).slice(8, 10));
-        if (d >= 1 && d <= days) perDay[d - 1] += shareAmount(tx);
+        if (!tx || typeOf(tx) !== 'expense' || isPlanned(tx) || !inPeriod(tx.date, month)) continue;
+        const d = daysBetween(start, dateKey(tx.date));
+        if (d >= 0 && d < days) perDay[d] += shareAmount(tx);
     }
     const out = [];
     let run = 0;

@@ -8,3 +8,4 @@ export { default as MonthSwitcher } from './MonthSwitcher';
 export { default as ProgressBar } from './ProgressBar';
 export { default as Segmented } from './Segmented';
 export { default as Sheet } from './Sheet';
+export { default as PeriodSwitcher } from './PeriodSwitcher';
