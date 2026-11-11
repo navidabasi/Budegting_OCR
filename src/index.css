@@ -319,11 +319,6 @@
         margin-left: 0;
         margin-right: 1rem;
     }
-
-    [dir="rtl"] .toast-container {
-        right: auto;
-        left: 1rem;
-    }
 }
 
 @layer utilities {

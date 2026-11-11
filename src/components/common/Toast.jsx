@@ -9,7 +9,7 @@ const ICONS = {
     info: <Info className="text-savings" size={20} aria-hidden="true" />,
 };
 
-/** Snackbar above the bottom nav (thumb zone). Supports one action button (e.g. Undo). */
+/** Snackbar at the top of the screen, below the safe area, so it never covers the thumb-zone primary action. Supports one action button (e.g. Undo). */
 export default function Toast() {
     const { t } = useTranslation();
     const toast = useAppStore((state) => state.toast);
@@ -18,7 +18,8 @@ export default function Toast() {
     if (!toast) return null;
 
     return (
-        <div className="toast-container pointer-events-none fixed inset-x-0 bottom-28 z-[70] flex justify-center px-4 animate-fade-in">
+        <div className="toast-container pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4 animate-fade-in"
+            style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
             <div
                 role="status"
                 aria-live="polite"
