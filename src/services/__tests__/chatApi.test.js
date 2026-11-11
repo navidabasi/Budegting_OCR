@@ -57,6 +57,9 @@ describe('actionHref', () => {
         expect(actionHref({ type: 'add_goal', payload: { name: 'Japan', targetAmount: 3000, targetDate: '2027-07-01' } })).toBe('/plan?tab=savings&goal=Japan&target=3000&date=2027-07-01');
         expect(actionHref({ type: 'open_filter', payload: { category: 'Dining', month: '2026-10' } })).toBe('/activity?m=2026-10&cat=Dining');
         expect(actionHref({ type: 'open_filter', payload: { screen: 'savings' } }, '2026-11')).toBe('/plan?m=2026-11&tab=savings');
+        // A multi-month answer ("average grocery spend") links to every matching transaction, not the current period
+        expect(actionHref({ type: 'open_filter', payload: { screen: 'activity', category: 'Groceries', month: 'all' } }, '2026-11')).toBe('/activity?m=all&cat=Groceries');
+        expect(actionHref({ type: 'open_filter', payload: { category: 'Groceries' } }, '2026-11')).toBe('/activity?m=all&cat=Groceries');
         expect(actionHref({ type: 'nope', payload: {} })).toBeNull();
     });
 });

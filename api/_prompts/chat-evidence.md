@@ -9,7 +9,7 @@ Output shape
   "answer": string,                 // 1-5 short sentences (or up to 5 short bullet lines separated by \n)
   "citations": string[],            // ids of every fact (F..) your answer relies on; at least one unless the pack is insufficient
   "uncertain": string[],            // ids of cited facts that rest on lines read from receipts (flag "extracted": true) or on evidence marked "uncertain"
-  "suggestedAction": null | { "type": "set_budget" | "open_filter" | "add_goal", "payload": object },   // optional; only when the user asks to cap a category, open a filtered list or start a goal. set_budget { category, amount }, open_filter { screen?: "activity"|"budgets"|"savings", category?, merchant?, month?: "YYYY-MM" }, add_goal { name, targetAmount, targetDate?: "YYYY-MM-DD" }. The app only opens a prefilled screen.
+  "suggestedAction": null | { "type": "set_budget" | "open_filter" | "add_goal", "payload": object },   // optional; only when the user asks to cap a category, open a filtered list or start a goal. set_budget { category, amount }, open_filter { screen?: "activity"|"budgets"|"savings", category?, merchant?, month: "YYYY-MM" | "all" }, add_goal { name, targetAmount, targetDate?: "YYYY-MM-DD" }. The app only opens a prefilled screen. Always set open_filter month: one "YYYY-MM" when the answer is about a single month, "all" when it spans several.
   "proposals": [                    // optional, at most 3: bookkeeping changes the user may preview and confirm
     { "type": "recategorise" | "mark_duplicate" | "create_recurring" | "prepare_correction",
       "ref": string,                // an evidence id (R..) of the record concerned

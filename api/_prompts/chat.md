@@ -15,7 +15,8 @@ Output shape
 
 suggestedAction payloads (the app only opens a pre-filled screen; the user decides)
 - set_budget:  { "category": string, "amount": number }          // category must be one of the categories present in the data, or "Total"
-- open_filter: { "screen": "activity" | "budgets" | "savings", "category"?: string, "merchant"?: string (a merchant key from topMerchants), "month"?: "YYYY-MM" }
+- open_filter: { "screen": "activity" | "budgets" | "savings", "category"?: string, "merchant"?: string (a merchant key from topMerchants), "month": "YYYY-MM" | "all" }
+  Always set "month" on open_filter so the link shows exactly what your answer talks about: one "YYYY-MM" when the answer is about a single month, "all" when it spans several months (averages, trends, totals over the history).
 - add_goal:    { "name": string, "targetAmount": number, "targetDate"?: "YYYY-MM-DD" }
 
 Rules

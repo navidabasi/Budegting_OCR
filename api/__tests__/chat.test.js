@@ -33,6 +33,7 @@ describe('sanitizeAction', () => {
     it('accepts the three action types with valid payloads', () => {
         expect(sanitizeAction({ type: 'set_budget', payload: { category: 'Dining', amount: 180 } })).toEqual({ type: 'set_budget', payload: { category: 'Dining', amount: 180 } });
         expect(sanitizeAction({ type: 'open_filter', payload: { category: 'Dining', month: '2026-11' } })).toEqual({ type: 'open_filter', payload: { screen: 'activity', category: 'Dining', month: '2026-11' } });
+        expect(sanitizeAction({ type: 'open_filter', payload: { category: 'Groceries', month: 'all' } })).toEqual({ type: 'open_filter', payload: { screen: 'activity', category: 'Groceries', month: 'all' } });
         expect(sanitizeAction({ type: 'add_goal', payload: { name: 'Japan', targetAmount: 3000, targetDate: '2027-05-31' } })).toEqual({ type: 'add_goal', payload: { name: 'Japan', targetAmount: 3000, targetDate: '2027-05-31' } });
     });
     it('drops unknown types, bad payloads and extra fields', () => {
