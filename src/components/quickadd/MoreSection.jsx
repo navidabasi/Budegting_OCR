@@ -139,11 +139,7 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
             <div className="flex items-center gap-3">
                 <button type="button" onClick={onOpenSplit} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[14px] border border-line-strong bg-surface text-sm font-semibold text-ink">
                     <Users size={16} aria-hidden="true" />
-                    {value.splitData
-                        ? value.splitData.method === 'equal'
-                            ? t('receipts.form.splitBetween', { people: value.splitData.people })
-                            : t('receipts.form.splitCustomCount', { people: value.splitData.users?.length || 0 })
-                        : t('receipts.form.addSplit')}
+                    {value.splitData ? t('shared.splitSummary', { count: value.splitData.participants?.length ?? value.splitData.people ?? value.splitData.users?.length ?? 0 }) : t('receipts.form.addSplit')}
                 </button>
                 {value.splitData ? (
                     <button type="button" onClick={() => set({ splitData: null })} className="h-11 px-2 text-sm font-medium text-over-ink">

@@ -19,6 +19,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { useAppStore } from '../../store/appStore';
 import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 import { getEffectiveAmount } from '../../utils/helpers';
+import { ME, readSplit } from '../../utils/splits';
 import { useCategoryChange } from '../../hooks/useCategoryChange';
 import { countSameMerchant } from '../../services/categoryLearning';
 import { rankCategories, dateKey } from '../../utils/quickAdd';
@@ -90,10 +91,13 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     })();
     const subtitle = [dateText, receipt.extraction?.time, type === 'transfer' ? [account?.name, toAccount?.name].filter(Boolean).join(' → ') : account?.name].filter(Boolean).join(' · ');
 
-    const split = receipt.splitData
-        ? `${t('detail.yourShare', { amount: `${formatAmount(getEffectiveAmount(receipt), { locale })} ${currencySymbol(receipt.currency, locale)}` })} · ${
-              receipt.splitData.method === 'equal' ? t('detail.splitEqual', { people: receipt.splitData.people }) : t('detail.splitCustom', { count: receipt.splitData.users?.length || 0 })
-          }`
+    const splitV2 = readSplit(receipt.splitData, receipt.total);
+    const split = splitV2
+        ? [
+              t('detail.yourShare', { amount: `${formatAmount(getEffectiveAmount(receipt), { locale })} ${currencySymbol(receipt.currency, locale)}` }),
+              t('shared.splitSummary', { count: splitV2.participants.length }),
+              t('shared.paidByName', { name: splitV2.payer === ME ? t('shared.me') : splitV2.participants.find((p) => p.id === splitV2.payer)?.name || '?' }),
+          ].join(' · ')
         : null;
 
     const changeCategory = async (category) => {

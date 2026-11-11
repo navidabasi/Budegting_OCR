@@ -140,3 +140,13 @@ pass. **Part 2** = left for the next session.
 Part 1 verifies cases 1-9 and 13 (numbered in the order of the brief's semicolon-separated list) with synthetic data; see the test
 names in the final report. Cases 10-12 belong to part 2. Case 7 (foreign currency offline) is verified for "original kept, EUR missing
 is detectable" in part 1; the visible warning in totals is part 2 (§9).
+
+---
+
+## Part 1 status (written at the end of part 1)
+
+Implemented and tested: section 8 offline capture (outbox operation ids, idempotent retries, userEdited merge, cancellation, drafts, sync states and Needs attention, storage persist/estimate, JSON backup/restore), section 2 save semantics and scan-to-manual attach, section 3 receipt items (v2 shape, subcategories, reconciliation, item review list, scoped corrections and rules, itemAnalysis, Spending breakdown), section 4 pay cycles (`payCycle.js`, `usePeriod`, settings), section 5 shared expenses (`splits.js`, SplitSheet, Shared page, settlements).
+
+Storage choices (no migration needed, nothing to apply): pay-cycle settings, people list and custom subcategories live in `user_layouts.layout.prefs` (`payCycle`, `people`, `subcategories`); item rules reuse `merchant_rules` (`merchant_key = 'item:<product>'`, `category = 'Category::subcategory'`); settlements reuse `receipts.split_data` (`kind: 'settlement'`); conflict log and sync cursors stay in the local `meta` store. Dexie schema v2 adds `drafts` and `outbox.opId`.
+
+Known limitations / for part 2: no holiday calendar for the weekend rule (use a per-cycle override); unit/plural strings such as "1 lines" are not pluralised; conflict choices exist for updates only (inserts/deletes follow "delete wins, server newer is kept"); trip views and Activity totals do not yet label personal-share vs full amount; foreign-currency totals do not yet warn about missing EUR amounts (case 7 only verifies the data is kept and detectable); the AI endpoints still get calendar-month keys for custom ranges (`aggregates.period` carries the exact dates).

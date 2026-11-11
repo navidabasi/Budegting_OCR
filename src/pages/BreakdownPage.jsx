@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Card, Chip, ChipRow, IconButton, PeriodSwitcher } from '../components/ui';
+import { Card, Chip, ChipRow, IconButton, PeriodSwitcher, Segmented } from '../components/ui';
 import DrillSheet from '../components/breakdown/DrillSheet';
 import { subcategoryLabel } from '../components/receipts/subcategoryLabel';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -44,21 +44,22 @@ export default function BreakdownPage() {
     const month = p.period;
     const isCurrent = p.isCurrent;
     const [category, setCategory] = useState('Groceries');
+    const [basis, setBasis] = useState('share'); // 'share' = my part (default), 'full' = the whole amount that moved
     const [drill, setDrill] = useState(null);
     const today = useMemo(() => new Date(), []);
 
     const period = month;
-    const cats = useMemo(() => spendByCategory(transactions, period).map((g) => g.key), [transactions, period]);
+    const cats = useMemo(() => spendByCategory(transactions, period, { basis }).map((g) => g.key), [transactions, period, basis]);
     const catChips = useMemo(() => ['', ...new Set(['Groceries', ...cats])], [cats]);
-    const merchants = useMemo(() => spendByMerchant(transactions, period, { category: category || undefined }), [transactions, period, category]);
-    const groups = useMemo(() => (category ? spendBySubcategory(transactions, period, { category }) : spendByCategory(transactions, period)), [transactions, period, category]);
-    const cover = useMemo(() => coverage(transactions, period, { category: category || undefined }), [transactions, period, category]);
-    const recurring = useMemo(() => recurringProducts(transactions, period, { minReceipts: 2 }).slice(0, 6), [transactions, period]);
+    const merchants = useMemo(() => spendByMerchant(transactions, period, { category: category || undefined, basis }), [transactions, period, category, basis]);
+    const groups = useMemo(() => (category ? spendBySubcategory(transactions, period, { category, basis }) : spendByCategory(transactions, period, { basis })), [transactions, period, category, basis]);
+    const cover = useMemo(() => coverage(transactions, period, { category: category || undefined, basis }), [transactions, period, category, basis]);
+    const recurring = useMemo(() => recurringProducts(transactions, period, { minReceipts: 2, basis }).slice(0, 6), [transactions, period, basis]);
     const unitPrices = useMemo(() => comparableUnitPrices(transactions, period).slice(0, 5), [transactions, period]);
     const cmp = useMemo(() => comparablePeriods(period, today, previousOfPeriod(period, p.config)), [period, today, p.config]);
     const change = useMemo(
-        () => (cmp ? changeBetween(transactions, cmp.current, cmp.previous, { by: category ? 'subcategory' : 'category', category: category || undefined }) : null),
-        [transactions, cmp, category]
+        () => (cmp ? changeBetween(transactions, cmp.current, cmp.previous, { by: category ? 'subcategory' : 'category', category: category || undefined, basis }) : null),
+        [transactions, cmp, category, basis]
     );
 
     if (loading) return <LoadingSpinner className="pb-20" />;
@@ -76,7 +77,8 @@ export default function BreakdownPage() {
                 <h1 className="font-display text-[26px] font-bold tracking-tight text-ink">{t('breakdown.title')}</h1>
             </div>
             <PeriodSwitcher p={p} />
-            <p className="text-xs text-ink-muted">{t('breakdown.basisShare')}</p>
+            <Segmented ariaLabel={t('breakdown.basisLabel')} value={basis} onChange={setBasis} options={[{ value: 'share', label: t('breakdown.basisMine') }, { value: 'full', label: t('breakdown.basisFull') }]} />
+            <p className="text-xs text-ink-muted">{basis === 'share' ? t('breakdown.basisShare') : t('breakdown.basisFullNote')}</p>
 
             <ChipRow>
                 {catChips.map((c) => (

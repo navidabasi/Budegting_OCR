@@ -5,7 +5,7 @@ import { Chip, ChipRow, IconButton } from '../ui';
 import MoreSection from '../quickadd/MoreSection';
 import TripChip from '../plan/TripChip';
 import { useTripGroup } from '../../hooks/useTripGroup';
-import SplitManager from '../receipts/SplitManager';
+import SplitSheet from '../receipts/SplitSheet';
 import ImageViewer from './ImageViewer';
 import { lowConfidenceFields } from '../../services/receiptScan';
 import ItemReviewList from '../receipts/ItemReviewList';
@@ -215,16 +215,18 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
             </div>
 
             {viewer && imageUrl ? <ImageViewer src={imageUrl} alt={t('scan.receiptPhoto')} onClose={() => setViewer(false)} /> : null}
-            {splitOpen ? (
-                <SplitManager
-                    receipt={{ total: totalNum, currency: form.currency, splitData: form.more.splitData }}
-                    onSave={(splitData) => {
-                        set({ more: { ...form.more, splitData } });
-                        setSplitOpen(false);
-                    }}
-                    onClose={() => setSplitOpen(false)}
-                />
-            ) : null}
+            <SplitSheet
+                open={splitOpen}
+                total={totalNum}
+                currency={form.currency}
+                items={items}
+                value={form.more.splitData}
+                onSave={(splitData) => {
+                    set({ more: { ...form.more, splitData } });
+                    setSplitOpen(false);
+                }}
+                onClose={() => setSplitOpen(false)}
+            />
         </div>
     );
 }

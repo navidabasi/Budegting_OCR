@@ -5,6 +5,9 @@ import { categoryVisual } from '../../utils/categoryVisual.jsx';
 import { isUncategorised, isUnpaid } from '../../utils/activityFilters';
 import RecordSyncBadge from '../sync/RecordSyncBadge';
 import { useTranslation } from '../../languages/useTranslation';
+import { readSplit } from '../../utils/splits';
+import { formatMoney, localeFor } from '../../utils/format';
+import { getEffectiveAmount } from '../../utils/helpers';
 
 const ACTION_W = 88; // px revealed by a swipe
 const COMMIT = 150; // px: a long swipe commits the action
@@ -45,6 +48,8 @@ function TransactionRow({ tx, accountName, toAccountName, syncState, onOpen, onD
     } else {
         subtitle = [type === 'income' ? t('quickAdd.income') : localizeCategory(tx.category), accountName].filter(Boolean).join(' · ');
     }
+    const shared = readSplit(tx.splitData, tx.total);
+    if (shared && type === 'expense' && !pending) subtitle = [subtitle, t('shared.yourShareShort', { amount: formatMoney(getEffectiveAmount(tx), tx.currency, localeFor(languageCode, tx.currency)) })].join(' · ');
     const title = type === 'transfer' && toAccountName ? t('quickAdd.transferTo', { account: toAccountName }) : tx.merchant || t('dashboard.topMerchants.unknown');
 
     const onPointerDown = (e) => {

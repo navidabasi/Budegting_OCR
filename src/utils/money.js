@@ -9,6 +9,7 @@ import { getEffectiveAmount } from './helpers';
 import { shouldIncludeInFinancialTotals } from './tracking';
 import { dateKey, daysBetween } from './monthMath';
 import { inPeriod, rangeDays, toRange } from './period';
+import { isSettlement, itemShareFraction, paidByOther } from './splits';
 
 export const SAVINGS_KINDS = ['savings', 'investment'];
 
@@ -45,8 +46,9 @@ export function shareFactor(tx) {
 }
 
 /** Your share factor for one item of a receipt. Equal to the receipt's factor until item-level splits exist (see splits.js). */
-export function itemShareFactor(tx) {
-    return shareFactor(tx);
+export function itemShareFactor(tx, itemId) {
+    const f = itemShareFraction(tx, itemId);
+    return f === undefined ? shareFactor(tx) : f;
 }
 
 /** Trips (group objects) whose spend is kept out of category budgets. */
@@ -64,6 +66,7 @@ export function excludedTripIds(trips = []) {
 
 /** Amount that moves on a given account (its own currency when known, else the entered total). */
 function movedAmount(tx, account) {
+    if (paidByOther(tx)) return 0; // somebody else paid: nothing left my accounts (my share is an obligation until I settle)
     const total = num(tx.total);
     if (account?.currency && tx.currency && account.currency !== tx.currency) {
         if (tx.amountBase !== undefined && tx.amountBase !== null && tx.baseCurrency === account.currency) return num(tx.amountBase);
@@ -96,6 +99,9 @@ export function accountBalances(accounts = [], transactions = []) {
         const type = typeOf(tx);
         if (type === 'income') {
             touch(tx.accountId, movedAmount(tx, byId.get(tx.accountId)?.account), tx);
+        } else if (type === 'transfer' && isSettlement(tx)) {
+            // repayment between me and a person: money arrives in / leaves the account, never spending or income
+            touch(tx.accountId, (tx.splitData.direction === 'received' ? 1 : -1) * movedAmount(tx, byId.get(tx.accountId)?.account), tx);
         } else if (type === 'transfer') {
             touch(tx.accountId, -movedAmount(tx, byId.get(tx.accountId)?.account), tx);
             if (tx.toAccountId) touch(tx.toAccountId, movedAmount(tx, byId.get(tx.toAccountId)?.account), tx);

@@ -3,7 +3,7 @@ import { Calendar, Camera, ChevronDown, Image as ImageIcon, X } from 'lucide-rea
 import { Chip, ChipRow, IconButton, Segmented, Sheet } from '../ui';
 import Keypad from './Keypad';
 import MoreSection from './MoreSection';
-import SplitManager from '../receipts/SplitManager';
+import SplitSheet from '../receipts/SplitSheet';
 import TripChip from '../plan/TripChip';
 import { useAppStore } from '../../store/appStore';
 import {
@@ -504,16 +504,18 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             </div>
 
             </Sheet>
-            {splitOpen ? (
-                <SplitManager
-                    receipt={{ ...(editing || {}), total, currency: state.more.currency, splitData: state.more.splitData }}
-                    onSave={(splitData) => {
-                        set({ more: { ...state.more, splitData } });
-                        setSplitOpen(false);
-                    }}
-                    onClose={() => setSplitOpen(false)}
-                />
-            ) : null}
+            <SplitSheet
+                open={splitOpen}
+                total={total}
+                currency={state.more.currency}
+                items={(editing || preset?.initial)?.lineItems || []}
+                value={state.more.splitData}
+                onSave={(splitData) => {
+                    set({ more: { ...state.more, splitData } });
+                    setSplitOpen(false);
+                }}
+                onClose={() => setSplitOpen(false)}
+            />
         </>
     );
 }

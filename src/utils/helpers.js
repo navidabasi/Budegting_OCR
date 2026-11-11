@@ -1,3 +1,4 @@
+import { effectiveAmount } from './splits';
 import { format, parseISO, isValid } from 'date-fns';
 
 export const formatCurrency = (amount, currency = 'EUR') => {
@@ -313,36 +314,4 @@ export const extractPricesFromText = (text) => {
  * @param {Object} receipt - The receipt object
  * @returns {number} - The effective amount the user is responsible for
  */
-export const getEffectiveAmount = (receipt) => {
-    if (!receipt) return 0;
-
-    const total = parseFloat(receipt.total) || 0;
-
-    // If not split, return full amount
-    if (!receipt.splitData) {
-        return total;
-    }
-
-    // If split, return the user's share
-    const { splitData } = receipt;
-
-    // If yourShare is explicitly stored, use it
-    if (splitData.yourShare !== undefined && splitData.yourShare !== null) {
-        return parseFloat(splitData.yourShare) || 0;
-    }
-
-    // Calculate based on split method
-    if (splitData.method === 'equal') {
-        const people = splitData.people || 1;
-        return total / people;
-    }
-
-    // For custom split, first user is "You"
-    if (splitData.users && splitData.users.length > 0) {
-        return parseFloat(splitData.users[0].amount) || 0;
-    }
-
-    // Fallback to equal split
-    const people = splitData.people || 1;
-    return total / people;
-};
+export const getEffectiveAmount = (receipt) => effectiveAmount(receipt); // exact-cent shares, see utils/splits.js

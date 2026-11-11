@@ -36,6 +36,7 @@ const ReceiptDetailPage = lazy(() => import('./pages/ReceiptDetailPage'));
 const InsightsPage = lazy(() => import('./pages/InsightsPage'));
 const PlanPage = lazy(() => import('./pages/PlanPage'));
 const BreakdownPage = lazy(() => import('./pages/BreakdownPage'));
+const SharedPage = lazy(() => import('./pages/SharedPage'));
 const TripPage = lazy(() => import('./pages/TripPage'));
 const ScanPage = lazy(() => import('./pages/ScanPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
@@ -650,6 +651,7 @@ function App() {
                     <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
                     <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
                     <Route path="/breakdown" element={<ProtectedRoute><BreakdownPage /></ProtectedRoute>} />
+                    <Route path="/shared" element={<ProtectedRoute><SharedPage /></ProtectedRoute>} />
                     <Route
                         path="/receipts/:id"
                         element={
