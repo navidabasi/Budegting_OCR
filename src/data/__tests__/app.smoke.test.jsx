@@ -97,6 +97,31 @@ describe('App smoke (offline, local mirror)', () => {
         await act(async () => root.unmount());
     });
 
+    it('Settings > AI & scanning has the Chat history row: toggle (default on), and a confirmed delete-all', async () => {
+        useAppStore.setState({ currentUser: { userId: 'u1', email: 'a@b.c' }, isAuthenticated: true });
+        localStorage.removeItem('wmw.chatKeepHistory');
+        const { createConversation, appendMessage } = await import('../repo');
+        const c = await createConversation('u1', { title: 'Old chat' });
+        await appendMessage('u1', { conversationId: c.id, role: 'user', content: 'hi' });
+
+        const { el, root } = await renderApp('/settings', 'Chat history');
+        const row = el.querySelector('[data-testid="chat-history-settings"]');
+        expect(row.textContent).toContain('Saved to your account, on this device and in the cloud. Only you can read it.');
+        const toggle = row.querySelector('[data-testid="keep-chat-history"]');
+        expect(toggle.checked).toBe(true);
+        await act(async () => toggle.click());
+        expect(localStorage.getItem('wmw.chatKeepHistory')).toBe('off');
+        await act(async () => toggle.click());
+        expect(localStorage.getItem('wmw.chatKeepHistory')).toBe('on');
+
+        await act(async () => row.querySelector('[data-testid="settings-delete-chat"]').click());
+        expect(document.body.textContent).toContain('Delete all chat history?');
+        expect(await db.chatConversations.filter((x) => !x.deletedAt).count()).toBe(1); // asked first, nothing deleted yet
+        await act(async () => document.querySelector('[data-testid="delete-all-confirm"]').click());
+        await vi.waitFor(async () => expect(await db.chatConversations.filter((x) => !x.deletedAt).count()).toBe(0));
+        await act(async () => root.unmount());
+    });
+
     it('renders the landing page when signed out', async () => {
         useAppStore.setState({ currentUser: null, isAuthenticated: false });
         const { el, root } = await renderApp('/');

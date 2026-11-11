@@ -867,38 +867,6 @@ export const en = {
         deleteBody: "No transactions use this account.",
     },
     // @i18n:end accounts
-    // @i18n:begin prefs
-    prefs: {
-        profile: {
-            title: "Profile",
-        },
-        accounts: {
-            title: "Accounts",
-        },
-        aiScanning: {
-            title: "AI & scanning",
-            privacy: "Receipt photos are sent to an AI model only to read them, then to your private storage. They are never shared with other users.",
-            saveImages: "Keep receipt photos",
-            saveImagesHint: "Lets you check a receipt later. Off: the photo is discarded after saving.",
-            readItems: "Read line items",
-            readItemsHint: "Off: only merchant, date and total are saved.",
-        },
-        data: {
-            title: "Data",
-            clearCache: "Clear local cache and re-download",
-            exportCsv: "Export transactions (CSV)",
-            exportHint: "A spreadsheet with every transaction.",
-            exported: "Export ready",
-            removeSample: "Remove sample data ({{count}})",
-        },
-        about: {
-            title: "About",
-            name: "Where my money went? Track spending, scan receipts, see where it goes.",
-            privacy: "Privacy",
-            terms: "Terms",
-        },
-    },
-    // @i18n:end prefs
     // @i18n:begin activity
     activity: {
         transactionsCount: "{{count}} transactions",
@@ -2010,4 +1978,42 @@ export const en = {
         deleteAllFailed: "Couldn’t delete the chat history.",
     },
     // @i18n:end chat
+    // @i18n:begin prefs
+    prefs: {
+        profile: {
+            title: "Profile",
+        },
+        accounts: {
+            title: "Accounts",
+        },
+        aiScanning: {
+            title: "AI & scanning",
+            privacy: "Receipt photos are sent to an AI model only to read them, then to your private storage. They are never shared with other users.",
+            saveImages: "Keep receipt photos",
+            saveImagesHint: "Lets you check a receipt later. Off: the photo is discarded after saving.",
+            readItems: "Read line items",
+            readItemsHint: "Off: only merchant, date and total are saved.",
+        },
+        data: {
+            title: "Data",
+            clearCache: "Clear local cache and re-download",
+            exportCsv: "Export transactions (CSV)",
+            exportHint: "A spreadsheet with every transaction.",
+            exported: "Export ready",
+            removeSample: "Remove sample data ({{count}})",
+        },
+        about: {
+            title: "About",
+            name: "Where my money went? Track spending, scan receipts, see where it goes.",
+            privacy: "Privacy",
+            terms: "Terms",
+        },
+        chatHistory: {
+            title: "Chat history",
+            description: "Saved to your account, on this device and in the cloud. Only you can read it.",
+            keep: "Keep chat history",
+            keepHint: "Off: new chats last only until you close the app and nothing new is saved. Existing history stays until you delete it.",
+        },
+    },
+    // @i18n:end prefs
 };

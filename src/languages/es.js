@@ -598,38 +598,6 @@ export const es = {
         deleteBody: "Ninguna transacción usa esta cuenta.",
     },
     // @i18n:end accounts
-    // @i18n:begin prefs
-    prefs: {
-        profile: {
-            title: "Perfil",
-        },
-        accounts: {
-            title: "Cuentas",
-        },
-        aiScanning: {
-            title: "IA y escaneo",
-            privacy: "Las fotos de recibos se envían a un modelo de IA solo para leerlas y luego a tu almacenamiento privado. Nunca se comparten con otros usuarios.",
-            saveImages: "Conservar fotos de recibos",
-            saveImagesHint: "Te permite revisar un recibo después. Desactivado: la foto se descarta al guardar.",
-            readItems: "Leer artículos",
-            readItemsHint: "Desactivado: solo se guardan comercio, fecha y total.",
-        },
-        data: {
-            title: "Datos",
-            clearCache: "Vaciar caché local y volver a descargar",
-            exportCsv: "Exportar transacciones (CSV)",
-            exportHint: "Una hoja de cálculo con todas las transacciones.",
-            exported: "Exportación lista",
-            removeSample: "Quitar datos de ejemplo ({{count}})",
-        },
-        about: {
-            title: "Acerca de",
-            name: "Where my money went? Controla gastos, escanea recibos y ve adónde va tu dinero.",
-            privacy: "Privacidad",
-            terms: "Términos",
-        },
-    },
-    // @i18n:end prefs
     // @i18n:begin activity
     activity: {
         transactionsCount: "{{count}} transacciones",
@@ -1741,4 +1709,42 @@ export const es = {
         deleteAllFailed: "No se pudo eliminar el historial de chats.",
     },
     // @i18n:end chat
+    // @i18n:begin prefs
+    prefs: {
+        profile: {
+            title: "Perfil",
+        },
+        accounts: {
+            title: "Cuentas",
+        },
+        aiScanning: {
+            title: "IA y escaneo",
+            privacy: "Las fotos de recibos se envían a un modelo de IA solo para leerlas y luego a tu almacenamiento privado. Nunca se comparten con otros usuarios.",
+            saveImages: "Conservar fotos de recibos",
+            saveImagesHint: "Te permite revisar un recibo después. Desactivado: la foto se descarta al guardar.",
+            readItems: "Leer artículos",
+            readItemsHint: "Desactivado: solo se guardan comercio, fecha y total.",
+        },
+        data: {
+            title: "Datos",
+            clearCache: "Vaciar caché local y volver a descargar",
+            exportCsv: "Exportar transacciones (CSV)",
+            exportHint: "Una hoja de cálculo con todas las transacciones.",
+            exported: "Exportación lista",
+            removeSample: "Quitar datos de ejemplo ({{count}})",
+        },
+        about: {
+            title: "Acerca de",
+            name: "Where my money went? Controla gastos, escanea recibos y ve adónde va tu dinero.",
+            privacy: "Privacidad",
+            terms: "Términos",
+        },
+        chatHistory: {
+            title: "Historial de chats",
+            description: "Se guarda en tu cuenta, en este dispositivo y en la nube. Solo tú puedes leerlo.",
+            keep: "Guardar el historial de chats",
+            keepHint: "Desactivado: los chats nuevos duran solo hasta cerrar la app y no se guarda nada nuevo. El historial existente se mantiene hasta que lo elimines.",
+        },
+    },
+    // @i18n:end prefs
 };

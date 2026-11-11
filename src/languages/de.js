@@ -711,38 +711,6 @@ export const de = {
         deleteBody: "Keine Transaktion nutzt dieses Konto.",
     },
     // @i18n:end accounts
-    // @i18n:begin prefs
-    prefs: {
-        profile: {
-            title: "Profil",
-        },
-        accounts: {
-            title: "Konten",
-        },
-        aiScanning: {
-            title: "KI & Scannen",
-            privacy: "Belegfotos werden nur zum Lesen an ein KI-Modell gesendet und dann in deinem privaten Speicher abgelegt. Sie werden nie mit anderen Nutzern geteilt.",
-            saveImages: "Belegfotos behalten",
-            saveImagesHint: "So kannst du einen Beleg später prüfen. Aus: Das Foto wird nach dem Speichern verworfen.",
-            readItems: "Einzelpositionen lesen",
-            readItemsHint: "Aus: Nur Händler, Datum und Summe werden gespeichert.",
-        },
-        data: {
-            title: "Daten",
-            clearCache: "Lokalen Cache leeren und neu laden",
-            exportCsv: "Transaktionen exportieren (CSV)",
-            exportHint: "Eine Tabelle mit allen Transaktionen.",
-            exported: "Export bereit",
-            removeSample: "Beispieldaten entfernen ({{count}})",
-        },
-        about: {
-            title: "Über",
-            name: "Where my money went? Ausgaben verfolgen, Belege scannen, sehen wohin das Geld geht.",
-            privacy: "Datenschutz",
-            terms: "Bedingungen",
-        },
-    },
-    // @i18n:end prefs
     // @i18n:begin activity
     activity: {
         transactionsCount: "{{count}} Transaktionen",
@@ -1854,4 +1822,42 @@ export const de = {
         deleteAllFailed: "Der Chatverlauf konnte nicht gelöscht werden.",
     },
     // @i18n:end chat
+    // @i18n:begin prefs
+    prefs: {
+        profile: {
+            title: "Profil",
+        },
+        accounts: {
+            title: "Konten",
+        },
+        aiScanning: {
+            title: "KI & Scannen",
+            privacy: "Belegfotos werden nur zum Lesen an ein KI-Modell gesendet und dann in deinem privaten Speicher abgelegt. Sie werden nie mit anderen Nutzern geteilt.",
+            saveImages: "Belegfotos behalten",
+            saveImagesHint: "So kannst du einen Beleg später prüfen. Aus: Das Foto wird nach dem Speichern verworfen.",
+            readItems: "Einzelpositionen lesen",
+            readItemsHint: "Aus: Nur Händler, Datum und Summe werden gespeichert.",
+        },
+        data: {
+            title: "Daten",
+            clearCache: "Lokalen Cache leeren und neu laden",
+            exportCsv: "Transaktionen exportieren (CSV)",
+            exportHint: "Eine Tabelle mit allen Transaktionen.",
+            exported: "Export bereit",
+            removeSample: "Beispieldaten entfernen ({{count}})",
+        },
+        about: {
+            title: "Über",
+            name: "Where my money went? Ausgaben verfolgen, Belege scannen, sehen wohin das Geld geht.",
+            privacy: "Datenschutz",
+            terms: "Bedingungen",
+        },
+        chatHistory: {
+            title: "Chatverlauf",
+            description: "In deinem Konto gespeichert, auf diesem Gerät und in der Cloud. Nur du kannst sie lesen.",
+            keep: "Chatverlauf speichern",
+            keepHint: "Aus: Neue Chats gelten nur, bis du die App schließt, und nichts Neues wird gespeichert. Der vorhandene Verlauf bleibt, bis du ihn löschst.",
+        },
+    },
+    // @i18n:end prefs
 };

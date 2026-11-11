@@ -711,38 +711,6 @@ export const it = {
         deleteBody: "Nessuna transazione usa questo conto.",
     },
     // @i18n:end accounts
-    // @i18n:begin prefs
-    prefs: {
-        profile: {
-            title: "Profilo",
-        },
-        accounts: {
-            title: "Conti",
-        },
-        aiScanning: {
-            title: "IA e scansione",
-            privacy: "Le foto degli scontrini vengono inviate a un modello di IA solo per leggerle, poi al tuo archivio privato. Non vengono mai condivise con altri utenti.",
-            saveImages: "Conserva le foto degli scontrini",
-            saveImagesHint: "Ti permette di ricontrollare uno scontrino. Disattivato: la foto viene scartata dopo il salvataggio.",
-            readItems: "Leggi le singole voci",
-            readItemsHint: "Disattivato: vengono salvati solo esercente, data e totale.",
-        },
-        data: {
-            title: "Dati",
-            clearCache: "Svuota la cache locale e riscarica",
-            exportCsv: "Esporta transazioni (CSV)",
-            exportHint: "Un foglio di calcolo con tutte le transazioni.",
-            exported: "Esportazione pronta",
-            removeSample: "Rimuovi dati di esempio ({{count}})",
-        },
-        about: {
-            title: "Informazioni",
-            name: "Where my money went? Monitora le spese, scansiona gli scontrini, scopri dove va il denaro.",
-            privacy: "Privacy",
-            terms: "Termini",
-        },
-    },
-    // @i18n:end prefs
     // @i18n:begin activity
     activity: {
         transactionsCount: "{{count}} transazioni",
@@ -1854,4 +1822,42 @@ export const it = {
         deleteAllFailed: "Impossibile eliminare la cronologia chat.",
     },
     // @i18n:end chat
+    // @i18n:begin prefs
+    prefs: {
+        profile: {
+            title: "Profilo",
+        },
+        accounts: {
+            title: "Conti",
+        },
+        aiScanning: {
+            title: "IA e scansione",
+            privacy: "Le foto degli scontrini vengono inviate a un modello di IA solo per leggerle, poi al tuo archivio privato. Non vengono mai condivise con altri utenti.",
+            saveImages: "Conserva le foto degli scontrini",
+            saveImagesHint: "Ti permette di ricontrollare uno scontrino. Disattivato: la foto viene scartata dopo il salvataggio.",
+            readItems: "Leggi le singole voci",
+            readItemsHint: "Disattivato: vengono salvati solo esercente, data e totale.",
+        },
+        data: {
+            title: "Dati",
+            clearCache: "Svuota la cache locale e riscarica",
+            exportCsv: "Esporta transazioni (CSV)",
+            exportHint: "Un foglio di calcolo con tutte le transazioni.",
+            exported: "Esportazione pronta",
+            removeSample: "Rimuovi dati di esempio ({{count}})",
+        },
+        about: {
+            title: "Informazioni",
+            name: "Where my money went? Monitora le spese, scansiona gli scontrini, scopri dove va il denaro.",
+            privacy: "Privacy",
+            terms: "Termini",
+        },
+        chatHistory: {
+            title: "Cronologia chat",
+            description: "Salvata nel tuo account, su questo dispositivo e nel cloud. Solo tu puoi leggerla.",
+            keep: "Conserva la cronologia chat",
+            keepHint: "Disattivato: le nuove chat durano finché non chiudi l’app e non viene salvato nulla di nuovo. La cronologia esistente resta finché non la elimini.",
+        },
+    },
+    // @i18n:end prefs
 };

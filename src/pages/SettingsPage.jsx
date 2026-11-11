@@ -26,6 +26,8 @@ import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
 import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
 import ToggleRow from '../components/common/ToggleRow';
+import DeleteAllChatSheet from '../components/insights/DeleteAllChatSheet';
+import { useKeepChatHistory } from '../services/chatPrefs';
 import MotionSettings from '../components/settings/MotionSettings';
 import AiBoundarySettings from '../components/settings/AiBoundarySettings';
 import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
@@ -58,6 +60,8 @@ export default function SettingsPage() {
     const { transactions: allTransactions } = useTransactions();
     const { accounts: allAccounts } = useAccounts();
     const [scanPrefs, setScanPrefsState] = useState(getScanPrefs);
+    const [keepChat, setKeepChat] = useKeepChatHistory();
+    const [deleteChatOpen, setDeleteChatOpen] = useState(false);
     const handleExportCsv = () => {
         downloadCsv(`transactions-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(allTransactions, allAccounts));
         showToast(t('prefs.data.exported'), 'success');
@@ -741,6 +745,15 @@ export default function SettingsPage() {
                     <ToggleRow label={t('prefs.aiScanning.readItems')} hint={t('prefs.aiScanning.readItemsHint')} checked={scanPrefs.readItems} onChange={(v) => setScanPrefsState(setScanPrefs({ readItems: v }))} />
                 </div>
                 <AiBoundarySettings prefs={scanPrefs} onChange={(patch) => setScanPrefsState(setScanPrefs(patch))} />
+                <div className="mb-3 border-t border-gray-100 pt-3 dark:border-gray-700" data-testid="chat-history-settings">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('prefs.chatHistory.title')}</h3>
+                    <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">{t('prefs.chatHistory.description')}</p>
+                    <ToggleRow label={t('prefs.chatHistory.keep')} hint={t('prefs.chatHistory.keepHint')} checked={keepChat} onChange={setKeepChat} testId="keep-chat-history" />
+                    <button type="button" onClick={() => setDeleteChatOpen(true)} className="min-h-[44px] rounded-xl px-1 text-sm font-semibold text-red-600 dark:text-red-400" data-testid="settings-delete-chat">
+                        {t('chat.deleteAll')}
+                    </button>
+                    <DeleteAllChatSheet open={deleteChatOpen} onClose={() => setDeleteChatOpen(false)} />
+                </div>
                 <details className="group">
                     <summary className="flex items-center justify-between min-h-[44px] cursor-pointer select-none text-sm font-medium text-gray-900 dark:text-white">
                         {t('settings.ocr.advanced')}

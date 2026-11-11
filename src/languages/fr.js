@@ -598,38 +598,6 @@ export const fr = {
         deleteBody: "Aucune transaction n’utilise ce compte.",
     },
     // @i18n:end accounts
-    // @i18n:begin prefs
-    prefs: {
-        profile: {
-            title: "Profil",
-        },
-        accounts: {
-            title: "Comptes",
-        },
-        aiScanning: {
-            title: "IA et scan",
-            privacy: "Les photos de reçus sont envoyées à un modèle d’IA uniquement pour être lues, puis à votre stockage privé. Elles ne sont jamais partagées avec d’autres utilisateurs.",
-            saveImages: "Conserver les photos de reçus",
-            saveImagesHint: "Permet de revérifier un reçu plus tard. Désactivé : la photo est supprimée après l’enregistrement.",
-            readItems: "Lire les articles",
-            readItemsHint: "Désactivé : seuls le commerçant, la date et le total sont enregistrés.",
-        },
-        data: {
-            title: "Données",
-            clearCache: "Vider le cache local et retélécharger",
-            exportCsv: "Exporter les transactions (CSV)",
-            exportHint: "Un tableur avec toutes les transactions.",
-            exported: "Export prêt",
-            removeSample: "Supprimer les données d’exemple ({{count}})",
-        },
-        about: {
-            title: "À propos",
-            name: "Where my money went ? Suivez vos dépenses, scannez vos reçus, voyez où va l’argent.",
-            privacy: "Confidentialité",
-            terms: "Conditions",
-        },
-    },
-    // @i18n:end prefs
     // @i18n:begin activity
     activity: {
         transactionsCount: "{{count}} transactions",
@@ -1741,4 +1709,42 @@ export const fr = {
         deleteAllFailed: "Impossible de supprimer l’historique des chats.",
     },
     // @i18n:end chat
+    // @i18n:begin prefs
+    prefs: {
+        profile: {
+            title: "Profil",
+        },
+        accounts: {
+            title: "Comptes",
+        },
+        aiScanning: {
+            title: "IA et scan",
+            privacy: "Les photos de reçus sont envoyées à un modèle d’IA uniquement pour être lues, puis à votre stockage privé. Elles ne sont jamais partagées avec d’autres utilisateurs.",
+            saveImages: "Conserver les photos de reçus",
+            saveImagesHint: "Permet de revérifier un reçu plus tard. Désactivé : la photo est supprimée après l’enregistrement.",
+            readItems: "Lire les articles",
+            readItemsHint: "Désactivé : seuls le commerçant, la date et le total sont enregistrés.",
+        },
+        data: {
+            title: "Données",
+            clearCache: "Vider le cache local et retélécharger",
+            exportCsv: "Exporter les transactions (CSV)",
+            exportHint: "Un tableur avec toutes les transactions.",
+            exported: "Export prêt",
+            removeSample: "Supprimer les données d’exemple ({{count}})",
+        },
+        about: {
+            title: "À propos",
+            name: "Where my money went ? Suivez vos dépenses, scannez vos reçus, voyez où va l’argent.",
+            privacy: "Confidentialité",
+            terms: "Conditions",
+        },
+        chatHistory: {
+            title: "Historique des chats",
+            description: "Enregistré dans votre compte, sur cet appareil et dans le cloud. Vous seul pouvez le lire.",
+            keep: "Conserver l’historique des chats",
+            keepHint: "Désactivé : les nouveaux chats ne durent que jusqu’à la fermeture de l’app et rien de nouveau n’est enregistré. L’historique existant reste jusqu’à sa suppression.",
+        },
+    },
+    // @i18n:end prefs
 };
