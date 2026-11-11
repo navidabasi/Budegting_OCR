@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, Copy, Edit3, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import GroupBadge from '../groups/GroupBadge';
 import { Chip, ChipRow, IconButton, Sheet } from '../ui';
 import Amount from '../ui/Amount';
 import ImageViewer from '../scan/ImageViewer';
@@ -15,7 +16,7 @@ import { previewBulkItemChange } from '../../utils/itemRules';
 import { normalizeItems } from '../../utils/receiptItems';
 import { useRecordSyncStates } from '../../data/syncHooks';
 import { resolveReceiptBackTarget } from '../../utils/helpers';
-import { useAccounts, useDeleteTransaction, useMarkTransactionDone, useReceiptImage, useTransactions, useUpdateTransaction } from '../../data/hooks';
+import { useGroupsData, useAccounts, useDeleteTransaction, useMarkTransactionDone, useReceiptImage, useTransactions, useUpdateTransaction } from '../../data/hooks';
 import { useCategories } from '../../hooks/useCategories';
 import { useAppStore } from '../../store/appStore';
 import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
@@ -58,6 +59,8 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete, embedded = 
     const deleteReceipt = useDeleteTransaction();
     const markDone = useMarkTransactionDone();
     const { accounts } = useAccounts();
+    const { groups } = useGroupsData();
+    const groupRow = receipt.groupId ? groups.find((g) => g.id === receipt.groupId) || null : null;
     const { transactions } = useTransactions();
     const categoryList = useCategories();
     const image = useReceiptImage(receipt);
@@ -215,7 +218,15 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete, embedded = 
 
                 <section className={`${card} px-4`}>
                     {account || toAccount ? <Kv label={t('scan.account')}>{type === 'transfer' ? [account?.name, toAccount?.name].filter(Boolean).join(' → ') : account?.name}</Kv> : null}
-                    <Kv label={t('quickAdd.group')}>{receipt.groupName || <span className="text-ink-faint">{t('receipts.form.noGroup')}</span>}</Kv>
+                    <Kv label={t('quickAdd.group')}>
+                        {receipt.groupId && (groupRow || receipt.groupName) ? (
+                            <Link to={groupRow?.kind === 'trip' ? `/trips/${receipt.groupId}` : `/groups/${receipt.groupId}`} className="inline-flex min-h-[44px] items-center font-medium text-forest-ink" data-testid="detail-group-link">
+                                <GroupBadge group={groupRow || { name: receipt.groupName }} />
+                            </Link>
+                        ) : (
+                            <span className="text-ink-faint">{t('receipts.form.noGroup')}</span>
+                        )}
+                    </Kv>
                     <Kv label={t('quickAdd.tags')}>{receipt.groupTags?.length ? receipt.groupTags.join(', ') : <span className="text-ink-faint">—</span>}</Kv>
                     {split ? <Kv label={t('receipts.split.title')}>{split}</Kv> : null}
                     {receipt.recurringData?.isActive ? <Kv label={t('detail.repeats')}>{t(`receipts.recurring.${receipt.recurringData.frequency}`)}</Kv> : null}

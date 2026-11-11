@@ -10,3 +10,4 @@ export { default as Segmented } from './Segmented';
 export { default as Sheet } from './Sheet';
 export { default as PeriodSwitcher } from './PeriodSwitcher';
 export { default as DateField, formatDateLabel } from './DateField';
+export { default as PageHeader } from './PageHeader';

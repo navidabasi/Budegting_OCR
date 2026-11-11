@@ -35,6 +35,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
 const ActivityPage = lazy(() => import('./pages/ActivityPage'));
 const GroupsPage = lazy(() => import('./pages/GroupsPage'));
+const GroupDetailPage = lazy(() => import('./pages/GroupDetailPage'));
 const ReceiptDetailPage = lazy(() => import('./pages/ReceiptDetailPage'));
 const InsightsPage = lazy(() => import('./pages/InsightsPage'));
 const PlanPage = lazy(() => import('./pages/PlanPage'));
@@ -652,6 +653,7 @@ function App() {
                     />
                     <Route path="/receipts" element={<RedirectKeepQuery to="/activity" />} />
                     <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
+                    <Route path="/groups/:id" element={<ProtectedRoute><GroupDetailPage /></ProtectedRoute>} />
                     <Route path="/welcome" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                     <Route path="/scan" element={<ProtectedRoute><ScanPage /></ProtectedRoute>} />
                     <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />

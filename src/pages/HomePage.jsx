@@ -12,6 +12,7 @@ import EmptyHome from '../components/home/EmptyHome';
 import DraftBanner from '../components/home/DraftBanner';
 import BreakdownLink from '../components/home/BreakdownLink';
 import SharedLink from '../components/home/SharedLink';
+import GroupsOverview from '../components/groups/GroupsOverview';
 import SyncChip from '../components/sync/SyncChip';
 import StartTripSheet from '../components/plan/StartTripSheet';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -35,7 +36,7 @@ export default function HomePage() {
     const { t, languageCode } = useTranslation();
     const p = usePeriod();
     const month = p.period;
-    const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
+    const { transactions, trips, groups, accounts, budgets, goals, currency, loading } = usePlanData();
     const { trip: activeTrip } = useActiveTrip();
     const [tripOpen, setTripOpen] = useState(false);
     const today = useMemo(() => new Date(), []);
@@ -86,6 +87,7 @@ export default function HomePage() {
                     <BreakdownLink month={periodSpecOf(month)} />
                     <SharedLink />
                     <UpcomingBills unpaid={unpaid} today={today} />
+                    <GroupsOverview groups={groups} transactions={transactions} period={month} currency={currency} limit={3} hideEmpty testId="home-groups" />
                     <Suspense fallback={<div className="h-48 rounded-[20px] bg-line" aria-hidden="true" />}>
                         <HomeCharts transactions={transactions} trips={trips} month={month} today={today} />
                     </Suspense>

@@ -5,6 +5,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import BudgetsTab from '../components/plan/BudgetsTab';
 import SavingsTab from '../components/plan/SavingsTab';
 import TripsTab from '../components/plan/TripsTab';
+import GroupsOverview from '../components/groups/GroupsOverview';
 import { usePeriod } from '../hooks/usePayCycle';
 import { usePlanData } from '../hooks/usePlanData';
 import { useTranslation } from '../languages/useTranslation';
@@ -18,7 +19,8 @@ export default function PlanPage() {
     const p = usePeriod();
     const month = p.period;
     const data = usePlanData();
-    const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'budgets';
+    const rawTab = params.get('tab') === 'groups' ? 'trips' : params.get('tab'); // ?tab=groups opens Groups & trips
+    const tab = TABS.includes(rawTab) ? rawTab : 'budgets';
     const setTab = useCallback(
         (value) =>
             setParams(
@@ -56,12 +58,18 @@ export default function PlanPage() {
         <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-center justify-between pt-4">
                 <h1 className="font-display text-[28px] font-bold tracking-tight text-ink">{t('plan.title')}</h1>
-                {tab !== 'trips' ? <PeriodSwitcher p={p} /> : null}
+                <PeriodSwitcher p={p} />
             </div>
             {TABS.length > 1 ? (
-                <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: t(`plan.tab.${v}`) }))} />
+                <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: v === 'trips' ? t('groups.tab') : t(`plan.tab.${v}`) }))} />
             ) : null}
-            {tab === 'trips' ? <TripsTab data={data} /> : null}
+            {tab === 'trips' ? (
+                <>
+                    <GroupsOverview groups={data.groups} transactions={data.transactions} period={month} currency={data.currency} limit={6} title={t('groups.planSection')} testId="plan-groups" />
+                    <h2 className="px-0.5 pt-2 font-display text-[17px] font-bold text-ink">{t('groups.sectionTrips')}</h2>
+                    <TripsTab data={data} />
+                </>
+            ) : null}
             {tab === 'savings' ? <SavingsTab month={month} data={data} goalPreset={goalPreset} onGoalSheetClosed={clearPreset} /> : null}
             {tab === 'budgets' ? <BudgetsTab month={month} data={data} sheetPreset={preset} onSheetClosed={clearPreset} /> : null}
         </main>
