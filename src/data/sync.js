@@ -25,6 +25,7 @@ const time = (v) => {
     return Number.isNaN(n) ? 0 : n;
 };
 const nowIso = () => new Date().toISOString();
+const newOpId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 // ---------------------------------------------------------------------------
 // Observable sync state (for UI status and tests)
@@ -65,15 +66,28 @@ const inflight = new Set(); // seqs currently being sent: never coalesced into
  *   op: 'insert' (payload = full record) | 'update' (payload = changed fields)
  *     | 'upsert' (payload = full record, single-row tables) | 'delete'
  * Consecutive writes to the same record are coalesced while still pending.
+ *
+ * Every entry has a stable operation id (`opId`) that survives retries and coalescing (the first write's id is kept).
+ * Server writes are idempotent by construction: inserts are upserts on the client-generated primary key, updates set
+ * absolute field values and deletes ignore missing rows, so re-sending an entry after an interrupted attempt never
+ * duplicates a record. `attempted` marks an entry that was handed to the network at least once: a later retry first
+ * looks at the server row so it cannot overwrite a newer edit made on another device.
  */
 export async function enqueue({ table, op, recordId, userId, payload = null, ts = nowIso() }) {
     const same = (await db.outbox.where('recordId').equals(recordId).toArray())
         .filter((e) => e.table === table && e.status === 'pending' && !inflight.has(e.seq))
         .sort((a, b) => a.seq - b.seq);
 
+    if (op === 'insert' && same.some((e) => e.op === 'insert')) {
+        // The same record saved twice (double tap, retry of a form): one queued insert with the latest content.
+        const first = same.find((e) => e.op === 'insert');
+        await db.outbox.update(first.seq, { payload, ts });
+        return first.seq;
+    }
+
     if (op === 'delete') {
-        // A record that never reached the server needs no delete at all.
-        const neverSent = same.some((e) => e.op === 'insert');
+        // A record that never reached the server needs no delete at all (an attempted insert may have landed: keep the delete).
+        const neverSent = same.some((e) => e.op === 'insert' && !e.attempted);
         if (same.length) await db.outbox.bulkDelete(same.map((e) => e.seq));
         if (neverSent) return null;
     } else if ((op === 'update' || op === 'upsert') && same.length) {
@@ -90,7 +104,20 @@ export async function enqueue({ table, op, recordId, userId, payload = null, ts 
             return last.seq;
         }
     }
-    return db.outbox.add({ table, op, recordId, userId, payload, ts, tries: 0, status: 'pending', lastError: null });
+    return db.outbox.add({ table, op, recordId, userId, payload, ts, opId: newOpId(), tries: 0, status: 'pending', lastError: null });
+}
+
+const IGNORED_KEYS = new Set(['updatedAt', 'createdAt']);
+const norm = (v) => (v === undefined || v === '' ? null : v);
+/** Every field the entry would write is already equal on the server row (numbers compared numerically). */
+export function sameContent(row, payload) {
+    return Object.keys(payload || {}).every((k) => {
+        if (IGNORED_KEYS.has(k) || !(k in row)) return true;
+        const a = norm(row[k]);
+        const b = norm(payload[k]);
+        if (typeof a === 'number' || typeof b === 'number') return Number(a) === Number(b) || (a === null && b === null);
+        return JSON.stringify(a) === JSON.stringify(b);
+    });
 }
 
 async function applyEntry(entry, ownWrites) {
@@ -103,6 +130,17 @@ async function applyEntry(entry, ownWrites) {
     }
 
     if (op === 'insert') {
+        if (entry.attempted || entry.tries > 0) {
+            // A previous attempt may have reached the server before the connection dropped. If the row is there already with
+            // the same content, the entry is done; if it was changed after this entry was queued (edit on another device)
+            // the server version is kept instead of being overwritten.
+            const serverRow = await api.fetchOne(table, recordId);
+            if (serverRow) {
+                if (sameContent(serverRow, payload)) return { result: 'done' };
+                if (time(serverRow.updatedAt) > time(ts)) return { result: 'conflict', reason: 'server-newer' };
+            }
+        }
+        await db.outbox.update(entry.seq, { attempted: true });
         const saved = await api.insert(table, payload);
         if (saved?.updatedAt) ownWrites.set(`${table}:${recordId}`, time(saved.updatedAt));
         return { result: 'done' };
@@ -143,6 +181,7 @@ async function runFlush(userId) {
             await db.outbox.delete(entry.seq);
             if (outcome.result === 'conflict') {
                 result.conflicts.push({ table: entry.table, id: entry.recordId, reason: outcome.reason });
+                await logConflict(entry.userId || userId, { table: entry.table, recordId: entry.recordId, reason: outcome.reason, op: entry.op, local: entry.payload, localTs: entry.ts });
             } else {
                 result.pushed++;
             }
@@ -213,6 +252,92 @@ export function requestFlush(userId = null) {
 }
 
 // ---------------------------------------------------------------------------
+// Conflict log: a local change that lost against a newer server row is kept (not silently dropped) so the user can
+// re-apply it ("Needs attention"). Stored in `meta` under conflicts:<userId>, newest first, at most 50.
+// ---------------------------------------------------------------------------
+const MAX_CONFLICTS = 50;
+
+async function logConflict(userId, entry) {
+    if (!userId) return;
+    try {
+        const list = (await getMeta(`conflicts:${userId}`, [])) || [];
+        list.unshift({ id: newOpId(), at: nowIso(), ...entry });
+        await setMeta(`conflicts:${userId}`, list.slice(0, MAX_CONFLICTS));
+    } catch {
+        /* logging must never break sync */
+    }
+}
+
+export async function listConflicts(userId) {
+    await openDb();
+    return (await getMeta(`conflicts:${userId}`, [])) || [];
+}
+
+/** Drop a conflict from the list (keep the server version) or re-apply the local change on top of it. */
+export async function resolveConflict(userId, conflictId, choice) {
+    await openDb();
+    const list = (await getMeta(`conflicts:${userId}`, [])) || [];
+    const item = list.find((c) => c.id === conflictId);
+    if (!item) return false;
+    if (choice === 'mine' && item.local && item.op !== 'delete') {
+        const { patchRecordForSync } = await import('./repo');
+        await patchRecordForSync(item.table, item.recordId, item.op === 'insert' ? item.local : item.local);
+    }
+    await setMeta(`conflicts:${userId}`, list.filter((c) => c.id !== conflictId));
+    notifyDataChanged();
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Needs attention: failed outbox entries
+// ---------------------------------------------------------------------------
+export async function listOutbox({ status } = {}) {
+    await openDb();
+    const rows = await db.outbox.orderBy('seq').toArray();
+    return status ? rows.filter((e) => e.status === status) : rows;
+}
+
+/** Put a failed entry back in the queue and flush. */
+export async function retryEntry(seq, userId = null) {
+    await db.outbox.update(seq, { status: 'pending', tries: 0, lastError: null });
+    await refreshOutboxCounts();
+    return flushOutbox(userId);
+}
+
+export async function retryAllFailed(userId = null) {
+    const failed = await db.outbox.where('status').equals('failed').primaryKeys();
+    for (const seq of failed) await db.outbox.update(seq, { status: 'pending', tries: 0, lastError: null });
+    await refreshOutboxCounts();
+    return flushOutbox(userId);
+}
+
+/**
+ * Discard a queued change that cannot be sent. A failed insert removes the local record (and its queued photo) so nothing
+ * is left that will never sync; other operations drop the change and restore the server version when it can be fetched.
+ */
+export async function discardEntry(seq) {
+    await openDb();
+    const entry = await db.outbox.get(seq);
+    if (!entry) return false;
+    await db.outbox.delete(seq);
+    if (entry.op === 'insert') {
+        await db[entry.table].delete(entry.recordId);
+        if (entry.table === 'transactions') await db.images.delete(entry.recordId);
+    } else if (api.isConfigured() && !isOffline() && STORES[entry.table] && !STORES[entry.table].singleton) {
+        try {
+            const row = await api.fetchOne(entry.table, entry.recordId);
+            if (row) await db[entry.table].put(row);
+            else if (entry.op === 'update') await db[entry.table].delete(entry.recordId);
+        } catch {
+            /* the next pull restores it */
+        }
+    }
+    await refreshOutboxCounts();
+    notifyDataChanged();
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // Pull
 // ---------------------------------------------------------------------------
 async function pendingByRecord(table) {
@@ -233,6 +358,7 @@ export async function pullTable(userId, table) {
     const rows = await api.fetchSince(table, userId, since);
     const out = { downloaded: 0, updated: 0, conflicts: [] };
     if (!rows.length) return out;
+    const lost = [];
 
     await db.transaction('rw', db[table], db.outbox, async () => {
         const pending = await pendingByRecord(table);
@@ -241,9 +367,15 @@ export async function pullTable(userId, table) {
             const entries = pending.get(key) || [];
             const newest = entries.reduce((m, e) => Math.max(m, time(e.ts)), 0);
             if (newest > time(row.updatedAt)) continue; // local change is newer: keep it, it will be flushed
+            // A delete made here is never undone by someone else's later edit: the delete is sent, nothing is resurrected.
+            if (entries.some((e) => e.op === 'delete')) {
+                out.conflicts.push({ table, id: key, reason: 'deleted-here' });
+                continue;
+            }
             if (entries.length) {
                 await db.outbox.bulkDelete(entries.map((e) => e.seq)); // server wins
                 out.conflicts.push({ table, id: key, reason: 'server-newer' });
+                lost.push(...entries.filter((e) => e.op !== 'insert').map((e) => ({ table, recordId: key, reason: 'server-newer', op: e.op, local: e.payload, localTs: e.ts })));
             }
             const existing = await db[table].get(key);
             await db[table].put(row);
@@ -252,6 +384,7 @@ export async function pullTable(userId, table) {
         }
     });
 
+    for (const l of lost) await logConflict(userId, l);
     const maxUpdated = rows.reduce((m, r) => (time(r.updatedAt) > time(m) ? r.updatedAt : m), since || rows[0].updatedAt);
     await setMeta(cursorKey, maxUpdated);
     return out;

@@ -7,6 +7,8 @@ import InsightCard from '../components/home/InsightCard';
 import BudgetStrip from '../components/home/BudgetStrip';
 import UpcomingBills from '../components/home/UpcomingBills';
 import EmptyHome from '../components/home/EmptyHome';
+import DraftBanner from '../components/home/DraftBanner';
+import SyncChip from '../components/sync/SyncChip';
 import StartTripSheet from '../components/plan/StartTripSheet';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
@@ -63,6 +65,9 @@ export default function HomePage() {
                 </div>
             </div>
             <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+
+            <SyncChip />
+            <DraftBanner />
 
             {activeTrip && tripStats ? <TripBanner trip={activeTrip} totals={tripStats} /> : null}
 

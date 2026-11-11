@@ -99,4 +99,49 @@ describe('QuickAddSheet', () => {
         expect(tx.total).toBe(400);
         await act(async () => root.unmount());
     });
+
+    it('keeps a draft after dismissal and offers "Resume draft"; saving clears it', async () => {
+        await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'en' });
+        useAppStore.setState({ languageCode: 'en' });
+        await createRow('accounts', 'u1', { name: 'Cash', kind: 'cash', currency: 'EUR', sortOrder: 0 });
+        const root = await mount(<QuickAddSheet open onClose={() => {}} preset={null} />);
+        await press('7', '5');
+        await act(async () => {
+            fireEvent.change(document.querySelector('#qa-merchant'), { target: { value: 'Lidl' } });
+        });
+        await act(async () => new Promise((r) => setTimeout(r, 600))); // debounce
+        expect(await db.drafts.count()).toBe(1);
+        await act(async () => root.unmount());
+
+        // app "restart": a fresh sheet starts empty but offers the draft
+        const root2 = await mount(<><QuickAddSheet open onClose={() => {}} preset={null} /><Toast /></>);
+        expect(document.querySelector('[data-testid="amount-display"]').textContent).toContain('0');
+        const banner = document.querySelector('[data-testid="draft-banner"]');
+        expect(banner.textContent).toContain('Lidl');
+        await act(async () => fireEvent.click([...banner.querySelectorAll('button')].find((b) => b.textContent === 'Resume draft')));
+        expect(document.querySelector('[data-testid="amount-display"]').textContent).toContain('75');
+        expect(document.querySelector('#qa-merchant').value).toBe('Lidl');
+
+        await press('Save');
+        await act(async () => new Promise((r) => setTimeout(r, 120)));
+        expect(await db.drafts.count()).toBe(0);
+        expect((await listTransactions('u1'))[0]).toMatchObject({ total: 75, merchant: 'Lidl' });
+        await act(async () => root2.unmount());
+    });
+
+    it('two taps on Save in the same frame create one transaction and one queued insert', async () => {
+        await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'en' });
+        useAppStore.setState({ languageCode: 'en' });
+        const root = await mount(<QuickAddSheet open onClose={() => {}} preset={null} />);
+        await press('9');
+        const save = [...document.querySelectorAll('[data-testid="keypad"] button')].find((x) => x.textContent === 'Save');
+        await act(async () => {
+            fireEvent.click(save);
+            fireEvent.click(save);
+        });
+        await act(async () => new Promise((r) => setTimeout(r, 150)));
+        expect(await listTransactions('u1')).toHaveLength(1);
+        expect((await db.outbox.toArray()).filter((e) => e.table === 'transactions' && e.op === 'insert')).toHaveLength(1);
+        await act(async () => root.unmount());
+    });
 });

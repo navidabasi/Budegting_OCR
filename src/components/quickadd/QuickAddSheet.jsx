@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, Camera, ChevronDown, Image as ImageIcon, X } from 'lucide-react';
 import { Chip, ChipRow, IconButton, Segmented, Sheet } from '../ui';
 import Keypad from './Keypad';
@@ -28,10 +28,14 @@ import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../ut
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
 import { categoryForMerchant, dateKey, getLastAccountId, rankCategories, recentMerchants, setLastAccountId } from '../../utils/quickAdd';
 import { queueImage, requestImageFlush } from '../../data/images';
+import { deleteDraft, isMeaningfulQuickAddDraft, saveDraft } from '../../data/drafts';
+import { useDraft } from '../../data/syncHooks';
+import { isStorageFullError } from '../../data/repo';
 import { useTripGroup } from '../../hooks/useTripGroup';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
+const newId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const emptyMore = () => ({ items: [], notes: '', groupId: null, groupName: null, tags: [], splitData: null, recurringData: null, planned: false, currency: 'EUR' });
 
 function initialState(preset, defaultCurrency) {
@@ -65,6 +69,13 @@ function initialState(preset, defaultCurrency) {
     };
 }
 
+/** One line describing a draft ("12,50 · Lidl") for the resume banner. */
+export function draftSummary(state, t, locale) {
+    const amount = evaluate(state.expr || '');
+    const bits = [amount > 0 ? formatMoney(amount, state.more?.currency || 'EUR', locale) : null, state.merchant?.trim() || null].filter(Boolean);
+    return bits.length ? t('draft.banner', { summary: bits.join(' · ') }) : t('draft.bannerEmpty');
+}
+
 /** Quick Add bottom sheet (docs/design/QuickAdd.dc.html). Amount first, everything else optional. */
 export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const { t, languageCode, localizeCategory } = useTranslation();
@@ -86,8 +97,16 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const [state, setState] = useState(() => initialState(preset, defaultCurrency));
     const [splitOpen, setSplitOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [draftImage, setDraftImage] = useState(null);
+    const savingRef = useRef(false); // synchronous guard: two taps in one frame must not save twice
+    const txIdRef = useRef(newId()); // one id per form, so a repeated save is the same record (idempotent)
+    const stateRef = useRef(state);
+    stateRef.current = state;
     const dateInputRef = useRef(null);
     const editing = preset?.transaction || null;
+    const userId = currentUser?.userId;
+    const savedDraft = useDraft('quickadd');
+    const image = preset?.image || draftImage;
 
     // Reset whenever the sheet opens
     useEffect(() => {
@@ -96,8 +115,45 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
         setState(next);
         setSplitOpen(false);
         setSaving(false);
+        setDraftImage(null);
+        savingRef.current = false;
+        txIdRef.current = newId();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, preset]);
+
+    // Drafts: the form is kept in IndexedDB while it is being filled, so dismissing the sheet, closing the app or an update never loses it
+    const resumeDraft = useCallback(() => {
+        const d = savedDraft?.data?.state;
+        if (!d) return;
+        setState({ ...initialState(null, defaultCurrency), ...d, showMore: false });
+        if (savedDraft.blob) setDraftImage(savedDraft.blob);
+        if (savedDraft.data.txId) txIdRef.current = savedDraft.data.txId;
+    }, [savedDraft, defaultCurrency]);
+    const flushDraft = useCallback(() => {
+        const s = stateRef.current;
+        if (!userId || editing || !isMeaningfulQuickAddDraft(s)) return;
+        saveDraft({ userId, kind: 'quickadd', data: { state: { ...s, showAllCategories: false }, txId: txIdRef.current }, blob: preset?.image || draftImage });
+    }, [userId, editing, preset, draftImage]);
+    useEffect(() => {
+        if (!open || editing || savingRef.current) return undefined;
+        const timer = setTimeout(flushDraft, 400);
+        return () => clearTimeout(timer);
+    }, [open, editing, state, flushDraft]);
+    const autoResumedRef = useRef(false);
+    useEffect(() => {
+        if (!open) {
+            autoResumedRef.current = false;
+            return;
+        }
+        if (preset?.resume && savedDraft && !autoResumedRef.current) {
+            autoResumedRef.current = true;
+            resumeDraft();
+        }
+    }, [open, preset, savedDraft, resumeDraft]);
+    const closeSheet = () => {
+        flushDraft();
+        onClose();
+    };
 
     // Default account = last used (persisted), else first account
     useEffect(() => {
@@ -157,7 +213,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const canSave = total > 0 && (!isTransfer || (state.accountId && state.toAccountId && state.accountId !== state.toAccountId));
 
     async function save() {
-        if (!canSave || saving || !currentUser) return;
+        if (!canSave || savingRef.current || !currentUser) return;
+        savingRef.current = true;
         setSaving(true);
         const more = state.more;
         const merchant = state.merchant.trim();
@@ -191,10 +248,12 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                 await updateTransaction(editing.id, record);
                 showToast(t('quickAdd.savedEdit'), 'success');
             } else {
-                const attach = preset?.image || null;
-                const newTxId = attach ? (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`) : undefined;
+                const attach = image || null;
+                const newTxId = txIdRef.current;
+                // The photo is stored on the device before the record, the record before "saved" is shown
                 const imagePath = attach ? await queueImage({ userId: currentUser.userId, transactionId: newTxId, blob: attach }) : undefined;
-                const id = await createTransaction({ ...record, userId: currentUser.userId, ...(attach ? { id: newTxId, imagePath } : {}) });
+                const id = await createTransaction({ ...record, userId: currentUser.userId, id: newTxId, ...(attach ? { imagePath } : {}) });
+                await deleteDraft(currentUser.userId, 'quickadd');
                 if (attach) requestImageFlush(currentUser.userId);
                 const money = formatMoney(total, more.currency, locale);
                 const message = isTransfer
@@ -214,7 +273,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             onClose();
         } catch (err) {
             console.error('[QuickAdd] save failed', err);
-            showToast(t('quickAdd.saveFailed'), 'error');
+            showToast(isStorageFullError(err) ? t('storage.full') : t('quickAdd.saveFailed'), 'error');
+            savingRef.current = false;
             setSaving(false);
         }
     }
@@ -246,10 +306,30 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
 
     return (
         <>
-        <Sheet open={open} onClose={onClose} label={editing ? t('quickAdd.editTitle') : t('quickAdd.title')} className="!max-h-[96dvh]">
+        <Sheet open={open} onClose={closeSheet} label={editing ? t('quickAdd.editTitle') : t('quickAdd.title')} className="!max-h-[96dvh]">
             <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onPanelKeyDown}>
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-2">
                     <div className="flex flex-col gap-3.5">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-[13px] font-semibold uppercase tracking-wider text-ink-muted">{editing ? t('quickAdd.editTitle') : t('quickAdd.title')}</span>
+                            <IconButton label={t('common.actions.close')} icon={X} onClick={closeSheet} data-testid="quickadd-close" />
+                        </div>
+                        {!editing && savedDraft?.data?.state && !isMeaningfulQuickAddDraft(state) ? (
+                            <div className="flex items-center gap-2 rounded-[14px] bg-mint px-3.5 py-2" data-testid="draft-banner">
+                                <span className="min-w-0 flex-1 truncate text-sm text-forest-ink">{draftSummary(savedDraft.data.state, t, locale)}</span>
+                                <button type="button" onClick={resumeDraft} className="h-11 shrink-0 rounded-[12px] px-3 text-sm font-semibold text-forest-ink">
+                                    {t('draft.resume')}
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label={t('draft.discard')}
+                                    onClick={() => deleteDraft(userId, 'quickadd').then(() => showToast(t('draft.discarded'), 'info'))}
+                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-ink-muted"
+                                >
+                                    <X size={16} aria-hidden="true" />
+                                </button>
+                            </div>
+                        ) : null}
                         <div className="flex items-center justify-between gap-3">
                             <Segmented options={typeOptions} value={state.type} onChange={(type) => set({ type, categoryTouched: type === 'expense' ? state.categoryTouched : false })} ariaLabel={t('quickAdd.type')} />
                             {!editing && onScan ? (
@@ -276,7 +356,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                             </p>
                         ) : null}
 
-                        {preset?.image ? <p className="rounded-[14px] bg-mint px-3.5 py-2 text-sm text-forest-ink">{t('quickAdd.photoAttached')}</p> : null}
+                        {image ? <p className="rounded-[14px] bg-mint px-3.5 py-2 text-sm text-forest-ink">{t('quickAdd.photoAttached')}</p> : null}
 
                         {isTransfer ? (
                             accounts.length >= 2 ? (

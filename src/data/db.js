@@ -50,6 +50,25 @@ db.version(1).stores({
     meta: 'key',
 });
 
+const uuid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+// Schema v2 (pass 2, offline capture): every outbox entry carries a stable operation id (`opId`, kept across retries and
+// merges) and `drafts` holds unsaved Quick Add / Scan work so it survives dismissal, app close and service-worker updates.
+// Drafts: { id: `${userId}:${kind}`, userId, kind: 'quickadd' | 'scan', data, blob?, updatedAt }
+db.version(2)
+    .stores({
+        outbox: '++seq, table, recordId, status, opId',
+        drafts: 'id, userId, kind, updatedAt',
+    })
+    .upgrade((tx) =>
+        tx
+            .table('outbox')
+            .toCollection()
+            .modify((entry) => {
+                if (!entry.opId) entry.opId = uuid();
+            })
+    );
+
 let openPromise = null;
 const health = {
     hasLocalCache: true,

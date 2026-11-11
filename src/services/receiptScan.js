@@ -156,7 +156,7 @@ export const initialScanState = { phase: 'idle', file: null, original: null, res
 
 /**
  * phases: idle -> preparing -> extracting -> review | error | queued
- * events: PICK(file) PREPARED(file) EXTRACTED(result) FAILED(kind) QUEUED RESCAN
+ * events: PICK(file) PREPARED(file) EXTRACTED(result) FAILED(kind) QUEUED RESCAN RESTORE(file, result?)
  */
 export function scanReducer(state, event) {
     switch (event.type) {
@@ -173,6 +173,8 @@ export function scanReducer(state, event) {
             return { ...state, phase: 'error', error: event.kind };
         case 'QUEUED':
             return { ...state, phase: 'queued', error: null };
+        case 'RESTORE': // a saved scan draft: back to review with its result, or to extraction when it never got that far
+            return event.result ? { ...initialScanState, phase: 'review', file: event.file, result: event.result } : { ...initialScanState, phase: 'extracting', file: event.file };
         case 'RETRY':
             return state.file ? { ...state, phase: 'extracting', error: null } : state;
         case 'RESCAN':

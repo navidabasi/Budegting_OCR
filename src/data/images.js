@@ -97,14 +97,14 @@ export function requestImageFlush(userId) {
  * Delete the stored image of a transaction (called when the transaction is deleted).
  * A not-yet-uploaded image is simply dropped from the queue.
  */
-export async function removeImage({ userId, transactionId, imagePath }) {
+export async function removeImage({ userId, transactionId, imagePath, neverUploaded = false }) {
     try {
         await openDb();
         const queued = await db.images.get(transactionId);
         if (queued) await db.images.delete(transactionId);
         const path = imagePath || (queued && queued.path);
         urlCache.delete(path);
-        if (!path || (queued && !imagePath)) return; // never reached the server
+        if (!path || (queued && !imagePath) || (queued && neverUploaded)) return; // never reached the server
         await db.images.put({ id: `del:${path}`, transactionId, userId, kind: 'delete', path, status: 'pending', tries: 0, lastError: null, createdAt: Date.now() });
         requestImageFlush(userId);
     } catch (err) {
@@ -143,6 +143,34 @@ export async function getImageUrl({ transactionId, imagePath }) {
     if (isOffline()) return { url: null, local: false, revoke: () => {} };
     const url = await getSignedUrl(imagePath);
     return { url, local: false, revoke: () => {} };
+}
+
+/** All rows of the image queue (uploads and deletes), for sync state and "Needs attention". */
+export async function listImageQueue() {
+    try {
+        await openDb();
+        return await db.images.toArray();
+    } catch {
+        return [];
+    }
+}
+
+/** Failed upload back to pending (and flush). */
+export async function retryImage(id, userId = null) {
+    await db.images.update(id, { status: 'pending', tries: 0, lastError: null });
+    return flushImages(userId);
+}
+
+/** Give up on a queued photo: the file is dropped from the queue and the transaction no longer points at it. */
+export async function discardImage(id) {
+    const row = await db.images.get(id);
+    if (!row) return false;
+    await db.images.delete(id);
+    if (row.kind === 'upload') {
+        const { updateTransaction } = await import('./repo');
+        await updateTransaction(row.transactionId, { imagePath: null }, { system: true }).catch(() => {});
+    }
+    return true;
 }
 
 export async function countQueuedImages() {

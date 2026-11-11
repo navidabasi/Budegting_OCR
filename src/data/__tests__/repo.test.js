@@ -11,6 +11,7 @@ vi.mock('../api', () => ({
     remove: vi.fn(),
     removeGroup: vi.fn(),
     fetchUpdatedAt: vi.fn(async () => '2000-01-01T00:00:00.000Z'),
+    fetchOne: vi.fn(async () => null),
     fetchSince: vi.fn(async () => []),
     fetchIds: vi.fn(async () => []),
 }));

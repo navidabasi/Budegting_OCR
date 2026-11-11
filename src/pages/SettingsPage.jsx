@@ -19,6 +19,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
 import AccountsManager from '../components/settings/AccountsManager';
 import ImportSheet from '../components/import/ImportSheet';
+import DataSafety from '../components/settings/DataSafety';
 import { buildCsv, downloadCsv } from '../utils/exportCsv';
 import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
@@ -849,6 +850,8 @@ export default function SettingsPage() {
                     )}
                 </div>
             </SettingsCard>
+
+            <DataSafety />
 
             <SettingsCard
                 icon={Tag}

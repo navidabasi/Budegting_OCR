@@ -22,6 +22,7 @@ import { normalizeCategoryName } from '../utils/categoryNames';
 import { merchantKey as computeMerchantKey } from '../utils/merchant';
 import { computeBase, needsBase } from '../utils/baseAmount';
 import { getRate } from '../services/exchangeRateService';
+import { markEdited } from '../utils/extractionMerge';
 
 const nowIso = () => new Date().toISOString();
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -69,7 +70,8 @@ async function insertRecord(table, record) {
     return record;
 }
 
-async function patchRecord(table, id, patch) {
+/** `derive(existing)` may return extra fields computed from the stored row inside the same local transaction. */
+async function patchRecord(table, id, patch, { derive } = {}) {
     const updates = { ...patch, updatedAt: nowIso() };
     if (!(await mirrorOk())) {
         await api.update(table, id, updates);
@@ -80,6 +82,7 @@ async function patchRecord(table, id, patch) {
     await db.transaction('rw', db[table], db.outbox, async () => {
         const existing = await db[table].get(id);
         if (!existing) throw new Error('Record not found');
+        Object.assign(updates, derive ? derive(existing) : null);
         merged = { ...existing, ...updates };
         userId = existing.userId;
         await db[table].put(merged);
@@ -152,16 +155,36 @@ export async function createTransaction(receipt) {
     return record.id;
 }
 
-export async function updateTransaction(id, updates) {
+/**
+ * Update a transaction. Edits made by the user are recorded per field (extraction.editedAt) so a later scan result
+ * cannot overwrite them; callers that apply a scan result or other system changes pass `{ system: true }`.
+ */
+export async function updateTransaction(id, updates, { system = false } = {}) {
     const patch = { ...updates };
     delete patch.id;
     delete patch.userId;
     if (patch.trackingData !== undefined) patch.trackingData = normalizeTrackingData(patch.trackingData);
     await withMerchantKey(id, patch);
     await withBaseAmount(id, patch);
-    await patchRecord('transactions', id, patch);
+    await patchRecord('transactions', id, patch, {
+        derive: system
+            ? undefined
+            : (existing) => {
+                  const extraction = markEdited(existing, patch);
+                  return extraction ? { extraction } : null;
+              },
+    });
     return id;
 }
+
+/** Re-apply a stored local change on top of the server version (conflict resolution "keep mine"). */
+export const patchRecordForSync = (table, id, patch) => {
+    const { id: _id, userId: _userId, updatedAt: _updatedAt, ...rest } = patch || {};
+    return patchRecord(table, id, rest);
+};
+
+/** True when a write failed because the device is out of storage (IndexedDB quota). */
+export const isStorageFullError = (err) => err?.name === 'QuotaExceededError' || /quota|storage.*full|disk.*full/i.test(String(err?.message || ''));
 
 // ---------------------------------------------------------------------------
 // Base-currency amounts (P4-T2): computed at write time, recomputed when total/currency change
@@ -273,10 +296,12 @@ export async function batchUpdateTransactions(changes) {
 
 export async function deleteTransaction(id) {
     const existing = await getTransaction(id);
+    // A record whose insert never left this device has no server photo either: cancelling it must leave nothing queued.
+    const neverSent = (await mirrorOk()) && (await db.outbox.where('recordId').equals(id).toArray()).some((e) => e.table === 'transactions' && e.op === 'insert' && e.status === 'pending' && !e.attempted);
     await deleteRecord('transactions', id);
     // The receipt photo goes with the transaction (queued when offline)
     if (existing?.imagePath || (await hasQueuedImage(id))) {
-        await removeImage({ userId: existing?.userId, transactionId: id, imagePath: existing?.imagePath || null });
+        await removeImage({ userId: existing?.userId, transactionId: id, imagePath: existing?.imagePath || null, neverUploaded: neverSent });
     }
 }
 

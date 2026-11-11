@@ -331,6 +331,14 @@ export async function fetchUpdatedAt(table, key) {
     return data?.updated_at || null;
 }
 
+/** One row by key (app format) or null. */
+export async function fetchOne(table, key) {
+    const t = TABLES[table];
+    const { data, error, status } = await client().from(t.remote).select('*').eq(t.conflict || 'id', key).maybeSingle();
+    if (error) throw toError(error, status);
+    return data ? t.fromRow(data) : null;
+}
+
 /** Insert (idempotent: upsert on primary key so a retried outbox entry never duplicates). */
 export async function insert(table, record) {
     const t = TABLES[table];

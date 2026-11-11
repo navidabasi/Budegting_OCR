@@ -19,7 +19,7 @@ const fieldBox = (check) =>
 /**
  * Scan review (docs/design/ScanReview.dc.html). Controlled by ScanPage: `form` + `onChange`.
  */
-export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving }) {
+export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving, matches = [], onAttach }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [viewer, setViewer] = useState(false);
     const [itemsOpen, setItemsOpen] = useState(false);
@@ -108,6 +108,22 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                         </span>
                     </div>
                 </div>
+
+                {matches.length > 0 ? (
+                    <div className="flex flex-col gap-2 rounded-[14px] bg-mint px-3.5 py-3" data-testid="attach-card">
+                        <p className="text-sm font-semibold text-forest-ink">{t('capture.attachTitle')}</p>
+                        {matches.slice(0, 2).map((m) => (
+                            <div key={m.transaction.id} className="flex items-center gap-2">
+                                <p className="min-w-0 flex-1 text-sm text-forest-ink">
+                                    {t('capture.attachBody', { merchant: m.transaction.merchant || '-', amount: formatMoney(Number(m.transaction.total), m.transaction.currency, locale), date: String(m.transaction.date).slice(0, 10) })}
+                                </p>
+                                <button type="button" disabled={saving} onClick={() => onAttach(m.transaction)} className="h-11 shrink-0 rounded-[12px] bg-forest px-3.5 text-sm font-semibold text-white disabled:opacity-50">
+                                    {t('capture.attach')}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
 
                 <div className="flex flex-col gap-2">
                     <span className={lbl}>{t('scan.categoryLabel')}</span>

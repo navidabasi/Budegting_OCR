@@ -10,10 +10,12 @@ import MonthStrip from '../components/activity/MonthStrip';
 import PickerSheet from '../components/activity/PickerSheet';
 import CategoriseSheet from '../components/activity/CategoriseSheet';
 import TransactionRow from '../components/activity/TransactionRow';
+import SyncChip from '../components/sync/SyncChip';
 import EmptyState from '../components/common/EmptyState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
 import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useGroupsData, useSettings, useTransactions } from '../data/hooks';
+import { useRecordSyncStates } from '../data/syncHooks';
 import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
 import { useCategoryChange } from '../hooks/useCategoryChange';
@@ -49,6 +51,7 @@ export default function ActivityPage() {
     const changeCategory = useCategoryChange();
     const deleteTransaction = useDeleteTransaction();
     const createTransaction = useCreateTransaction();
+    const syncStates = useRecordSyncStates(transactions);
     const { toReceiptDetail } = useReceiptNavigation();
     const { seedDemoData } = useDemoData();
 
@@ -193,6 +196,7 @@ export default function ActivityPage() {
             ) : null}
 
             <div className="px-5">
+                <SyncChip className="mb-1" />
                 <FilterBar filters={filters} onChange={setFilters} monthsWithData={monthsWithData} categoryNames={categoryNames} accounts={accounts} unpaidCount={counts.unpaid} uncategorisedCount={counts.uncategorised} />
                 {filters.groupId ? (
                     <div className="pb-2">
@@ -258,6 +262,7 @@ export default function ActivityPage() {
                                         tx={item.tx}
                                         accountName={accountById.get(item.tx.accountId)}
                                         toAccountName={accountById.get(item.tx.toAccountId)}
+                                        syncState={syncStates.get(item.tx.id)?.overall}
                                         onOpen={(tx) => toReceiptDetail(tx.id)}
                                         onDelete={handleDelete}
                                         onChangeCategory={setCategoryFor}

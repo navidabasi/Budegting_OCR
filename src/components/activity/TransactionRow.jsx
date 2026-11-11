@@ -3,6 +3,7 @@ import { Camera, Tag, Trash2 } from 'lucide-react';
 import Amount from '../ui/Amount';
 import { categoryVisual } from '../../utils/categoryVisual.jsx';
 import { isUncategorised, isUnpaid } from '../../utils/activityFilters';
+import RecordSyncBadge from '../sync/RecordSyncBadge';
 import { useTranslation } from '../../languages/useTranslation';
 
 const ACTION_W = 88; // px revealed by a swipe
@@ -13,7 +14,7 @@ const START = 10; // px before a gesture counts as a swipe
  * One transaction. Swipe left = delete (with undo), swipe right = change category (pointer events).
  * Both actions also exist as real buttons behind the row; they are focusable and slide the row open on focus.
  */
-function TransactionRow({ tx, accountName, toAccountName, onOpen, onDelete, onChangeCategory }) {
+function TransactionRow({ tx, accountName, toAccountName, syncState, onOpen, onDelete, onChangeCategory }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [offset, setOffset] = useState(0);
     const [dragging, setDragging] = useState(false);
@@ -122,6 +123,7 @@ function TransactionRow({ tx, accountName, toAccountName, onOpen, onDelete, onCh
                         <span className={`flex items-center gap-1 truncate text-xs ${warn ? 'text-warn-ink' : 'text-ink-muted'}`}>
                             <span className="truncate">{subtitle}</span>
                             {tx.imagePath ? <Camera size={12} className="shrink-0 text-ink-faint" aria-label={t('activity.hasPhoto')} /> : null}
+                            {syncState ? <RecordSyncBadge state={syncState} compact /> : null}
                         </span>
                     </span>
                     <Amount

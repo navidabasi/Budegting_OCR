@@ -5,6 +5,9 @@ import { Chip, ChipRow, IconButton, Sheet } from '../ui';
 import Amount from '../ui/Amount';
 import LeaderRow from '../ui/LeaderRow';
 import ImageViewer from '../scan/ImageViewer';
+import RecordSyncBadge from '../sync/RecordSyncBadge';
+import { PendingTotalCard, SuggestedTotalCard } from './CaptureNotices';
+import { useRecordSyncStates } from '../../data/syncHooks';
 import { resolveReceiptBackTarget } from '../../utils/helpers';
 import { useAccounts, useDeleteTransaction, useMarkTransactionDone, useReceiptImage, useTransactions, useUpdateTransaction } from '../../data/hooks';
 import { useCategories } from '../../hooks/useCategories';
@@ -32,6 +35,11 @@ function Kv({ label, children, last }) {
     );
 }
 
+const withoutSuggestion = (receipt, field) => {
+    const { [field]: _dropped, ...rest } = receipt.extraction?.suggested || {};
+    return { ...receipt.extraction, suggested: rest };
+};
+
 /** Transaction detail (docs/design/Detail.dc.html). */
 export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const { t, languageCode, localizeCategory } = useTranslation();
@@ -47,6 +55,8 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const { transactions } = useTransactions();
     const categoryList = useCategories();
     const image = useReceiptImage(receipt);
+    const syncStates = useRecordSyncStates(useMemo(() => [receipt], [receipt]));
+    const sync = syncStates.get(receipt.id);
     const [viewer, setViewer] = useState(false);
     const [menu, setMenu] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -145,7 +155,12 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             </div>
 
             <div className="flex flex-1 flex-col gap-3 px-5 pb-4">
-                {receipt.extraction?.pending ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('detail.pendingRead')}</p> : null}
+                {receipt.extraction?.pending ? <PendingTotalCard receipt={receipt} onSave={(total) => updateReceipt(receipt.id, { total }).then(() => onUpdate?.())} /> : null}
+                <SuggestedTotalCard
+                    receipt={receipt}
+                    onUse={(total) => updateReceipt(receipt.id, { total, extraction: withoutSuggestion(receipt, 'total') }).then(() => onUpdate?.())}
+                    onKeep={() => updateReceipt(receipt.id, { extraction: withoutSuggestion(receipt, 'total') }, { system: true }).then(() => onUpdate?.())}
+                />
                 {receipt.extraction?.failed ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('detail.readFailed')}</p> : null}
 
                 {type === 'expense' ? (
@@ -187,6 +202,23 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     <Kv label={t('quickAdd.tags')}>{receipt.groupTags?.length ? receipt.groupTags.join(', ') : <span className="text-ink-faint">—</span>}</Kv>
                     {split ? <Kv label={t('receipts.split.title')}>{split}</Kv> : null}
                     {receipt.recurringData?.isActive ? <Kv label={t('detail.repeats')}>{t(`receipts.recurring.${receipt.recurringData.frequency}`)}</Kv> : null}
+                    {sync ? (
+                        <Kv label={t('sync.label')}>
+                            <span className="flex flex-col gap-1" data-testid="detail-sync">
+                                <RecordSyncBadge state={sync.record} />
+                                {sync.image ? (
+                                    <span className="flex items-center gap-2 text-xs text-ink-muted">
+                                        {t('sync.part.image')}: <RecordSyncBadge state={sync.image} />
+                                    </span>
+                                ) : null}
+                                {sync.analysis ? (
+                                    <span className="flex items-center gap-2 text-xs text-ink-muted">
+                                        {t('sync.part.analysis')}: <RecordSyncBadge state={sync.analysis} />
+                                    </span>
+                                ) : null}
+                            </span>
+                        </Kv>
+                    ) : null}
                     {status ? <Kv label={t('detail.status')}>{status === 'open' ? t('activity.unpaid') : t('detail.paid')}</Kv> : null}
                     <Kv label={t('quickAdd.notes')} last>
                         {receipt.notes ? receipt.notes : (

@@ -12,6 +12,7 @@ import { useAppStore } from './store/appStore';
 import { authService } from './services/authService';
 import { checkStorageHealth, useSaveSettings, useSettings, useSyncStatus, useTransactions } from './data/hooks';
 import { startSync, syncNow } from './data/sync';
+import { requestPersistentStorage } from './data/storage';
 import { processPendingScans } from './services/pendingScans';
 import { buildHints } from './services/receiptScan';
 import { useAccounts } from './data/hooks';
@@ -290,6 +291,8 @@ function App() {
     // Sync lifecycle: startup, online/focus/visibility, and periodic sync every 5 minutes
     useEffect(() => {
         if (!currentUser?.userId) return;
+        // Ask the browser not to evict the local database (best effort, no prompt on most browsers)
+        requestPersistentStorage();
         return startSync(currentUser.userId);
     }, [currentUser?.userId]);
 

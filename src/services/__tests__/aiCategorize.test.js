@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../data/api', () => ({
     isConfigured: vi.fn(() => false), isMissingTableError: vi.fn(() => false), isTransientError: vi.fn(() => true),
-    insert: vi.fn(), update: vi.fn(), upsert: vi.fn(), remove: vi.fn(), removeGroup: vi.fn(), fetchUpdatedAt: vi.fn(), fetchSince: vi.fn(async () => []), fetchIds: vi.fn(async () => []),
+    insert: vi.fn(), update: vi.fn(), upsert: vi.fn(), remove: vi.fn(), removeGroup: vi.fn(), fetchUpdatedAt: vi.fn(), fetchOne: vi.fn(async () => null), fetchSince: vi.fn(async () => []), fetchIds: vi.fn(async () => []),
 }));
 vi.mock('../../data/queryClient', () => ({ notifyDataChanged: vi.fn(), queryClient: {} }));
 

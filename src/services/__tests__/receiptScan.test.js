@@ -99,3 +99,13 @@ describe('scan state machine', () => {
         expect(scanReducer(initialScanState, { type: 'FAILED', kind: 'server' })).toBe(initialScanState);
     });
 });
+
+describe('scan draft restore', () => {
+    it('RESTORE goes back to review with the saved result, or to extraction when the photo never got that far', async () => {
+        const { scanReducer, initialScanState } = await import('../receiptScan');
+        const file = new Blob(['x']);
+        const result = { receipt: { merchant: 'Lidl' }, extraction: {} };
+        expect(scanReducer(initialScanState, { type: 'RESTORE', file, result })).toMatchObject({ phase: 'review', file, result });
+        expect(scanReducer(initialScanState, { type: 'RESTORE', file })).toMatchObject({ phase: 'extracting', file, result: null });
+    });
+});
