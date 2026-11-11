@@ -18,11 +18,12 @@ import Button from '../components/common/Button';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SettingsCard from '../components/common/SettingsCard';
 import AccountsManager from '../components/settings/AccountsManager';
+import ImportSheet from '../components/import/ImportSheet';
 import { buildCsv, downloadCsv } from '../utils/exportCsv';
 import { recalculateBaseAmounts } from '../data/repo';
 import { notifyDataChanged } from '../data/queryClient';
 import { getScanPrefs, setScanPrefs } from '../utils/scanPrefs';
-import { LogOut, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
+import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
 import { useTranslation } from '../languages/useTranslation';
 import {
@@ -98,6 +99,7 @@ export default function SettingsPage() {
     const createCategory = useCreateCategory();
     const updateCategory = useUpdateCategory();
     const deleteCategory = useDeleteCategory();
+    const [importOpen, setImportOpen] = useState(false);
     const { demoCount: demoReceiptCount, seedDemoData, clearDemoData } = useDemoData();
     const { syncNow, clearAndResync } = useSyncActions();
 
@@ -782,6 +784,7 @@ export default function SettingsPage() {
                 </details>
             </SettingsCard>
 
+            <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
             <SettingsCard
                 icon={Cloud}
                 title={t('prefs.data.title')}
@@ -824,6 +827,11 @@ export default function SettingsPage() {
                     )}
                 </div>
                 <div className="mt-4 space-y-3 border-t border-gray-100 pt-4 dark:border-gray-700">
+                    <Button variant="secondary" onClick={() => setImportOpen(true)} className="w-full flex items-center justify-center gap-2">
+                        <Upload size={18} />
+                        {t('csvImport.settingsButton')}
+                    </Button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('csvImport.settingsHint')}</p>
                     <Button variant="secondary" onClick={handleExportCsv} className="w-full flex items-center justify-center gap-2">
                         <Download size={18} />
                         {t('prefs.data.exportCsv')}

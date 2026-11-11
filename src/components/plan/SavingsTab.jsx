@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, Upload } from 'lucide-react';
 import { Amount, Card, Sheet } from '../ui';
 import GoalRing from './GoalRing';
 import GoalSheet from './GoalSheet';
+import ImportSheet from '../import/ImportSheet';
 import { useAppStore } from '../../store/appStore';
 import { useRowMutations } from '../../data/hooks';
 import { useTranslation } from '../../languages/useTranslation';
@@ -28,6 +29,7 @@ export default function SavingsTab({ month, data, goalPreset, onGoalSheetClosed 
     const goalRows = useRowMutations('goals');
     const [goalSheet, setGoalSheet] = useState(null); // { goal } (goal null = new)
     const [targetOpen, setTargetOpen] = useState(false);
+    const [importFor, setImportFor] = useState(null);
     const [targetText, setTargetText] = useState('');
 
     const overview = useMemo(() => savingsOverview(transactions, month, { trips, accounts }), [transactions, month, trips, accounts]);
@@ -156,13 +158,18 @@ export default function SavingsTab({ month, data, goalPreset, onGoalSheetClosed 
                                 const shown = displayBalance(b);
                                 const sub = b.kind === 'debt' ? (account?.counterparty ? t('savings.owedTo', { name: account.counterparty }) : t(`accounts.kind.${b.kind}`)) : b.kind === 'receivable' ? (account?.counterparty ? t('savings.owedToYouBy', { name: account.counterparty }) : t('savings.owedToYou')) : t(`accounts.kind.${b.kind}`);
                                 return (
-                                    <li key={b.id} className="border-b border-line last:border-0">
-                                        <Link to={`/activity?acct=${b.id}&m=all`} className="flex min-h-[56px] items-center gap-3 py-2">
+                                    <li key={b.id} className="flex items-center border-b border-line last:border-0">
+                                        <Link to={`/activity?acct=${b.id}&m=all`} className="flex min-h-[56px] min-w-0 flex-1 items-center gap-3 py-2">
                                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: account?.color || DOT[b.kind] || '#9AA6A0' }} aria-hidden="true" />
                                             <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-ink">{b.name}</span>
                                             <span className="shrink-0 text-xs text-ink-muted">{sub}</span>
                                             <Amount value={shown} tone={b.kind === 'debt' ? 'over' : b.kind === 'receivable' ? 'income' : 'default'} className="shrink-0 text-[15px]" />
                                         </Link>
+                                        {b.kind === 'spending' || b.kind === 'cash' ? (
+                                            <button type="button" aria-label={t('csvImport.importInto', { name: b.name })} onClick={() => setImportFor(b.id)} className="-me-2 ms-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted">
+                                                <Upload size={16} aria-hidden="true" />
+                                            </button>
+                                        ) : null}
                                     </li>
                                 );
                             })}
@@ -178,6 +185,7 @@ export default function SavingsTab({ month, data, goalPreset, onGoalSheetClosed 
             ) : null}
             {hasLiabilities ? <p className="px-1 text-xs text-ink-muted">{t('savings.netWorthHint')}</p> : null}
 
+            <ImportSheet open={!!importFor} onClose={() => setImportFor(null)} accountId={importFor} />
             <GoalSheet
                 open={goalSheetOpen}
                 onClose={closeGoalSheet}
