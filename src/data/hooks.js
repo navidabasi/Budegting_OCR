@@ -6,7 +6,7 @@
  * which replaces the old window `refresh*` custom events. Sync (sync.js) invalidates after pulls.
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { useAppStore } from '../store/appStore';
 import * as repo from './repo';
 import { clearAndResync, getSyncState, subscribeSync, syncNow } from './sync';
@@ -302,4 +302,95 @@ export function useReceiptImage(transaction) {
         };
     }, [id, path]);
     return state;
+}
+
+// ---------------------------------------------------------------------------
+// Assistant chat history (v15). Reads are keyset-paged from the mirror: 20 conversations / 30 messages at a time.
+// ---------------------------------------------------------------------------
+
+/** Conversations (not deleted), newest first, `pageSize` at a time. */
+export function useConversations({ pageSize = repo.CONVERSATION_PAGE } = {}) {
+    const userId = useUserId();
+    const query = useInfiniteQuery({
+        queryKey: ['data', 'chatConversations', userId, 'list', pageSize],
+        queryFn: ({ pageParam }) => repo.listConversationsPage(userId, { limit: pageSize, after: pageParam }),
+        initialPageParam: null,
+        getNextPageParam: (last) => last.next || undefined,
+        enabled: !!userId,
+    });
+    const conversations = useMemo(() => {
+        const seen = new Set();
+        return (query.data?.pages || []).flatMap((p) => p.items).filter((c) => (seen.has(c.id) ? false : seen.add(c.id)));
+    }, [query.data]);
+    return {
+        conversations: conversations.length ? conversations : EMPTY,
+        loading: query.isLoading,
+        hasMore: !!query.hasNextPage,
+        loadingMore: query.isFetchingNextPage,
+        loadMore: () => (query.hasNextPage && !query.isFetchingNextPage ? query.fetchNextPage() : undefined),
+    };
+}
+
+/**
+ * Messages of a conversation in order. Opens on the newest page; loadOlder() moves the anchor back one page. New messages
+ * are part of the same read (everything from the anchor to the newest), so appending never reloads older pages.
+ */
+export function useConversationMessages(conversationId, { pageSize = repo.MESSAGE_PAGE } = {}) {
+    const userId = useUserId();
+    const [anchorState, setAnchorState] = useState({ id: null, anchor: null });
+    const anchor = anchorState.id === conversationId ? anchorState.anchor : null;
+    const query = useQuery({
+        queryKey: ['data', 'chatMessages', userId, conversationId, anchor ? `${anchor.createdAt}|${anchor.id}` : 'newest', pageSize],
+        queryFn: () => (anchor ? repo.listMessagesFrom(conversationId, anchor) : repo.listMessagesPage(conversationId, { limit: pageSize })),
+        enabled: !!userId && !!conversationId,
+        placeholderData: (prev, prevQuery) => (prevQuery?.queryKey?.[3] === conversationId ? prev : undefined), // keep the list while the window grows
+    });
+    const messages = conversationId && query.data ? query.data.items : EMPTY;
+    // pin the window to its first message once loaded, so a growing thread never slides the oldest one out of view
+    useEffect(() => {
+        if (!conversationId || anchorState.id === conversationId || !query.data || query.isPlaceholderData) return;
+        const first = query.data.items[0];
+        setAnchorState({ id: conversationId, anchor: first ? { createdAt: first.createdAt, id: first.id } : null });
+    }, [conversationId, anchorState.id, query.data, query.isPlaceholderData]);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const loadOlder = useCallback(async () => {
+        const first = messages[0];
+        if (!first || !query.data?.hasOlder || loadingOlder) return;
+        setLoadingOlder(true);
+        try {
+            const page = await repo.listMessagesPage(conversationId, { limit: pageSize, before: { createdAt: first.createdAt, id: first.id } });
+            const oldest = page.items[0];
+            if (oldest) setAnchorState({ id: conversationId, anchor: { createdAt: oldest.createdAt, id: oldest.id } });
+        } finally {
+            setLoadingOlder(false);
+        }
+    }, [messages, query.data, loadingOlder, conversationId, pageSize]);
+    return {
+        messages: conversationId ? messages : EMPTY,
+        loading: !!conversationId && query.isLoading,
+        hasOlder: !!conversationId && !!query.data?.hasOlder,
+        loadingOlder,
+        loadOlder,
+    };
+}
+
+export function useChatActions() {
+    const userId = useUserId();
+    const create = useDataMutation(repo.createConversation);
+    const append = useDataMutation(repo.appendMessage);
+    const rename = useDataMutation(repo.renameConversation);
+    const remove = useDataMutation(repo.deleteConversation);
+    const restore = useDataMutation(repo.restoreConversation);
+    const removeAll = useDataMutation(repo.deleteAllConversations);
+    return useMemo(
+        () => ({
+            createConversation: (data) => create(userId, data),
+            appendMessage: (data) => append(userId, data),
+            renameConversation: rename,
+            deleteConversation: remove,
+            restoreConversation: restore,
+            deleteAllConversations: () => removeAll(userId),
+        }),
+        [userId, create, append, rename, remove, restore, removeAll]
+    );
 }

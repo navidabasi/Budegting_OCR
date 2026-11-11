@@ -37,6 +37,11 @@ budgets, goals, rules, images), made bugs hard to reason about, and made first l
 * If IndexedDB itself is unavailable (private browsing, blocked storage) the repository talks to Supabase
   directly so the app still works online, and the "cache unavailable" banner is shown.
 
+* **Chat history (v15).** `chatConversations` / `chatMessages` are `paged` tables: pulled in keyset pages of 50 ordered by
+  `(updated_at, id)` with a resumable cursor in `meta` (`pcursor:<user>:<table>`), never reconciled by id list (deletes are soft,
+  `deleted_at`), and left out of backup files. UI reads are keyset-paged from Dexie indexes (`[userId+updatedAt]`,
+  `[conversationId+createdAt]`).
+
 ## Module layout (`src/data/`)
 
 | File | Responsibility |

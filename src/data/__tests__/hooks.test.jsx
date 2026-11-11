@@ -19,6 +19,8 @@ vi.mock('../api', () => ({
     fetchOne: vi.fn(async () => null),
     fetchSince: vi.fn(async () => []),
     fetchIds: vi.fn(async () => []),
+    fetchPage: vi.fn(async () => ({ rows: [], next: null })),
+    PULL_PAGE: 50,
 }));
 
 import { db, openDb } from '../db';

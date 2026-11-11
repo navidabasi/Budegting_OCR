@@ -175,6 +175,28 @@ const RULE_FIELDS = [
     F('updatedAt', 'updated_at'),
 ];
 
+// v15 chat history (supabase/migrations/20261111_v15_chat_history.sql). Deletes are soft: deletedAt.
+const CHAT_CONVERSATION_FIELDS = [
+    F('id', 'id'),
+    F('userId', 'user_id'),
+    F('title', 'title', { default: null }),
+    F('createdAt', 'created_at'),
+    F('updatedAt', 'updated_at'),
+    F('deletedAt', 'deleted_at', { default: null }),
+];
+
+const CHAT_MESSAGE_FIELDS = [
+    F('id', 'id'),
+    F('userId', 'user_id'),
+    F('conversationId', 'conversation_id'),
+    F('role', 'role'),
+    F('content', 'content', { default: '' }),
+    F('meta', 'meta', { default: null }), // jsonb: evidence, action, proposals, state
+    F('createdAt', 'created_at'),
+    F('updatedAt', 'updated_at'),
+    F('deletedAt', 'deleted_at', { default: null }),
+];
+
 const isEmpty = (v) => v === undefined || v === null || v === '';
 
 export function makeMapper(fields) {
@@ -236,6 +258,8 @@ export const TABLES = {
     budgets: { remote: 'budgets', ...makeMapper(BUDGET_FIELDS), key: 'id' },
     goals: { remote: 'savings_goals', ...makeMapper(GOAL_FIELDS), key: 'id' },
     rules: { remote: 'merchant_rules', ...makeMapper(RULE_FIELDS), key: 'id' },
+    chatConversations: { remote: 'chat_conversations', ...makeMapper(CHAT_CONVERSATION_FIELDS), key: 'id' },
+    chatMessages: { remote: 'chat_messages', ...makeMapper(CHAT_MESSAGE_FIELDS), key: 'id' },
 };
 
 // Convenience exports (used by tests and for readability)
@@ -302,6 +326,28 @@ export async function fetchSince(table, userId, sinceIso) {
         if (data.length < PAGE) break;
     }
     return rows.map((r) => t.fromRow(r));
+}
+
+export const PULL_PAGE = 50;
+
+/**
+ * One keyset page of rows changed after `after` ({ updatedAt, id }, exclusive; null = from the start), ordered by
+ * (updated_at, id). Unlike offset paging, rows inserted or changed while paging are never duplicated or skipped: the next
+ * page starts strictly after the last row seen. The cursor keeps the server's own timestamp string (microseconds).
+ * -> { rows, next } where `next` is the cursor to continue from, or null when this was the last page.
+ */
+export async function fetchPage(table, userId, after = null, limit = PULL_PAGE) {
+    const t = TABLES[table];
+    let q = client().from(t.remote).select('*').eq('user_id', userId);
+    if (after?.updatedAt) {
+        const u = `"${after.updatedAt}"`;
+        q = q.or(`updated_at.gt.${u},and(updated_at.eq.${u},id.gt.${after.id})`);
+    }
+    const { data, error, status } = await q.order('updated_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
+    if (error) throw toError(error, status);
+    const rows = (data || []).map((r) => t.fromRow(r));
+    const last = rows[rows.length - 1];
+    return { rows, next: rows.length >= limit && last ? { updatedAt: last.updatedAt, id: last.id } : null };
 }
 
 /** All ids of the user's rows, used to detect rows deleted on another device. */

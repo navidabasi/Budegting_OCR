@@ -14,6 +14,8 @@ vi.mock('../../data/api', () => ({
     fetchOne: vi.fn(async () => null),
     fetchSince: vi.fn(async () => []),
     fetchIds: vi.fn(async () => []),
+    fetchPage: vi.fn(async () => ({ rows: [], next: null })),
+    PULL_PAGE: 50,
 }));
 vi.mock('../../data/queryClient', () => ({ notifyDataChanged: vi.fn(), queryClient: {} }));
 

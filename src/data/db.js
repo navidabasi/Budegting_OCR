@@ -27,6 +27,10 @@ export const STORES = {
     budgets: { pk: 'id', optional: 'keep' },
     goals: { pk: 'id', optional: 'keep' }, // Supabase table: savings_goals
     rules: { pk: 'id', optional: 'keep' }, // Supabase table: merchant_rules
+    // v15 assistant chat history. `paged`: pulled in keyset pages (resumable cursor in `meta`), never reconciled by id list
+    // (deletes are soft: `deletedAt`), left out of backups. Conversations come before messages (foreign key).
+    chatConversations: { pk: 'id', optional: 'keep', paged: true }, // Supabase table: chat_conversations
+    chatMessages: { pk: 'id', optional: 'keep', paged: true }, // Supabase table: chat_messages
 };
 
 export const SYNC_ORDER = Object.keys(STORES);
@@ -68,6 +72,13 @@ db.version(2)
                 if (!entry.opId) entry.opId = uuid();
             })
     );
+
+// Schema v3 (pass 2, assistant chat history). Indexes serve the paged reads: conversations newest first per user, messages
+// in order per conversation (equal keys fall back to the primary key, which makes the keyset cursor (createdAt, id) stable).
+db.version(3).stores({
+    chatConversations: 'id, userId, [userId+updatedAt]',
+    chatMessages: 'id, userId, conversationId, [conversationId+createdAt], [userId+updatedAt]',
+});
 
 let openPromise = null;
 const health = {
@@ -124,6 +135,8 @@ export async function clearUserMirror(userId) {
         }
         const cursorKeys = await db.meta.where('key').startsWith(`cursor:${userId}:`).primaryKeys();
         await db.meta.bulkDelete(cursorKeys);
+        const pagedKeys = await db.meta.where('key').startsWith(`pcursor:${userId}:`).primaryKeys();
+        await db.meta.bulkDelete(pagedKeys);
         await db.meta.delete(`lastReconcile:${userId}`);
     });
 }

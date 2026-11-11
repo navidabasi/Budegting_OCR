@@ -131,3 +131,24 @@ describe('plan-phase table mappers', () => {
         expect(mappers.goals.fromRow(goal).targetAmount).toBe(3000);
     });
 });
+
+describe('chat mappers (v15)', () => {
+    const conv = { id: 'c1', user_id: 'u1', title: 'What drove groceries?', created_at: '2026-11-11T10:00:00+00:00', updated_at: '2026-11-11T10:05:00+00:00', deleted_at: null };
+    const msg = {
+        id: 'm1', user_id: 'u1', conversation_id: 'c1', role: 'assistant', content: 'Groceries were 100.00',
+        meta: { ev: { citations: ['F2'], pack: { period: { start: '2026-11-01', end: '2026-11-30' } } }, action: { type: 'open_filter', payload: { month: 'all' } } },
+        created_at: '2026-11-11T10:00:01+00:00', updated_at: '2026-11-11T10:00:01+00:00', deleted_at: '2026-11-12T08:00:00+00:00',
+    };
+    it('round-trips conversations and messages (meta stays jsonb)', async () => {
+        const { mappers: m } = await import('../api');
+        expect(m.chatConversations.toRow(m.chatConversations.fromRow(conv))).toEqual(conv);
+        const rec = m.chatMessages.fromRow(msg);
+        expect(rec).toMatchObject({ conversationId: 'c1', userId: 'u1', deletedAt: msg.deleted_at, meta: msg.meta });
+        expect(m.chatMessages.toRow(rec)).toEqual(msg);
+    });
+    it('partial updates send only the given fields (soft delete / restore)', async () => {
+        const { mappers: m } = await import('../api');
+        expect(m.chatMessages.toRow({ deletedAt: '2026-11-12T08:00:00Z', updatedAt: 'x' }, { partial: true })).toEqual({ deleted_at: '2026-11-12T08:00:00Z', updated_at: 'x' });
+        expect(m.chatConversations.toRow({ deletedAt: null }, { partial: true })).toEqual({ deleted_at: null });
+    });
+});

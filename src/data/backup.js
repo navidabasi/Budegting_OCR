@@ -15,7 +15,7 @@ import { notifyDataChanged } from './queryClient';
 
 export const BACKUP_APP = 'wmw-backup';
 export const BACKUP_VERSION = 1;
-export const BACKUP_TABLES = Object.keys(STORES);
+export const BACKUP_TABLES = Object.keys(STORES).filter((name) => !STORES[name].paged); // chat history lives in the account, not in backup files
 
 const time = (v) => {
     const n = Date.parse(v);

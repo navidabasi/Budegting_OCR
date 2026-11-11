@@ -564,3 +564,166 @@ export async function deleteRow(table, id) {
     return deleteRecord(table, id);
 }
 
+
+// ---------------------------------------------------------------------------
+// Assistant chat history (v15): chatConversations + chatMessages. Reads are keyset-paged straight from the Dexie indexes
+// ([userId+updatedAt], [conversationId+createdAt]; equal keys fall back to the primary key), so the UI never loads a whole
+// table. Deletes are soft (`deletedAt`) so other devices learn about them through the pull.
+// ---------------------------------------------------------------------------
+
+export const CONVERSATION_PAGE = 20;
+export const MESSAGE_PAGE = 30;
+export const CHAT_TITLE_MAX = 60;
+const KEY_LOW = '';
+const KEY_HIGH = '￿';
+
+export const chatTitle = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_TITLE_MAX);
+const cursorOf = (row) => (row ? { createdAt: row.createdAt, updatedAt: row.updatedAt, id: row.id } : null);
+
+/** Conversations strictly older than `after` ({ updatedAt, id }), newest first, not deleted. -> { items, next } */
+export async function listConversationsPage(userId, { limit = CONVERSATION_PAGE, after = null } = {}) {
+    if (!(await mirrorOk())) return { items: [], next: null };
+    const upper = after ? after.updatedAt : KEY_HIGH;
+    const rows = await db.chatConversations
+        .where('[userId+updatedAt]')
+        .between([userId, KEY_LOW], [userId, upper], true, true)
+        .reverse()
+        .filter((c) => !c.deletedAt && (!after || c.updatedAt < after.updatedAt || (c.updatedAt === after.updatedAt && c.id < after.id)))
+        .limit(limit + 1)
+        .toArray();
+    const page = rows.slice(0, limit);
+    const items = await Promise.all(
+        page.map(async (c) => ({ ...c, messageCount: await db.chatMessages.where('conversationId').equals(c.id).filter((m) => !m.deletedAt).count() }))
+    );
+    return { items, next: rows.length > limit ? cursorOf(page[page.length - 1]) : null };
+}
+
+export async function getConversation(id) {
+    if (!(await mirrorOk())) return null;
+    const c = await db.chatConversations.get(id);
+    return c && !c.deletedAt ? c : null;
+}
+
+/** Messages strictly before `before` ({ createdAt, id }) or the newest ones; returned oldest first. -> { items, hasOlder } */
+export async function listMessagesPage(conversationId, { limit = MESSAGE_PAGE, before = null } = {}) {
+    if (!(await mirrorOk())) return { items: [], hasOlder: false };
+    const upper = before ? before.createdAt : KEY_HIGH;
+    const rows = await db.chatMessages
+        .where('[conversationId+createdAt]')
+        .between([conversationId, KEY_LOW], [conversationId, upper], true, true)
+        .reverse()
+        .filter((m) => !m.deletedAt && (!before || m.createdAt < before.createdAt || (m.createdAt === before.createdAt && m.id < before.id)))
+        .limit(limit + 1)
+        .toArray();
+    return { items: rows.slice(0, limit).reverse(), hasOlder: rows.length > limit };
+}
+
+/** Every message from `anchor` ({ createdAt, id }, inclusive) to the newest, oldest first: the pages the reader has scrolled back to. */
+export async function listMessagesFrom(conversationId, anchor) {
+    if (!(await mirrorOk())) return { items: [], hasOlder: false };
+    const items = await db.chatMessages
+        .where('[conversationId+createdAt]')
+        .between([conversationId, anchor.createdAt], [conversationId, KEY_HIGH], true, true)
+        .filter((m) => !m.deletedAt && (m.createdAt > anchor.createdAt || m.id >= anchor.id))
+        .toArray();
+    const older = await listMessagesPage(conversationId, { limit: 1, before: anchor });
+    return { items, hasOlder: older.items.length > 0 };
+}
+
+export async function createConversation(userId, { id, title = '' } = {}) {
+    if (!userId) throw new Error('userId is required to create a conversation');
+    const now = nowIso();
+    const record = { id: id || newId(), userId, title: chatTitle(title) || null, createdAt: now, updatedAt: now, deletedAt: null };
+    await insertRecord('chatConversations', record);
+    return record;
+}
+
+/**
+ * Append a message and bump the conversation's updatedAt (so the list stays newest first). createdAt is kept strictly
+ * increasing inside a conversation: a user message and its answer written in the same millisecond must not swap places.
+ */
+export async function appendMessage(userId, { id, conversationId, role, content, meta = null } = {}) {
+    if (!userId || !conversationId) throw new Error('userId and conversationId are required to append a message');
+    if (role !== 'user' && role !== 'assistant') throw new Error('invalid chat role');
+    if (!(await mirrorOk())) {
+        const now = nowIso();
+        const record = { id: id || newId(), userId, conversationId, role, content: String(content ?? ''), meta, createdAt: now, updatedAt: now, deletedAt: null };
+        await api.insert('chatMessages', record);
+        return record;
+    }
+    let record = null;
+    await db.transaction('rw', db.chatMessages, db.chatConversations, db.outbox, async () => {
+        const conv = await db.chatConversations.get(conversationId);
+        if (!conv) throw new Error('Conversation not found');
+        const last = await db.chatMessages.where('[conversationId+createdAt]').between([conversationId, KEY_LOW], [conversationId, KEY_HIGH], true, true).last();
+        let at = Date.now();
+        if (last && Date.parse(last.createdAt) >= at) at = Date.parse(last.createdAt) + 1;
+        const now = new Date(at).toISOString();
+        record = { id: id || newId(), userId, conversationId, role, content: String(content ?? ''), meta, createdAt: now, updatedAt: now, deletedAt: null };
+        await db.chatMessages.put(record);
+        await enqueue({ table: 'chatMessages', op: 'insert', recordId: record.id, userId, payload: record, ts: now });
+        const bumped = { ...conv, updatedAt: now };
+        await db.chatConversations.put(bumped);
+        await enqueue({ table: 'chatConversations', op: 'update', recordId: conversationId, userId, payload: { updatedAt: now }, ts: now });
+    });
+    requestFlush(userId);
+    return record;
+}
+
+export async function renameConversation(id, title) {
+    return patchRecord('chatConversations', id, { title: chatTitle(title) || null });
+}
+
+/** Soft-delete (or restore, `deletedAt: null`) a set of chat rows in one local transaction. */
+async function setChatDeleted(table, ids, deletedAt, userId) {
+    const ts = nowIso();
+    await db.transaction('rw', db[table], db.outbox, async () => {
+        for (const id of ids) {
+            const row = await db[table].get(id);
+            if (!row) continue;
+            await db[table].put({ ...row, deletedAt, updatedAt: ts });
+            await enqueue({ table, op: 'update', recordId: id, userId: row.userId || userId, payload: { deletedAt, updatedAt: ts }, ts });
+        }
+    });
+}
+
+/** Soft-delete a conversation and its messages. Resolves to { id, messages } so the caller can offer an undo. */
+export async function deleteConversation(id) {
+    if (!(await mirrorOk())) {
+        await api.update('chatConversations', id, { deletedAt: nowIso() });
+        return { id, messages: 0 };
+    }
+    const conv = await db.chatConversations.get(id);
+    if (!conv) return { id, messages: 0 };
+    const messageIds = await db.chatMessages.where('conversationId').equals(id).filter((m) => !m.deletedAt).primaryKeys();
+    await setChatDeleted('chatMessages', messageIds, nowIso(), conv.userId);
+    await setChatDeleted('chatConversations', [id], nowIso(), conv.userId);
+    requestFlush(conv.userId);
+    return { id, messages: messageIds.length };
+}
+
+/** Undo of deleteConversation: brings back the conversation and the messages that were deleted with it. */
+export async function restoreConversation(id) {
+    if (!(await mirrorOk())) return false;
+    const conv = await db.chatConversations.get(id);
+    if (!conv) return false;
+    const messageIds = await db.chatMessages.where('conversationId').equals(id).filter((m) => !!m.deletedAt).primaryKeys();
+    await setChatDeleted('chatConversations', [id], null, conv.userId);
+    await setChatDeleted('chatMessages', messageIds, null, conv.userId);
+    requestFlush(conv.userId);
+    return true;
+}
+
+/** Soft-delete all of the user's chat history, in batches (the mirror is never read into memory at once). */
+export async function deleteAllConversations(userId) {
+    if (!(await mirrorOk())) return 0;
+    const BATCH = 100;
+    let count = 0;
+    const messageIds = await db.chatMessages.where('userId').equals(userId).filter((m) => !m.deletedAt).primaryKeys();
+    for (let i = 0; i < messageIds.length; i += BATCH) await setChatDeleted('chatMessages', messageIds.slice(i, i + BATCH), nowIso(), userId);
+    const convIds = await db.chatConversations.where('userId').equals(userId).filter((c) => !c.deletedAt).primaryKeys();
+    for (let i = 0; i < convIds.length; i += BATCH) await setChatDeleted('chatConversations', convIds.slice(i, i + BATCH), nowIso(), userId);
+    count = convIds.length;
+    requestFlush(userId);
+    return count;
+}

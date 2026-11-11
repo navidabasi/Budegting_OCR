@@ -351,15 +351,9 @@ async function pendingByRecord(table) {
     return map;
 }
 
-export async function pullTable(userId, table) {
+/** Merge pulled server rows into the mirror with the conflict rule (see header). Returns counts; `lost` collects dropped local edits. */
+async function applyPulledRows(table, rows, out, lost) {
     const { pk } = STORES[table];
-    const cursorKey = `cursor:${userId}:${table}`;
-    const since = await getMeta(cursorKey);
-    const rows = await api.fetchSince(table, userId, since);
-    const out = { downloaded: 0, updated: 0, conflicts: [] };
-    if (!rows.length) return out;
-    const lost = [];
-
     await db.transaction('rw', db[table], db.outbox, async () => {
         const pending = await pendingByRecord(table);
         for (const row of rows) {
@@ -383,7 +377,43 @@ export async function pullTable(userId, table) {
             else out.downloaded++;
         }
     });
+}
 
+/**
+ * Paged tables (chat history): keyset pages of ~50 rows ordered by (updated_at, id). The cursor is saved after every page,
+ * so a long history syncs in batches and an interrupted pull resumes where it stopped. Pages are applied (and the UI told)
+ * as they arrive, so the app never waits for the whole history.
+ */
+async function pullTablePaged(userId, table) {
+    const cursorKey = `pcursor:${userId}:${table}`;
+    const out = { downloaded: 0, updated: 0, conflicts: [] };
+    let after = await getMeta(cursorKey, null);
+    for (let guard = 0; guard < 2000; guard++) {
+        const { rows, next } = await api.fetchPage(table, userId, after, api.PULL_PAGE);
+        if (rows.length) {
+            const lost = [];
+            await applyPulledRows(table, rows, out, lost);
+            for (const l of lost) await logConflict(userId, l);
+            const last = rows[rows.length - 1];
+            after = { updatedAt: last.updatedAt, id: last.id };
+            await setMeta(cursorKey, after);
+            notifyDataChanged();
+        }
+        if (!next) break;
+        await new Promise((r) => setTimeout(r, 0)); // let the UI breathe between pages
+    }
+    return out;
+}
+
+export async function pullTable(userId, table) {
+    if (STORES[table].paged) return pullTablePaged(userId, table);
+    const cursorKey = `cursor:${userId}:${table}`;
+    const since = await getMeta(cursorKey);
+    const rows = await api.fetchSince(table, userId, since);
+    const out = { downloaded: 0, updated: 0, conflicts: [] };
+    if (!rows.length) return out;
+    const lost = [];
+    await applyPulledRows(table, rows, out, lost);
     for (const l of lost) await logConflict(userId, l);
     const maxUpdated = rows.reduce((m, r) => (time(r.updatedAt) > time(m) ? r.updatedAt : m), since || rows[0].updatedAt);
     await setMeta(cursorKey, maxUpdated);
@@ -392,7 +422,7 @@ export async function pullTable(userId, table) {
 
 /** Remove mirror rows whose server row no longer exists (deleted on another device). */
 export async function reconcileTable(userId, table) {
-    if (STORES[table].singleton) return 0;
+    if (STORES[table].singleton || STORES[table].paged) return 0; // chat history: soft deletes arrive through the pull
     const serverIds = new Set(await api.fetchIds(table, userId));
     const localKeys = await db[table].where('userId').equals(userId).primaryKeys();
     const pending = await pendingByRecord(table);
