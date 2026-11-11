@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 function ScrollToTop() {
@@ -18,23 +18,27 @@ import { useAccounts } from './data/hooks';
 import { useCategories } from './hooks/useCategories';
 import { notifyDataChanged } from './data/queryClient';
 import { fillMissingBaseAmounts } from './data/repo';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import HomePage from './pages/HomePage';
-import LandingPage from './pages/LandingPage';
-import AuthCallbackPage from './pages/AuthCallbackPage';
-import ActivityPage from './pages/ActivityPage';
-import GroupsPage from './pages/GroupsPage';
-import ReceiptDetailPage from './pages/ReceiptDetailPage';
 import BottomNav from './components/ui/BottomNav';
-import InsightsPage from './pages/InsightsPage';
-import PlanPage from './pages/PlanPage';
-import TripPage from './pages/TripPage';
-import ScanPage from './pages/ScanPage';
-import OnboardingPage, { onboardedKey } from './pages/OnboardingPage';
-import Sidebar from './components/layout/Sidebar';
-import AddReceiptModal from './components/layout/AddReceiptModal';
+import { onboardedKey } from './pages/onboardedKey';
+import LoadingSpinner from './components/common/LoadingSpinner';
 import Toast from './components/common/Toast';
+
+// Route-level code splitting: each page (and the heavy overlays) is its own chunk
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
+const ActivityPage = lazy(() => import('./pages/ActivityPage'));
+const GroupsPage = lazy(() => import('./pages/GroupsPage'));
+const ReceiptDetailPage = lazy(() => import('./pages/ReceiptDetailPage'));
+const InsightsPage = lazy(() => import('./pages/InsightsPage'));
+const PlanPage = lazy(() => import('./pages/PlanPage'));
+const TripPage = lazy(() => import('./pages/TripPage'));
+const ScanPage = lazy(() => import('./pages/ScanPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const Sidebar = lazy(() => import('./components/layout/Sidebar'));
+const AddReceiptModal = lazy(() => import('./components/layout/AddReceiptModal'));
 import InstallAppPrompt from './components/common/InstallAppPrompt';
 import Modal from './components/common/Modal';
 import Button from './components/common/Button';
@@ -596,6 +600,7 @@ function App() {
                         </div>
                     </div>
                 )}
+                <Suspense fallback={<LoadingSpinner className="pb-20" />}>
                 <Routes>
                     <Route
                         path="/login"
@@ -649,12 +654,15 @@ function App() {
                         }
                     />
                 </Routes>
+                </Suspense>
 
                 {isAuthenticated && (
                     <>
                         <BottomNav />
-                        <Sidebar />
-                        <AddReceiptModal />
+                        <Suspense fallback={null}>
+                            <Sidebar />
+                            <AddReceiptModal />
+                        </Suspense>
                         <InstallAppPrompt />
                         <Modal
                             isOpen={showNotificationSetupPrompt}

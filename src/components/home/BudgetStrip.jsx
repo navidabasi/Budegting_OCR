@@ -30,7 +30,7 @@ export default function BudgetStrip({ rows, month }) {
                             <span className="flex items-baseline text-sm text-ink">
                                 <span className="font-medium">{localizeCategory(r.category)}</span>
                                 <span className="lead" aria-hidden="true" />
-                                <span className="mono-num text-[13px]">
+                                <span dir="ltr" className="mono-num text-[13px]">
                                     <b>{num(r.spent)}</b> / {num(r.amount)}
                                 </span>
                             </span>

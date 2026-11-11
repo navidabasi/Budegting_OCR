@@ -1,10 +1,4 @@
-import { de } from './de';
 import { en } from './en';
-import { es } from './es';
-import { fa } from './fa';
-import { fr } from './fr';
-import { it } from './it';
-import { ar } from './ar';
 
 export const DEFAULT_LANGUAGE_CODE = 'en';
 
@@ -20,15 +14,47 @@ export const LANGUAGE_OPTIONS = [
     { code: 'es', label: 'Spanish', nativeLabel: 'Español' },
 ];
 
-export const TRANSLATIONS = {
-    en,
-    fa,
-    ar,
-    it,
-    de,
-    fr,
-    es,
+// English is bundled (it is also the fallback for every other pack); the other six load on demand so they stay out of the main chunk.
+export const TRANSLATIONS = { en };
+
+const LOADERS = {
+    it: () => import('./it').then((m) => m.it),
+    de: () => import('./de').then((m) => m.de),
+    es: () => import('./es').then((m) => m.es),
+    fr: () => import('./fr').then((m) => m.fr),
+    fa: () => import('./fa').then((m) => m.fa),
+    ar: () => import('./ar').then((m) => m.ar),
 };
+
+const listeners = new Set();
+let version = 0;
+export const subscribeLanguages = (fn) => {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+};
+/** Changes whenever a language pack finishes loading (useSyncExternalStore snapshot). */
+export const getLanguagesVersion = () => version;
+
+const pending = new Map();
+/** Load a language pack (no-op for English or an already loaded pack). Resolves once translations are available. */
+export function loadLanguage(rawCode) {
+    const code = normalizeLanguageCode(rawCode);
+    if (TRANSLATIONS[code] || !LOADERS[code]) return Promise.resolve();
+    if (!pending.has(code)) {
+        pending.set(
+            code,
+            LOADERS[code]()
+                .then((pack) => {
+                    TRANSLATIONS[code] = pack;
+                    version += 1;
+                    listeners.forEach((fn) => fn());
+                })
+                .catch((err) => console.warn('[i18n] could not load language', code, err))
+                .finally(() => pending.delete(code))
+        );
+    }
+    return pending.get(code);
+}
 
 export function normalizeLanguageCode(rawCode, fallback = DEFAULT_LANGUAGE_CODE) {
     if (!rawCode || typeof rawCode !== 'string') {

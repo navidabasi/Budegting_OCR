@@ -86,7 +86,16 @@ export default defineConfig({
     assetsInclude: ['**/*.sql'],
     build: {
         rollupOptions: {
-            external: (id) => id.endsWith('.sql')
+            external: (id) => id.endsWith('.sql'),
+            output: {
+                // Stable vendor chunks: cached across deploys and keeping the app entry chunk small
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) return undefined;
+                    if (id.includes('@supabase')) return 'vendor-supabase';
+                    if (/node_modules\/(react|react-dom|react-router|react-router-dom|@remix-run|scheduler|use-sync-external-store|dexie|@tanstack|zustand)\//.test(id)) return 'vendor';
+                    return undefined;
+                }
+            }
         }
     }
 })

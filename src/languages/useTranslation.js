@@ -1,6 +1,10 @@
+import { useEffect, useSyncExternalStore } from 'react';
 import { useAppStore } from '../store/appStore';
 import {
     getLanguageDirection,
+    getLanguagesVersion,
+    loadLanguage,
+    subscribeLanguages,
     isRtlLanguage,
     normalizeLanguageCode,
     tForLanguage,
@@ -10,6 +14,10 @@ import {
 export function useTranslation() {
     const rawLanguageCode = useAppStore((state) => state.languageCode);
     const languageCode = normalizeLanguageCode(rawLanguageCode);
+    useSyncExternalStore(subscribeLanguages, getLanguagesVersion, getLanguagesVersion); // re-render when a pack arrives
+    useEffect(() => {
+        loadLanguage(languageCode);
+    }, [languageCode]);
 
     const t = (key, params) => tForLanguage(languageCode, key, params);
     const dir = getLanguageDirection(languageCode);

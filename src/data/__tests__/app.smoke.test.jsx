@@ -37,7 +37,9 @@ beforeEach(async () => {
     window.scrollTo = () => {};
 });
 
-async function renderApp(path) {
+const ready = async (el, until) => (until ? el.textContent.includes(until) : el.textContent.length > 60);
+
+async function renderApp(path, until) {
     window.history.pushState({}, '', path);
     const el = document.createElement('div');
     document.body.appendChild(el);
@@ -49,9 +51,12 @@ async function renderApp(path) {
             </QueryClientProvider>
         );
     });
-    await act(async () => {
-        await new Promise((r) => setTimeout(r, 100));
-    });
+    // pages are lazy chunks: give them (and the mirror reads) time to resolve
+    for (let i = 0; i < 40 && !(await ready(el, until)); i++) {
+        await act(async () => {
+            await new Promise((r) => setTimeout(r, 100));
+        });
+    }
     return { el, root };
 }
 
@@ -61,7 +66,7 @@ describe('App smoke (offline, local mirror)', () => {
         await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'en' });
         await createTransaction({ userId: 'u1', merchant: 'Esselunga Smoke', total: 42.1, date: '2026-11-08', category: 'Groceries' });
 
-        const { el, root } = await renderApp('/activity');
+        const { el, root } = await renderApp('/activity', 'Esselunga Smoke');
         expect(el.textContent).toContain('Esselunga Smoke');
         await act(async () => root.unmount());
     });
@@ -70,7 +75,7 @@ describe('App smoke (offline, local mirror)', () => {
         useAppStore.setState({ currentUser: { userId: 'u1', email: 'a@b.c' }, isAuthenticated: true });
         const id = await createTransaction({ userId: 'u1', merchant: 'Detail Smoke', total: 9.9, date: '2026-11-08', category: 'Groceries' });
 
-        const detail = await renderApp(`/receipts/${id}`);
+        const detail = await renderApp(`/receipts/${id}`, 'Detail Smoke');
         expect(detail.el.textContent).toContain('Detail Smoke');
         await act(async () => detail.root.unmount());
 
@@ -85,7 +90,7 @@ describe('App smoke (offline, local mirror)', () => {
         const { createCategory } = await import('../repo');
         await createCategory('u1', { name: 'Pets Smoke', color: '#123456' });
 
-        const { el, root } = await renderApp('/');
+        const { el, root } = await renderApp('/', 'Pets Smoke');
         expect(el.textContent).toContain('Pets Smoke');
         expect([...el.querySelectorAll('input')].some((i) => i.value === 'my-key')).toBe(true);
         await act(async () => root.unmount());

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { findingHref, findingText } from '../insightText';
 import { INSIGHT_KEYS } from '../insightsEngine';
-import { TRANSLATIONS, tForLanguage } from '../../languages';
+import { TRANSLATIONS, loadLanguage, tForLanguage } from '../../languages';
 
 const ctx = { t: (k, p) => tForLanguage('en', k, p), money: (n) => `€${n}`, localizeCategory: (c) => c };
 
@@ -17,7 +17,8 @@ describe('findingText', () => {
     it('falls back to the English text for unknown keys', () => {
         expect(findingText({ i18nKey: 'insight.nope', title: 'T', body: 'B' }, ctx)).toEqual({ title: 'T', body: 'B' });
     });
-    it('every INSIGHT_KEY has a title and body in all 7 languages', () => {
+    it('every INSIGHT_KEY has a title and body in all 7 languages', async () => {
+        await Promise.all(['it', 'de', 'es', 'fr', 'fa', 'ar'].map(loadLanguage));
         for (const lang of Object.keys(TRANSLATIONS)) {
             for (const key of INSIGHT_KEYS) {
                 const [, name] = key.split('.');

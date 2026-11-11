@@ -111,7 +111,7 @@ export default function BudgetsTab({ month, data, sheetPreset, onSheetClosed }) 
                                     <span className="flex items-baseline text-[15px] text-ink">
                                         <span className="min-w-0 truncate font-medium">{localizeCategory(r.category)}</span>
                                         <span className="lead" aria-hidden="true" />
-                                        <span className="mono-num shrink-0 text-sm">
+                                        <span dir="ltr" className="mono-num shrink-0 text-sm">
                                             <b>{num(r.spent)}</b> / {num(r.amount)}
                                         </span>
                                     </span>

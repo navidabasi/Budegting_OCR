@@ -5,7 +5,13 @@ import App from './App.jsx'
 import ErrorBoundary from './components/common/ErrorBoundary.jsx'
 import { queryClient } from './data/queryClient'
 import './index.css'
+import { loadLanguage } from './languages'
+import { useAppStore } from './store/appStore'
 
+// Wait for the persisted language pack (small, loaded in parallel with the app) so the first paint is already translated
+const ready = Promise.race([loadLanguage(useAppStore.getState().languageCode), new Promise((r) => setTimeout(r, 1500))]);
+
+function start() {
 try {
     const rootElement = document.getElementById('root');
     if (!rootElement) {
@@ -58,3 +64,6 @@ try {
         rootElement.appendChild(wrapper);
     }
 }
+}
+
+ready.finally(start);

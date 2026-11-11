@@ -9,7 +9,8 @@ import { CURRENCIES } from '../utils/constants';
 import { dateKey } from '../utils/quickAdd';
 import { decimalSeparator, localeFor } from '../utils/format';
 
-export const onboardedKey = (userId) => `wmw.onboarded.${userId}`;
+import { onboardedKey } from './onboardedKey';
+export { onboardedKey };
 export const markOnboarded = (userId) => {
     try {
         localStorage.setItem(onboardedKey(userId), '1');
