@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, Camera, ChevronDown, Image as ImageIcon, X } from 'lucide-react';
-import { Chip, ChipRow, IconButton, Segmented, Sheet } from '../ui';
+import { Chip, ChipRow, IconButton, Segmented, Sheet, formatDateLabel } from '../ui';
 import Keypad from './Keypad';
 import MoreSection from './MoreSection';
 import SplitManager from '../receipts/SplitManager';
@@ -356,17 +356,16 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                 {t('quickAdd.yesterday')}
                             </Chip>
                             <span className="relative inline-flex">
-                                <Chip selected={customDate} icon={Calendar} onClick={() => (dateInputRef.current?.showPicker ? dateInputRef.current.showPicker() : dateInputRef.current?.focus())}>
-                                    {customDate ? state.date : t('quickAdd.pick')}
+                                <Chip selected={customDate} icon={Calendar} tabIndex={-1} aria-hidden="true">
+                                    {customDate ? formatDateLabel(state.date, languageCode, { day: 'numeric', month: 'short' }) : t('quickAdd.pick')}
                                 </Chip>
                                 <input
                                     ref={dateInputRef}
                                     type="date"
-                                    tabIndex={-1}
                                     aria-label={t('quickAdd.pick')}
                                     value={state.date}
                                     onChange={(e) => e.target.value && set({ date: e.target.value })}
-                                    className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+                                    className="date-overlay absolute inset-0 h-full w-full cursor-pointer rounded-full opacity-0"
                                 />
                             </span>
                             {!isTransfer && accounts.length > 0 ? (

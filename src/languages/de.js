@@ -3,6 +3,7 @@ import { en } from './en';
 export const de = {
     ...en,
     common: {
+        pickDate: "Datum wählen",
         ...en.common,
         actions: {
             ...en.common.actions,

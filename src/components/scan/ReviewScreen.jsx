@@ -11,6 +11,7 @@ import { isUnreadable, lowConfidenceFields } from '../../services/receiptScan';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { rankCategories } from '../../utils/quickAdd';
+import DateField from '../ui/DateField';
 
 const lbl = 'text-[11px] font-semibold uppercase tracking-wider text-ink-muted';
 const fieldBox = (check) =>
@@ -84,7 +85,7 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                     </div>
                     <div className={`${fieldBox(flag('date'))} flex-[1.25]`}>
                         <label htmlFor="scan-date" className={lbl}>{t('receipts.form.date')}</label>
-                        <input id="scan-date" type="date" className="w-full min-w-0 bg-transparent text-sm font-medium leading-6 text-ink outline-none" value={form.date} onChange={(e) => e.target.value && set({ date: e.target.value }, 'date')} />
+                        <DateField id="scan-date" variant="bare" allowEmpty={false} value={form.date} onChange={(v) => set({ date: v }, 'date')} />
                         {flag('date') ? <span className="text-[11px] font-semibold text-warn-ink">{t('scan.checkThis')}</span> : null}
                     </div>
                 </div>

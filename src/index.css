@@ -96,24 +96,18 @@
     }
 
     /* Fix date input overflow on mobile */
-    /* Date inputs: keep the design's own field classes in charge (radius, padding, height) and neutralise the native
-       iOS/Android look so a date field matches the text fields next to it. */
-    input[type="date"] {
-        max-width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
+    /* Native date inputs are only used as the invisible tap target of DateField (src/components/ui/DateField.jsx),
+       which draws the visible text itself. 16px keeps iOS from zooming on focus. */
+    input[type="date"].date-overlay {
+        font-size: 16px;
         -webkit-appearance: none;
         appearance: none;
-        font-size: 16px; /* prevents iOS zoom on focus */
-    }
-
-    input[type="date"]::-webkit-date-and-time-value {
-        text-align: start;
+        min-width: 0;
         margin: 0;
-    }
-
-    input[type="date"]::-webkit-calendar-picker-indicator {
-        opacity: 0.6;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: transparent;
     }
 
     .card {

@@ -6,6 +6,7 @@ import { useTranslation } from '../../languages/useTranslation';
 import { CURRENCIES } from '../../utils/constants';
 import { dateKey } from '../../utils/monthMath';
 import { parseLocalNumber } from '../../utils/helpers';
+import DateField from '../ui/DateField';
 
 const field = 'h-12 w-full rounded-[14px] border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink';
 const lbl = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
@@ -78,11 +79,11 @@ export default function StartTripSheet({ open, onClose, trip = null, onSaved }) 
                 <div className="flex gap-3">
                     <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <span className={lbl}>{t('trips.sheet.from')}</span>
-                        <input type="date" className={field} value={form.startsOn} onChange={(e) => set({ startsOn: e.target.value })} />
+                        <DateField value={form.startsOn} onChange={(v) => set({ startsOn: v })} label={t('trips.sheet.from')} invalid={badDates} />
                     </label>
                     <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <span className={lbl}>{t('trips.sheet.to')}</span>
-                        <input type="date" className={field} value={form.endsOn} min={form.startsOn || undefined} onChange={(e) => set({ endsOn: e.target.value })} />
+                        <DateField value={form.endsOn} min={form.startsOn || undefined} onChange={(v) => set({ endsOn: v })} label={t('trips.sheet.to')} invalid={badDates} />
                     </label>
                 </div>
                 <p className={`text-xs ${badDates ? 'text-over-ink' : 'text-ink-muted'}`}>{badDates ? t('trips.sheet.badDates') : t('trips.sheet.datesHint')}</p>

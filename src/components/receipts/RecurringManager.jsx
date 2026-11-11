@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Calendar, Bell } from 'lucide-react';
 import { calculateNextRecurringDate } from '../../utils/recurring';
 import { useTranslation } from '../../languages/useTranslation';
+import DateField from '../ui/DateField';
 
 const FREQUENCY_VALUES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
 
@@ -122,12 +123,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                                 <Calendar size={14} className="inline mr-1" />
                                 {t('receipts.recurring.nextDueDate')}
                             </label>
-                            <input
-                                type="date"
-                                value={nextDueDate}
-                                onChange={(e) => handleDateChange(e.target.value)}
-                                className={inputClass}
-                            />
+                            <DateField variant="field" value={nextDueDate} onChange={(v) => handleDateChange(v)} label={t('receipts.recurring.nextDueDate')} />
                         </div>
                         <div className="input-wrapper">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -135,12 +131,7 @@ export default function RecurringManager({ recurringData, onChange, receiptDate 
                                 {t('receipts.recurring.endDate')}
                                 <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">{t('receipts.recurring.optional')}</span>
                             </label>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => handleEndDateChange(e.target.value)}
-                                className={inputClass}
-                            />
+                            <DateField variant="field" value={endDate} onChange={(v) => handleEndDateChange(v)} label={t('receipts.recurring.endDate')} />
                         </div>
                     </div>
 

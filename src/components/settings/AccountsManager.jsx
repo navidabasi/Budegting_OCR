@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/appStore';
 import { accountBalances } from '../../utils/money';
 import { dateKey } from '../../utils/quickAdd';
 import { useTranslation } from '../../languages/useTranslation';
+import DateField from '../ui/DateField';
 
 export const ACCOUNT_KINDS = ['spending', 'cash', 'savings', 'investment', 'debt', 'receivable'];
 const field = 'h-12 w-full rounded-[14px] border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink';
@@ -136,7 +137,7 @@ export default function AccountsManager() {
                             </label>
                             <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                                 <span className={lbl}>{t('accounts.openingDate')}</span>
-                                <input type="date" className={field} value={form.openingDate} onChange={(e) => setForm({ ...form, openingDate: e.target.value })} />
+                                <DateField value={form.openingDate} onChange={(v) => setForm({ ...form, openingDate: v })} label={t('accounts.openingDate')} />
                             </label>
                         </div>
                     </div>
