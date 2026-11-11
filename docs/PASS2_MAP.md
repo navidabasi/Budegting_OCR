@@ -150,3 +150,21 @@ Implemented and tested: section 8 offline capture (outbox operation ids, idempot
 Storage choices (no migration needed, nothing to apply): pay-cycle settings, people list and custom subcategories live in `user_layouts.layout.prefs` (`payCycle`, `people`, `subcategories`); item rules reuse `merchant_rules` (`merchant_key = 'item:<product>'`, `category = 'Category::subcategory'`); settlements reuse `receipts.split_data` (`kind: 'settlement'`); conflict log and sync cursors stay in the local `meta` store. Dexie schema v2 adds `drafts` and `outbox.opId`.
 
 Known limitations / for part 2: no holiday calendar for the weekend rule (use a per-cycle override); unit/plural strings such as "1 lines" are not pluralised; conflict choices exist for updates only (inserts/deletes follow "delete wins, server newer is kept"); trip views and Activity totals do not yet label personal-share vs full amount; foreign-currency totals do not yet warn about missing EUR amounts (case 7 only verifies the data is kept and detectable); the AI endpoints still get calendar-month keys for custom ranges (`aggregates.period` carries the exact dates).
+
+---
+
+## Part 2 status (written at the end of part 2)
+
+Implemented and tested: section 7 outbound boundary (`src/services/aiOutbound.js`, the only module that talks to the four AI endpoints;
+Settings > AI & scanning: photo switch, optional crop, "See what's sent"), section 6 assistant with evidence (`evidencePack.js`,
+`aiActions.js`, `EvidenceAnswer`, `ProposalSheet`, `AiHistory`, stale insights), section 9 travel currencies (`utils/fx.js`,
+`utils/baseCurrency.js`, `utils/conversion.js`, `ConversionCard`), section 10 layouts (Settings route, `NavRail`, `ShellFrame`, Activity
+panes and table, Scan side by side, keyboard-aware forms, `useKeyboardOpen`), section 11 motion (`utils/motion.js`, tokens, reduced-motion
+setting). Brief case 10 is `case10.groceryDrivers.test.js`; case 12 is `scripts/e2e/layout.mjs` (+ `audit.mjs`, `motion.mjs`).
+
+Storage choices (no migration, nothing to apply): conversion provenance lives in `receipts.extraction.fx`; the AI action history and the
+last outbound payloads stay on the device (`meta` store / localStorage); the motion setting is in the persisted app store.
+
+Known limitations: pluralisation of "1 lines" strings is still not handled; the free exchange-rate API only serves today's table, so a
+back-dated purchase is "estimated" with the date of the table used (the card says so; type the charged amount to confirm); photo cropping is
+a four-slider trim, not a drag handle; mark-duplicate refuses records with photos, splits or settlements; the AI history is per device.
