@@ -469,3 +469,17 @@ Verified: `npm test`, `npm run build`, and Playwright screenshots at 390x844 (li
 - The bottom nav is hidden on `/scan`, `/welcome` and `/receipts/:id` (full-screen flows with thumb-zone actions). The undo toast sits at `bottom-28` and can overlap the Save button on `/scan`.
 - The virtual list in Activity positions rows with `position: absolute` (the standard @tanstack/react-virtual pattern); everything else uses flex/grid.
 - `mappers.test.js` has no explicit `imagePath`/`extraction` round-trip case (the fields are in the mapper list).
+
+### Follow-ups from the Phase 4-7 UI implementer (P4-T3/T1/T4/T7/T6, P5-T4, P6-T3, P7-T1, toast fix, bundle)
+
+Verified: `npm test` (618 tests), `npm run build`, Playwright screenshots at 390x844 light and dark in `docs/screenshots/` (`scripts/screenshots/{plan,trip,home,insights,import}.mjs`, shared demo data in `lib.mjs`). **Not verified** (no live backend or AI keys here): a real `/api/insights` or `/api/chat` answer (the endpoints are exercised with mocked fetch; the Insights screenshot shows the "couldn't write the summary" state because there is no Supabase session locally), writes of budgets/goals/trip columns to production Supabase, and a real Revolut/PostePay export.
+
+- The optional monthly savings target has no column: it is stored in the synced `user_layouts.layout.prefs.savingsTarget` (the dashboard widget layout that used to live there is gone). Move it to `settings` with a migration when convenient.
+- Budgets: "copy forward" writes one row per active budget on the first visit of a month (after the first sync). Two devices opening the new month at the same moment could both insert; the unique `(user_id, category, starts_on)` index then parks one insert as failed in the outbox. Category rows link to Activity filtered by category and month, which still includes trip spend (the bar does not).
+- The Plan tab is labelled "Savings" (three segments do not fit "Savings & accounts" at 390 px).
+- Trips: auto-attach covers Quick Add, the scan review (also the share-to-app path) and CSV rows. Offline scans (placeholder created in `pendingScans`) and recurring/planned copies are not attached to the active trip. `GroupsPage` still lists trips as ordinary groups.
+- Chat/insights: the model's `suggestedAction` category must match a known category name, otherwise the Add budget sheet opens without a preselected category. The chat thread lives in sessionStorage only.
+- CSV import: PostePay columns are still detected by name (no sample export). The preview renders the first 300 rows (all are imported). Inbound transfer rows (`TOPUP`, `EXCHANGE`) become transfers into the chosen account; the other leg is not created. Merge fills the account and `importRef` only; date and category of the scanned receipt win.
+- Unused after this work and safe to delete: i18n namespaces `comingNext.*` and `dashboard.*`, `Sidebar`-era legacy gray styling in Settings, `src/components/common/EmptyState.jsx` users.
+- Bundle: entry chunk 1272 kB -> 209 kB (gzip 386 -> 66 kB). `vendor` (react, router, query, dexie, zustand) 324 kB and `vendor-supabase` 171 kB still load on first paint; supabase-js could be loaded lazily behind the auth/sync boot, and `date-fns` (~100 kB source) is only used for two helpers. Non-English language packs load on demand; `main.jsx` waits at most 1.5 s for the persisted language pack before the first render.
+- Home no longer has a widget customizer; `user_layouts` rows written by the old customizer are ignored (the `prefs` key is added beside them).
