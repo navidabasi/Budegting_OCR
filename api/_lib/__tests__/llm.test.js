@@ -185,3 +185,38 @@ describe('chat', () => {
         ).rejects.toMatchObject({ code: 'invalid_json' });
     });
 });
+
+describe('reasoning control (DeepSeek thinking models)', () => {
+    const DS = { LLM_BASE_URL: 'https://api.deepseek.com', LLM_MODEL: 'deepseek-flash', LLM_API_KEY: 'k' };
+
+    it('disables thinking by default for DeepSeek so reasoning cannot consume max_tokens', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(okResponse('{"a":1}'));
+        await chat({ messages: [{ role: 'user', content: 'json please' }], json: true, maxTokens: 900, fetchImpl, env: DS });
+        const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(body.thinking).toEqual({ type: 'disabled' });
+    });
+
+    it('lets LLM_THINKING=enabled keep reasoning on', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(okResponse('{"a":1}'));
+        await chat({ messages: [{ role: 'user', content: 'json' }], json: true, fetchImpl, env: { ...DS, LLM_THINKING: 'enabled' } });
+        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).thinking).toBeUndefined();
+    });
+
+    it('does not send the DeepSeek-only parameter to other providers', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(okResponse('{"a":1}'));
+        const OTHER = { LLM_BASE_URL: 'https://openrouter.ai/api/v1', LLM_MODEL: 'some/model', LLM_API_KEY: 'k' };
+        await chat({ messages: [{ role: 'user', content: 'json' }], json: true, fetchImpl, env: OTHER });
+        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).thinking).toBeUndefined();
+    });
+
+    it('reports an answer cut off by the token limit as truncated, not empty', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ choices: [{ message: { content: '' }, finish_reason: 'length' }], usage: { completion_tokens: 900 } }),
+        });
+        await expect(
+            chat({ messages: [{ role: 'user', content: 'json' }], json: true, maxTokens: 900, fetchImpl, env: DS })
+        ).rejects.toMatchObject({ name: 'LlmError', code: 'truncated' });
+    });
+});

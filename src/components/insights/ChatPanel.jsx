@@ -77,7 +77,17 @@ export default function ChatPanel({ aggregates, month, language, extraQuestions 
                     <li ref={endRef} aria-hidden="true" />
                 </ol>
             ) : null}
-            <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+            {thread.length > 0 ? (
+                <button type="button" onClick={() => setThread([])} className="h-11 self-start rounded-xl px-2 text-[13px] font-semibold text-ink-muted">
+                    {t('chat.clear')}
+                </button>
+            ) : null}
+            <div
+                className="fixed inset-x-0 z-30 bg-ground/95 pb-1 pt-2.5 backdrop-blur"
+                style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 100px)' }}
+            >
+            <div className="mx-auto flex max-w-[520px] flex-col gap-2 px-5">
+            <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto overscroll-x-contain px-5">
                 {suggestions.map((q) => (
                     <Chip key={q} size="sm" disabled={busy || !aggregates} onClick={() => ask(q)}>
                         {q}
@@ -104,11 +114,8 @@ export default function ChatPanel({ aggregates, month, language, extraQuestions 
                     <ArrowUp size={20} aria-hidden="true" />
                 </button>
             </form>
-            {thread.length > 0 ? (
-                <button type="button" onClick={() => setThread([])} className="h-11 self-start rounded-xl px-2 text-[13px] font-semibold text-ink-muted">
-                    {t('chat.clear')}
-                </button>
-            ) : null}
+            </div>
+            </div>
         </section>
     );
 }

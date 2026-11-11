@@ -188,6 +188,9 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                                         {localizeCategory(n)}
                                     </Chip>
                                 ))}
+                                <Chip size="sm" aria-expanded="true" onClick={() => setAllCategories(false)}>
+                                    {t('quickAdd.categoryLess')}
+                                </Chip>
                             </div>
                         ) : (
                             <ChipRow className="!-mx-4 !px-4">
@@ -196,7 +199,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                                         {localizeCategory(n)}
                                     </Chip>
                                 ))}
-                                <Chip size="sm" onClick={() => setAllCategories(true)}>
+                                <Chip size="sm" aria-expanded="false" onClick={() => setAllCategories(true)}>
                                     {t('detail.otherCategory')}
                                 </Chip>
                             </ChipRow>

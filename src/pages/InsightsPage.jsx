@@ -31,7 +31,7 @@ export default function InsightsPage() {
     const busy = narrative.status === 'loading';
 
     return (
-        <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
+        <main className="flex flex-col gap-3 px-5 pb-[260px] pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-end justify-between gap-3 pt-4">
                 <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('nav.insights')}</span>
