@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronLeft } from 'lucide-react';
 import { Chip, ChipRow, IconButton } from '../ui';
 import MoreSection from '../quickadd/MoreSection';
+import TripChip from '../plan/TripChip';
+import { useTripGroup } from '../../hooks/useTripGroup';
 import SplitManager from '../receipts/SplitManager';
 import ImageViewer from './ImageViewer';
 import { isUnreadable, lowConfidenceFields } from '../../services/receiptScan';
@@ -17,7 +19,7 @@ const fieldBox = (check) =>
 /**
  * Scan review (docs/design/ScanReview.dc.html). Controlled by ScanPage: `form` + `onChange`.
  */
-export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving }) {
+export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [viewer, setViewer] = useState(false);
     const [itemsOpen, setItemsOpen] = useState(false);
@@ -33,6 +35,7 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
     const edited = form.edited || {};
     const flag = (f) => low[f] && !edited[f];
 
+    const { group, tripOfGroup, mergeMore, detach } = useTripGroup({ trips, date: form.date, more: form.more, detached: form.tripDetached });
     const items = form.items;
     const sum = Math.round(items.reduce((s, it) => s + (parseFloat(String(it.price).replace(',', '.')) || 0), 0) * 100) / 100;
     const unreadable = items.filter((it) => isUnreadable({ ...it, price: it.price === '' ? null : it.price })).length;
@@ -152,6 +155,8 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                     </div>
                 ) : null}
 
+                {tripOfGroup ? <TripChip name={tripOfGroup.name} onRemove={() => onChange({ ...form, ...detach() })} /> : null}
+
                 <button type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)} className="flex min-h-[44px] items-center justify-between rounded-[14px] px-3.5 text-sm font-semibold text-forest-ink">
                     <span>{t('scan.more')}</span>
                     <ChevronDown size={16} className={moreOpen ? 'rotate-180 transition-transform' : 'transition-transform'} aria-hidden="true" />
@@ -170,8 +175,8 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                         ) : null}
                         <MoreSection
                             hide={['items', 'recurring', 'planned', 'currency']}
-                            value={form.more}
-                            onChange={(more) => set({ more })}
+                            value={{ ...form.more, groupId: group.groupId, groupName: group.groupName }}
+                            onChange={(more) => onChange({ ...form, ...mergeMore(more) })}
                             groups={groups}
                             date={form.date}
                             onOpenSplit={() => setSplitOpen(true)}

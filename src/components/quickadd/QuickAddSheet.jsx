@@ -4,6 +4,7 @@ import { Chip, ChipRow, IconButton, Segmented, Sheet } from '../ui';
 import Keypad from './Keypad';
 import MoreSection from './MoreSection';
 import SplitManager from '../receipts/SplitManager';
+import TripChip from '../plan/TripChip';
 import { useAppStore } from '../../store/appStore';
 import {
     useAccounts,
@@ -12,6 +13,7 @@ import {
     useDeleteTransaction,
     useGoals,
     useGroupsData,
+    useTrips,
     useMerchantRules,
     useSettings,
     useTransactions,
@@ -26,6 +28,7 @@ import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../ut
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
 import { categoryForMerchant, dateKey, getLastAccountId, rankCategories, recentMerchants, setLastAccountId } from '../../utils/quickAdd';
 import { queueImage, requestImageFlush } from '../../data/images';
+import { useTripGroup } from '../../hooks/useTripGroup';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
@@ -55,6 +58,7 @@ function initialState(preset, defaultCurrency) {
         accountId: src?.accountId || null,
         toAccountId: src?.toAccountId || null,
         goalId: src?.goalId || null,
+        tripDetached: false,
         more,
         showMore: false,
         showAllCategories: false,
@@ -71,6 +75,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
     const { goals } = useGoals();
+    const { trips } = useTrips();
     const { rules } = useMerchantRules();
     const categoryList = useCategories();
     const createTransaction = useCreateTransaction();
@@ -143,6 +148,10 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
         }
     };
 
+    // Trips: a new transaction joins the active trip (or the trip containing its date) unless the user removes the chip
+    const { group, tripOfGroup, mergeMore, detach } = useTripGroup({ trips, date: state.date, more: state.more, detached: state.tripDetached, auto: !editing });
+    const onMoreChange = (more) => setState((s) => ({ ...s, ...mergeMore(more) }));
+
     const accountName = (id) => accounts.find((a) => a.id === id)?.name || '';
     const isTransfer = state.type === 'transfer';
     const canSave = total > 0 && (!isTransfer || (state.accountId && state.toAccountId && state.accountId !== state.toAccountId));
@@ -169,8 +178,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             accountId: state.accountId || null,
             toAccountId: isTransfer ? state.toAccountId : null,
             goalId: isTransfer ? state.goalId || null : null,
-            groupId: more.groupId,
-            groupName: more.groupName,
+            groupId: group.groupId,
+            groupName: group.groupName,
             groupTags: more.tags,
             splitData: more.splitData,
             recurringData: more.recurringData,
@@ -371,6 +380,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                             ) : null}
                         </ChipRow>
 
+                        {tripOfGroup ? <TripChip name={tripOfGroup.name} onRemove={() => setState((s) => ({ ...s, ...detach() }))} /> : null}
+
                         <button
                             type="button"
                             aria-expanded={state.showMore}
@@ -382,8 +393,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                         </button>
                         {state.showMore ? (
                             <MoreSection
-                                value={state.more}
-                                onChange={(more) => set({ more })}
+                                value={{ ...state.more, groupId: group.groupId, groupName: group.groupName }}
+                                onChange={onMoreChange}
                                 groups={groups}
                                 date={state.date}
                                 onOpenSplit={() => setSplitOpen(true)}

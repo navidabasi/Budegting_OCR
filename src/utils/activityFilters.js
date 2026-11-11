@@ -1,14 +1,14 @@
 /**
  * Activity filters: URL <-> filter object, matching, amount search, day grouping and month totals.
  *
- * URL params: m=YYYY-MM|all, type=expense|income|transfer, cat=A,B (multi), acct=<id>, tracking=tracked|open|done,
+ * URL params: m=YYYY-MM|all, type=expense|income|transfer, cat=A,B (multi), acct=<id>, group=<groupId|tripId>, tracking=tracked|open|done,
  * uncat=1, merchant=<name>, q=<text>, sort=date|amount, dir=asc|desc.
  * Legacy dashboard links keep working: month+year (1-based month), category (+filter=category), merchant, type, tracking.
  */
 import { normalizeCategoryName } from './categoryNames';
 import { getTrackingStatus, shouldIncludeInSpendingTotals } from './tracking';
 
-export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
+export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', groupId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
 
 const pad = (n) => String(n).padStart(2, '0');
 export const monthKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
@@ -24,7 +24,7 @@ export function parseFilters(params, now = new Date()) {
 
     let month = get('m');
     if (!month && /^\d{1,2}$/.test(legacyMonth) && /^\d{4}$/.test(legacyYear)) month = `${legacyYear}-${pad(Number(legacyMonth))}`;
-    const hasOtherFilter = !!(get('type') || categories.length || get('merchant') || get('tracking') || get('acct') || get('uncat') || get('q'));
+    const hasOtherFilter = !!(get('type') || categories.length || get('merchant') || get('tracking') || get('acct') || get('group') || get('uncat') || get('q'));
     if (!month) month = hasOtherFilter || legacyYear ? 'all' : monthKey(now); // old links without a month meant "all time"
     if (month !== 'all' && !/^\d{4}-\d{2}$/.test(month)) month = monthKey(now);
 
@@ -35,6 +35,7 @@ export function parseFilters(params, now = new Date()) {
         type,
         categories,
         accountId: get('acct'),
+        groupId: get('group'),
         tracking,
         uncategorised: get('uncat') === '1',
         merchant: get('merchant') ? decodeURIComponent(get('merchant')) : '',
@@ -51,6 +52,7 @@ export function serializeFilters(f, now = new Date()) {
     if (f.type) p.set('type', f.type);
     if (f.categories.length) p.set('cat', f.categories.join(','));
     if (f.accountId) p.set('acct', f.accountId);
+    if (f.groupId) p.set('group', f.groupId);
     if (f.tracking) p.set('tracking', f.tracking);
     if (f.uncategorised) p.set('uncat', '1');
     if (f.merchant) p.set('merchant', f.merchant);
@@ -95,6 +97,7 @@ export function applyFilters(transactions, f, { ignoreMonth = false } = {}) {
         if (f.type && (tx.transactionType || 'expense') !== f.type) return false;
         if (f.categories.length && !f.categories.includes(tx.category)) return false;
         if (f.accountId && tx.accountId !== f.accountId && tx.toAccountId !== f.accountId) return false;
+        if (f.groupId && tx.groupId !== f.groupId) return false;
         if (f.merchant && tx.merchant !== f.merchant) return false;
         if (f.tracking) {
             const status = getTrackingStatus(tx);
@@ -143,4 +146,4 @@ export function groupByDay(list) {
     return items;
 }
 
-export const activeFilterCount = (f) => (f.type ? 1 : 0) + (f.categories.length ? 1 : 0) + (f.accountId ? 1 : 0) + (f.tracking ? 1 : 0) + (f.uncategorised ? 1 : 0) + (f.merchant ? 1 : 0) + (f.q ? 1 : 0);
+export const activeFilterCount = (f) => (f.type ? 1 : 0) + (f.categories.length ? 1 : 0) + (f.accountId ? 1 : 0) + (f.groupId ? 1 : 0) + (f.tracking ? 1 : 0) + (f.uncategorised ? 1 : 0) + (f.merchant ? 1 : 0) + (f.q ? 1 : 0);

@@ -4,11 +4,12 @@ import { MonthSwitcher, Segmented } from '../components/ui';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import BudgetsTab from '../components/plan/BudgetsTab';
 import SavingsTab from '../components/plan/SavingsTab';
+import TripsTab from '../components/plan/TripsTab';
 import { useSelectedMonth } from '../hooks/useSelectedMonth';
 import { usePlanData } from '../hooks/usePlanData';
 import { useTranslation } from '../languages/useTranslation';
 
-const TABS = ['budgets', 'savings'];
+const TABS = ['budgets', 'savings', 'trips'];
 
 /** Plan: Budgets / Savings & accounts / Trips segments sharing the selected month (?m=) and the tab (?tab=). */
 export default function PlanPage() {
@@ -54,11 +55,12 @@ export default function PlanPage() {
         <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-center justify-between pt-4">
                 <h1 className="font-display text-[28px] font-bold tracking-tight text-ink">{t('plan.title')}</h1>
-                <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} />
+                {tab !== 'trips' ? <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} /> : null}
             </div>
             {TABS.length > 1 ? (
                 <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: t(`plan.tab.${v}`) }))} />
             ) : null}
+            {tab === 'trips' ? <TripsTab data={data} /> : null}
             {tab === 'savings' ? <SavingsTab month={month} data={data} goalPreset={goalPreset} onGoalSheetClosed={clearPreset} /> : null}
             {tab === 'budgets' ? <BudgetsTab month={month} data={data} sheetPreset={preset} onSheetClosed={clearPreset} /> : null}
         </main>

@@ -13,7 +13,7 @@ import TransactionRow from '../components/activity/TransactionRow';
 import EmptyState from '../components/common/EmptyState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAppStore } from '../store/appStore';
-import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useSettings, useTransactions } from '../data/hooks';
+import { useAccounts, useCreateTransaction, useDeleteTransaction, useDemoData, useGroupsData, useSettings, useTransactions } from '../data/hooks';
 import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
 import { useCategoryChange } from '../hooks/useCategoryChange';
@@ -43,6 +43,7 @@ export default function ActivityPage() {
     const currentUserId = useAppStore((s) => s.currentUser?.userId);
     const { transactions, loading } = useTransactions();
     const { accounts } = useAccounts();
+    const { groups } = useGroupsData();
     const { defaultCurrency } = useSettings();
     const categoryList = useCategories();
     const changeCategory = useCategoryChange();
@@ -154,7 +155,7 @@ export default function ActivityPage() {
 
     const now = new Date();
     const spansMonths = filters.month === 'all';
-    const hasFilters = filters.type || filters.categories.length || filters.accountId || filters.tracking || filters.uncategorised || filters.merchant || filters.q;
+    const hasFilters = filters.type || filters.categories.length || filters.accountId || filters.groupId || filters.tracking || filters.uncategorised || filters.merchant || filters.q;
     const sortOptions = [
         { value: 'date:desc', label: t('activity.sortNewest') },
         { value: 'date:asc', label: t('activity.sortOldest') },
@@ -193,6 +194,13 @@ export default function ActivityPage() {
 
             <div className="px-5">
                 <FilterBar filters={filters} onChange={setFilters} monthsWithData={monthsWithData} categoryNames={categoryNames} accounts={accounts} unpaidCount={counts.unpaid} uncategorisedCount={counts.uncategorised} />
+                {filters.groupId ? (
+                    <div className="pb-2">
+                        <Chip size="sm" selected icon={X} onClick={() => setFilters({ groupId: '' })}>
+                            {groups.find((g) => g.id === filters.groupId)?.name || t('receipts.page.groups')}
+                        </Chip>
+                    </div>
+                ) : null}
                 {filters.merchant ? (
                     <div className="pb-2">
                         <Chip size="sm" selected icon={X} onClick={() => setFilters({ merchant: '' })}>

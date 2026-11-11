@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Camera, CloudOff, FileText, Loader2, X } from 'lucide-react';
 import ReviewScreen from '../components/scan/ReviewScreen';
 import { useAppStore } from '../store/appStore';
-import { useMerchantRules, useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useSettings, useTransactions } from '../data/hooks';
+import { useMerchantRules, useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useTrips, useSettings, useTransactions } from '../data/hooks';
+import { resolveGroup, tripForDate } from '../utils/tripMath';
 import { useCategories } from '../hooks/useCategories';
 import { useTranslation } from '../languages/useTranslation';
 import { buildHints, extractReceipt, initialScanState, ScanError, scanReducer } from '../services/receiptScan';
@@ -64,6 +65,7 @@ export default function ScanPage() {
     const { rules } = useMerchantRules();
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
+    const { trips } = useTrips();
     const categoryList = useCategories();
     const createTransaction = useCreateTransaction();
     const deleteTransaction = useDeleteTransaction();
@@ -167,6 +169,7 @@ export default function ScanPage() {
         setSaving(true);
         try {
             const id = newId();
+            const tripGroup = resolveGroup(form.more, tripForDate(trips, form.date), form.tripDetached);
             const r = state.result.receipt;
             const prefs = getScanPrefs();
             const imagePath = state.file && prefs.saveImages ? await queueImage({ userId: currentUser.userId, transactionId: id, blob: state.file }) : null;
@@ -186,8 +189,8 @@ export default function ScanPage() {
                 notes: form.more.notes,
                 transactionType: 'expense',
                 accountId: form.accountId,
-                groupId: form.more.groupId,
-                groupName: form.more.groupName,
+                groupId: tripGroup.groupId,
+                groupName: tripGroup.groupName,
                 groupTags: form.more.tags,
                 splitData: form.more.splitData,
                 imagePath,
@@ -225,6 +228,7 @@ export default function ScanPage() {
                     imageUrl={previewUrl}
                     accounts={accounts}
                     groups={groups}
+                    trips={trips}
                     categoryNames={categoryNames}
                     transactions={transactions}
                     rules={rules}

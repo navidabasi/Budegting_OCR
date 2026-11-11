@@ -13,7 +13,7 @@ export default function BottomNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
-    if (pathname.startsWith('/scan') || pathname.startsWith('/receipts/') || pathname.startsWith('/welcome')) return null; // full-screen flows with their own thumb-zone actions
+    if (pathname.startsWith('/scan') || pathname.startsWith('/receipts/') || pathname.startsWith('/welcome') || pathname.startsWith('/trips/')) return null; // full-screen flows with their own thumb-zone actions
     const isHome = pathname === '/' || pathname === '/dashboard';
 
     const link = (to, icon, label, active) => {
@@ -43,7 +43,7 @@ export default function BottomNav() {
                 >
                     <Plus size={28} strokeWidth={2.4} aria-hidden="true" />
                 </button>
-                {link('/plan', PieChart, t('nav.budgets'), pathname.startsWith('/plan') || pathname.startsWith('/trips'))}
+                {link('/plan', PieChart, t('nav.budgets'), pathname.startsWith('/plan'))}
                 {link('/insights', Sparkles, t('nav.insights'), pathname.startsWith('/insights'))}
             </div>
         </nav>

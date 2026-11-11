@@ -37,7 +37,10 @@ export const DEMO = {
         { id: 'go1', userId: U, name: 'Emergency fund', targetAmount: 10000, currency: 'EUR', targetDate: null, accountId: 'a4', startingAmount: 0, isArchived: false, createdAt: now, updatedAt: now },
         { id: 'go2', userId: U, name: 'Japan trip', targetAmount: 3000, currency: 'EUR', targetDate: `${new Date().getFullYear() + 1}-07-01`, accountId: null, startingAmount: 500, isArchived: false, createdAt: now, updatedAt: now },
     ],
-    groups: [{ id: 'g1', userId: U, name: 'Household', color: '#3b82f6', isPinned: false, isDemo: false, parentGroupId: null, createdAt: now, updatedAt: now }],
+    groups: [
+        { id: 'g1', userId: U, name: 'Household', color: '#3b82f6', isPinned: false, isDemo: false, parentGroupId: null, createdAt: now, updatedAt: now },
+        { id: 'g2', userId: U, name: 'Lisbon', color: '#1F4E79', isPinned: false, isDemo: false, parentGroupId: null, kind: 'trip', startsOn: day(2), endsOn: day(-1), budgetAmount: 900, currency: 'EUR', isActive: false, excludeFromBudgets: true, companions: ['Marta'], createdAt: now, updatedAt: now },
+    ],
     transactions: [
         tx('t1', 'Bar Roma', 4.72, 'Dining', 0, { accountId: 'a2' }),
         tx('t2', 'Lidl', 23.47, 'Groceries', 0, { accountId: 'a1', imagePath: 'demo/t2.jpg', groupId: 'g1', groupName: 'Household', groupTags: ['weekly shop'],
@@ -50,6 +53,10 @@ export const DEMO = {
         tx('t8', 'Trenitalia', 27.2, 'Transport', 3, { accountId: 'a1' }),
         tx('t9', 'Salary', 2350, 'Income', 5, { transactionType: 'income', accountId: 'a1' }),
         tx('t10', 'Esselunga', 58.9, 'Groceries', 6, { accountId: 'a1' }),
+        tx('t11', 'Airbnb Lisboa', 280, 'Housing', 2, { accountId: 'a1', groupId: 'g2', groupName: 'Lisbon' }),
+        tx('t12', 'Time Out Market', 38.5, 'Dining', 1, { accountId: 'a1', groupId: 'g2', groupName: 'Lisbon', splitData: { enabled: true, participants: [] } }),
+        tx('t13', 'Metro Lisboa', 6.8, 'Transport', 0, { accountId: 'a1', groupId: 'g2', groupName: 'Lisbon' }),
+        tx('t14', 'Pastéis de Belém', 11.2, 'Dining', 0, { accountId: 'a2', groupId: 'g2', groupName: 'Lisbon' }),
     ],
 };
 

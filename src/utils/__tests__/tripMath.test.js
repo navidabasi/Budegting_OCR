@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { activeTrip, tripTotals, tripContainsDate } from '../tripMath'
+import { activeTrip, tripTotals, tripContainsDate, tripForDate, resolveGroup, tripState } from '../tripMath'
 
 let n = 0
 const tx = (o) => ({ id: `t${++n}`, date: '2026-11-05', total: 10, currency: 'EUR', category: 'Dining', transactionType: 'expense', groupId: 'trip1', ...o })
@@ -93,3 +93,32 @@ describe('tripContainsDate', () => {
         expect(tripContainsDate({}, '2026-12-01')).toBe(false)
     })
 })
+
+describe('tripForDate / resolveGroup / tripState', () => {
+    const lisbon = { id: 'l', kind: 'trip', name: 'Lisbon', startsOn: '2026-11-06', endsOn: '2026-11-09' };
+    const manual = { id: 'm', kind: 'trip', name: 'Open', startsOn: '2026-11-10', endsOn: null, isActive: true };
+    const past = { id: 'p', kind: 'trip', name: 'Rome', startsOn: '2026-05-01', endsOn: '2026-05-04' };
+    const today = new Date(2026, 10, 7);
+
+    it('attaches today to the active trip and past rows to the trip that contains them', () => {
+        expect(tripForDate([lisbon, past], '2026-11-07', today).id).toBe('l');
+        expect(tripForDate([lisbon, past], '2026-05-02', today).id).toBe('p');
+        expect(tripForDate([lisbon, past], '2026-08-02', today)).toBeNull();
+    });
+    it('a manually started trip takes today even without dates', () => {
+        expect(tripForDate([{ id: 'x', kind: 'trip', isActive: true }], '2026-11-07', today).id).toBe('x');
+    });
+    it('ignores groups that are not trips', () => {
+        expect(tripForDate([{ id: 'g', kind: 'group', startsOn: '2026-11-01' }], '2026-11-07', today)).toBeNull();
+    });
+    it('explicit group wins, detach removes the trip', () => {
+        expect(resolveGroup({}, lisbon, false)).toEqual({ groupId: 'l', groupName: 'Lisbon' });
+        expect(resolveGroup({}, lisbon, true)).toEqual({ groupId: null, groupName: null });
+        expect(resolveGroup({ groupId: 'g1', groupName: 'Home' }, lisbon, false).groupId).toBe('g1');
+    });
+    it('state', () => {
+        expect(tripState(lisbon, today)).toBe('active');
+        expect(tripState(past, today)).toBe('ended');
+        expect(tripState({ ...manual, isActive: false, startsOn: '2026-12-01' }, today)).toBe('upcoming');
+    });
+});

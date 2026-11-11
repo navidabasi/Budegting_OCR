@@ -92,3 +92,40 @@ export function tripContainsDate(trip, date) {
     const end = trip.endsOn ? dateKey(trip.endsOn) : addDays(start, 3650);
     return Boolean(d) && start <= d && d <= end;
 }
+
+/**
+ * tripForDate(trips, date, today): the trip a transaction dated `date` joins by default, or null.
+ * The active trip wins for today's date (and for any date inside its range); otherwise any trip whose range
+ * contains the date (CSV rows imported later), latest start first.
+ */
+export function tripForDate(trips = [], date, today = new Date()) {
+    const list = (trips || []).filter(isTrip);
+    const day = dateKey(date);
+    if (!day) return null;
+    const active = activeTrip(list, today);
+    if (active && (day === dateKey(today) || tripContainsDate(active, day))) return active;
+    return list.filter((t) => tripContainsDate(t, day)).sort((a, b) => String(b.startsOn).localeCompare(String(a.startsOn)))[0] || null;
+}
+
+/**
+ * resolveGroup({ groupId, groupName }, autoTrip, detached) -> { groupId, groupName }
+ * An explicitly chosen group always wins; otherwise the automatic trip applies unless the user removed it.
+ */
+export function resolveGroup(more = {}, autoTrip = null, detached = false) {
+    if (more.groupId) return { groupId: more.groupId, groupName: more.groupName || null };
+    if (autoTrip && !detached) return { groupId: autoTrip.id, groupName: autoTrip.name };
+    return { groupId: null, groupName: null };
+}
+
+/** Day numbers for the trip pace tick: where today falls in the trip (0..1), null when the length is unknown. */
+export function tripPace(totals) {
+    return totals && totals.days ? Math.min(1, Math.max(0, totals.daysElapsed / totals.days)) : null;
+}
+
+/** 'active' | 'upcoming' | 'ended' for display ('active' = activeTrip rules). */
+export function tripState(trip, today = new Date()) {
+    if (activeTrip([trip], today)) return 'active';
+    const day = dateKey(today);
+    if (trip?.startsOn && dateKey(trip.startsOn) > day) return 'upcoming';
+    return 'ended';
+}
