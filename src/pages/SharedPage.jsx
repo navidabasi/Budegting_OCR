@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Chip, ChipRow, IconButton, Sheet } from '../components/ui';
+import { Card, Chip, ChipRow, DateField, IconButton, Sheet } from '../components/ui';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
 import { usePeople } from '../hooks/usePeople';
@@ -118,7 +118,7 @@ export default function SharedPage() {
                         <input id="settle-amount" inputMode="decimal" dir="ltr" className={`${input} font-mono`} value={settle.amount} onChange={(e) => setSettle({ ...settle, amount: e.target.value.replace(/[^\d.,]/g, '') })} />
                         {accounts.length ? <ChipRow>{accounts.map((a) => <Chip key={a.id} selected={settle.accountId === a.id} onClick={() => setSettle({ ...settle, accountId: a.id })}>{a.name}</Chip>)}</ChipRow> : null}
                         <label className={cap} htmlFor="settle-date">{t('period.from')}</label>
-                        <input id="settle-date" type="date" className={input} value={settle.date} onChange={(e) => setSettle({ ...settle, date: e.target.value })} />
+                        <DateField id="settle-date" value={settle.date} allowEmpty={false} onChange={(v) => setSettle({ ...settle, date: v })} />
                         <p className="text-xs text-ink-muted">{t('shared.settleNote')}</p>
                         <button type="button" onClick={saveSettle} className="h-14 rounded-[18px] bg-forest text-base font-semibold text-white" data-testid="settle-save">{t('shared.saveSettlement')}</button>
                     </div>

@@ -1,5 +1,6 @@
 export const en = {
     common: {
+        pickDate: "Pick a date",
         appName: 'Receipt Manager',
         actions: {
             save: 'Save',

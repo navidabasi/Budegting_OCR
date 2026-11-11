@@ -3,6 +3,7 @@ import { en } from './en';
 export const ar = {
     ...en,
     common: {
+        pickDate: "اختر تاريخًا",
         ...en.common,
         actions: {
             ...en.common.actions,

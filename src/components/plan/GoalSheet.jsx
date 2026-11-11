@@ -3,6 +3,7 @@ import { Chip, Sheet } from '../ui';
 import { useAppStore } from '../../store/appStore';
 import { useTranslation } from '../../languages/useTranslation';
 import { parseLocalNumber } from '../../utils/helpers';
+import DateField from '../ui/DateField';
 
 const field = 'h-12 w-full rounded-[14px] border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink';
 const lbl = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
@@ -79,7 +80,7 @@ export default function GoalSheet({ open, onClose, goal = null, initial = null, 
                     </label>
                     <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <span className={lbl}>{t('savings.goalSheet.date')}</span>
-                        <input type="date" className={field} value={form.date} onChange={(e) => set({ date: e.target.value })} />
+                        <DateField value={form.date} onChange={(v) => set({ date: v })} label={t('savings.goalSheet.date')} />
                     </label>
                 </div>
                 <label className="flex flex-col gap-1.5">

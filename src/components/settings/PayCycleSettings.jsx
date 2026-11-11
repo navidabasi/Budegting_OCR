@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { CalendarRange } from 'lucide-react';
 import Button from '../common/Button';
 import SettingsCard from '../common/SettingsCard';
-import { Sheet } from '../ui';
+import { DateField, Sheet } from '../ui';
 import { usePayCycleConfig } from '../../hooks/usePayCycle';
 import { useTransactions } from '../../data/hooks';
 import { useAppStore } from '../../store/appStore';
@@ -103,7 +103,7 @@ export default function PayCycleSettings() {
                         return (
                             <div key={id} className="flex flex-wrap items-center gap-2" data-testid="cycle-row">
                                 <span className="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-200">{formatRange(r, languageCode)}{has ? ` · ${t('paycycle.adjusted')}` : ''}</span>
-                                <input type="date" aria-label={t('paycycle.starts')} className="h-11 rounded-lg border border-gray-300 bg-white px-2 text-base dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" value={value} onChange={(e) => setDates((d) => ({ ...d, [id]: e.target.value }))} />
+                                <DateField variant="legacy" label={t('paycycle.starts')} className="!w-44" value={value} allowEmpty={false} onChange={(v) => setDates((d) => ({ ...d, [id]: v }))} />
                                 <Button variant="secondary" disabled={value === r.start} onClick={() => setOverride(id, value)}>{t('paycycle.set')}</Button>
                                 {has ? <Button variant="secondary" onClick={() => setOverride(id, null)}>{t('paycycle.reset')}</Button> : null}
                             </div>

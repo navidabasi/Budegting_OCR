@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
 import Chip from './Chip';
+import DateField from './DateField';
 import Segmented from './Segmented';
 import Sheet from './Sheet';
 import { monthLabel } from '../../hooks/useMoney';
@@ -117,11 +118,11 @@ export function PeriodPickerSheet({ open, onClose, p, onAll, allSelected = false
                     <div className="flex flex-col gap-3">
                         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                             {t('period.from')}
-                            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-12 rounded-[14px] border border-line-strong bg-surface px-3.5 text-base font-normal normal-case tracking-normal text-ink" />
+                            <DateField value={from} onChange={setFrom} allowEmpty={false} />
                         </label>
                         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                             {t('period.to')}
-                            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-12 rounded-[14px] border border-line-strong bg-surface px-3.5 text-base font-normal normal-case tracking-normal text-ink" />
+                            <DateField value={to} onChange={setTo} min={from} allowEmpty={false} />
                         </label>
                         <button type="button" disabled={!from || !to || from > to} onClick={() => pick(periodSpecOf({ kind: 'range', start: from, end: to }))} className="h-14 rounded-[18px] bg-forest text-base font-semibold text-white disabled:opacity-40">
                             {t('period.apply')}
