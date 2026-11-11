@@ -62,9 +62,8 @@ export default function InsightsPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {keepHistory ? (
-                        <button type="button" onClick={() => setHistoryOpen(true)} className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-forest-ink" data-testid="chat-history-button">
-                            <History size={15} aria-hidden="true" />
-                            {t('chat.historyButton')}
+                        <button type="button" onClick={() => setHistoryOpen(true)} aria-label={t('chat.historyButton')} title={t('chat.historyButton')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-forest-ink" data-testid="chat-history-button">
+                            <History size={18} aria-hidden="true" />
                         </button>
                     ) : null}
                     <button
