@@ -37,6 +37,17 @@ export function shareAmount(tx) {
     return num(tx.amountBase) * (effective / total);
 }
 
+/** Your share of the receipt as a fraction of its full amount (1 when not split or when the amount is 0). */
+export function shareFactor(tx) {
+    const full = fullAmount(tx);
+    return full === 0 ? 1 : shareAmount(tx) / full;
+}
+
+/** Your share factor for one item of a receipt. Equal to the receipt's factor until item-level splits exist (see splits.js). */
+export function itemShareFactor(tx) {
+    return shareFactor(tx);
+}
+
 /** Trips (group objects) whose spend is kept out of category budgets. */
 export function excludedTripIds(trips = []) {
     return new Set(

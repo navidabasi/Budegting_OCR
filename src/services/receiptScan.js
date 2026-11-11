@@ -66,11 +66,17 @@ export function parseExtractResponse(json) {
     const date = typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.date) ? r.date.slice(0, 10) : null;
     const items = (Array.isArray(r.items) ? r.items : [])
         .map((it) => ({
+            rawText: str(it?.rawText),
             name: str(it?.name) || '',
             quantity: num(it?.quantity) ?? 1,
+            unit: str(it?.unit),
+            packSize: str(it?.packSize),
             unitPrice: num(it?.unitPrice),
             price: num(it?.price),
+            discount: num(it?.discount),
+            taxRate: num(it?.taxRate),
             category: str(it?.category),
+            subcategory: str(it?.subcategory),
         }))
         .filter((it) => it.name || it.price !== null);
     const extraction = json.extraction && typeof json.extraction === 'object' ? json.extraction : {};
@@ -105,7 +111,7 @@ export function lowConfidenceFields(receipt) {
     return low;
 }
 
-export const itemsSum = (items) => Math.round(items.reduce((s, it) => s + (it.price || 0) * (it.quantity && it.price !== null && !it.unitPrice ? 1 : 1), 0) * 100) / 100;
+export const itemsSum = (items) => Math.round(items.reduce((s, it) => s + (it.price || 0), 0) * 100) / 100; // `price` is the line total
 
 /** An item line that could not be read (no name, or no price). */
 export const isUnreadable = (it) => !String(it.name || '').trim() || it.price === null || it.price === undefined || it.price === '';

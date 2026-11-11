@@ -33,6 +33,7 @@ import { useDraft } from '../../data/syncHooks';
 import { isStorageFullError } from '../../data/repo';
 import { useTripGroup } from '../../hooks/useTripGroup';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
+import { itemsToRows, mergeEditedItems, serializeItems } from '../../utils/receiptItems';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
 const newId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,7 +44,7 @@ function initialState(preset, defaultCurrency) {
     const more = emptyMore();
     more.currency = src?.currency || defaultCurrency || 'EUR';
     if (src) {
-        more.items = (src.lineItems || []).map((it) => ({ name: it.name || '', price: it.price != null ? String(it.price) : '' }));
+        more.items = itemsToRows(src.lineItems, src.category);
         more.notes = src.notes || '';
         more.groupId = src.groupId || null;
         more.groupName = src.groupName || null;
@@ -218,9 +219,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
         setSaving(true);
         const more = state.more;
         const merchant = state.merchant.trim();
-        const items = more.items
-            .filter((it) => it.name.trim() && it.price !== '')
-            .map((it) => ({ name: it.name.trim(), quantity: 1, price: parseFloat(String(it.price).replace(',', '.')) || 0, category: state.category || '' }));
+        const items = serializeItems(mergeEditedItems((editing || preset?.initial)?.lineItems, more.items, { category: state.category || '' }));
         const base = editing ? normalizeTrackingData(editing.trackingData) : null;
         const record = {
             merchantKey: !isTransfer && merchant ? merchantKey(merchant) : null,

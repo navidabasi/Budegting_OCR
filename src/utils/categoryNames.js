@@ -34,3 +34,36 @@ export function canonicalCategory(name, allowed = EXPENSE_CATEGORIES) {
     const wanted = name.trim().toLowerCase();
     return allowed.find((c) => c.toLowerCase() === wanted) || null;
 }
+
+// ---------------------------------------------------------------------------
+// Item subcategories (pass 2, section 3). A receipt item has a category (one of the categories above) and optionally a
+// subcategory scoped to it. Groceries ships with a default list; the user can add their own (stored in the synced
+// layout prefs as { [category]: string[] }) and edit what each item uses. Keys are stable ASCII slugs, labels are i18n.
+// ---------------------------------------------------------------------------
+export const GROCERY_SUBCATEGORIES = ['produce', 'dairy', 'meat_fish', 'pantry', 'snacks', 'beverages', 'frozen', 'bakery', 'other'];
+
+export const DEFAULT_SUBCATEGORIES = Object.freeze({ Groceries: GROCERY_SUBCATEGORIES });
+
+/** Subcategory keys offered for a category: defaults plus the user's own (deduplicated, defaults first). */
+export function subcategoriesFor(category, custom = {}) {
+    const base = DEFAULT_SUBCATEGORIES[category] || [];
+    const extra = Array.isArray(custom?.[category]) ? custom[category] : [];
+    return [...new Set([...base, ...extra.filter((s) => typeof s === 'string' && s.trim())])];
+}
+
+/** Slug for a user-typed subcategory name ("Pet food" -> "pet_food"); empty when nothing usable is left. */
+export const slugSubcategory = (text) =>
+    String(text || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 32);
+
+/** Canonical key for a model-returned subcategory (case/space tolerant), or null when it is not an allowed key for the category. */
+export function canonicalSubcategory(value, category = 'Groceries', custom = {}) {
+    if (typeof value !== 'string') return null;
+    const wanted = slugSubcategory(value.replace('/', '_'));
+    return subcategoriesFor(category, custom).find((s) => s === wanted) || null;
+}

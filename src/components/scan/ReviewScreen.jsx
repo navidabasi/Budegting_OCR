@@ -7,7 +7,9 @@ import TripChip from '../plan/TripChip';
 import { useTripGroup } from '../../hooks/useTripGroup';
 import SplitManager from '../receipts/SplitManager';
 import ImageViewer from './ImageViewer';
-import { isUnreadable, lowConfidenceFields } from '../../services/receiptScan';
+import { lowConfidenceFields } from '../../services/receiptScan';
+import ItemReviewList from '../receipts/ItemReviewList';
+import { reconcile, uncertainFields } from '../../utils/receiptItems';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { rankCategories } from '../../utils/quickAdd';
@@ -19,7 +21,7 @@ const fieldBox = (check) =>
 /**
  * Scan review (docs/design/ScanReview.dc.html). Controlled by ScanPage: `form` + `onChange`.
  */
-export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving, matches = [], onAttach }) {
+export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving, matches = [], onAttach, customSubcategories = {}, onAddSubcategory }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [viewer, setViewer] = useState(false);
     const [itemsOpen, setItemsOpen] = useState(false);
@@ -37,8 +39,8 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
 
     const { group, tripOfGroup, mergeMore, detach } = useTripGroup({ trips, date: form.date, more: form.more, detached: form.tripDetached });
     const items = form.items;
-    const sum = Math.round(items.reduce((s, it) => s + (parseFloat(String(it.price).replace(',', '.')) || 0), 0) * 100) / 100;
-    const unreadable = items.filter((it) => isUnreadable({ ...it, price: it.price === '' ? null : it.price })).length;
+    const sum = reconcile({ total: totalNum, category: form.category, lineItems: items }).itemsSum;
+    const unreadable = items.filter((it) => uncertainFields(it).length > 0).length;
     const set = (patch, field) => onChange({ ...form, ...patch, edited: field ? { ...edited, [field]: true } : edited });
     // P3-T5: a corrected merchant re-suggests the category, unless the user already picked one
     const changeMerchant = (merchant) => {
@@ -49,7 +51,6 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
         }
         set(patch, 'merchant');
     };
-    const setItem = (i, patch) => set({ items: items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) });
 
     const ranked = useMemo(() => rankCategories({ suggested: form.suggested, transactions, names: categoryNames, limit: 4 }), [form.suggested, transactions, categoryNames]);
     const catChips = allCats ? ranked.all : ranked.top;
@@ -156,16 +157,16 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                             </span>
                         </button>
                         {itemsOpen ? (
-                            <div className="flex flex-col gap-2 border-t border-line px-3.5 py-3">
-                                {items.map((it, i) => {
-                                    const bad = isUnreadable({ ...it, price: it.price === '' ? null : it.price });
-                                    return (
-                                        <div key={i} className="flex items-center gap-2">
-                                            <input aria-label={t('quickAdd.itemName')} className={`h-11 min-w-0 flex-1 rounded-xl border bg-surface px-3 text-sm text-ink ${bad ? 'border-warn-edge' : 'border-line-strong'}`} value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} />
-                                            <input aria-label={t('quickAdd.itemPrice')} inputMode="decimal" dir="ltr" className={`h-11 w-24 rounded-xl border bg-surface px-3 font-mono text-sm text-ink ${bad ? 'border-warn-edge' : 'border-line-strong'}`} value={it.price} onChange={(e) => setItem(i, { price: e.target.value.replace(/[^\d.,]/g, '') })} />
-                                        </div>
-                                    );
-                                })}
+                            <div className="border-t border-line px-3.5 py-3">
+                                <ItemReviewList
+                                    items={items}
+                                    receipt={{ total: totalNum, currency: form.currency, category: form.category }}
+                                    categoryNames={categoryNames}
+                                    customSubcategories={customSubcategories}
+                                    onAddSubcategory={onAddSubcategory}
+                                    onViewPhoto={imageUrl ? () => setViewer(true) : undefined}
+                                    onChange={(next) => set({ items: next })}
+                                />
                             </div>
                         ) : null}
                     </div>

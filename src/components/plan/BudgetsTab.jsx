@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Pencil, Plane } from 'lucide-react';
 import { Amount, Card, ProgressBar } from '../ui';
 import BudgetSheet from './BudgetSheet';
+import BreakdownLink from '../home/BreakdownLink';
 import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
 import { useBudgetActions } from '../../hooks/useBudgetActions';
@@ -150,6 +151,8 @@ export default function BudgetsTab({ month, data, sheetPreset, onSheetClosed }) 
                     {t('budgets.addBudget')}
                 </button>
             </div>
+
+            <BreakdownLink month={month} />
 
             <BudgetSheet
                 open={sheetOpen}

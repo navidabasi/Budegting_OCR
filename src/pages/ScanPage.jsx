@@ -24,6 +24,9 @@ import { useDraft } from '../data/syncHooks';
 import { isStorageFullError } from '../data/repo';
 import { findManualMatches } from '../utils/scanMatch';
 import { attachScanToTransaction } from '../services/scanAttach';
+import { applyItemRules } from '../utils/itemRules';
+import { itemsFromExtraction, serializeItems } from '../utils/receiptItems';
+import { useUserPrefs } from '../hooks/useUserPrefs';
 
 async function getAccessToken() {
     const { supabase } = await import('../services/supabaseService');
@@ -50,7 +53,7 @@ function formFromResult(result, { defaultCurrency, sep, accountId, names, rules,
         total: r.total === null ? '' : String(r.total).replace('.', sep),
         currency: r.currency || defaultCurrency,
         category,
-        items: r.items.map((it) => ({ name: it.name, price: it.price === null ? '' : String(it.price).replace('.', sep), quantity: it.quantity || 1, category: it.category })),
+        items: applyItemRules(itemsFromExtraction(r.items, { category, confidence: r.confidence?.items }), rules),
         accountId,
         edited: {},
         more: { notes: '', groupId: null, groupName: null, tags: [], splitData: null },
@@ -84,6 +87,7 @@ export default function ScanPage() {
     const savingRef = useRef(false); // synchronous duplicate-submit guard
     const txIdRef = useRef(newId()); // the id of the transaction this scan becomes: a repeated save is the same record
     const scanDraft = useDraft('scan');
+    const { prefs, setPrefs } = useUserPrefs();
     const userId = currentUser?.userId;
 
     const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
@@ -202,10 +206,8 @@ export default function ScanPage() {
         navigate(-1);
     };
 
-    const buildLineItems = (prefs) =>
-        (prefs.readItems ? form.items : [])
-            .filter((it) => it.name.trim() && it.price !== '')
-            .map((it) => ({ name: it.name.trim(), quantity: it.quantity || 1, price: parseFloat(String(it.price).replace(',', '.')) || 0, category: it.category || form.category }));
+    // Items are saved as read: lines that are still uncertain stay flagged (needs_review) so they can be finished later
+    const buildLineItems = (prefs) => serializeItems((prefs.readItems ? form.items : []).filter((it) => String(it.name || '').trim() || it.amount !== null));
 
     // A manual entry for the same purchase already exists: offer to attach the photo and items to it instead of saving twice
     const formTotal = form ? parseFloat(String(form.total).replace(',', '.')) || 0 : 0;
@@ -313,6 +315,8 @@ export default function ScanPage() {
                     saving={saving}
                     matches={matches}
                     onAttach={attach}
+                    customSubcategories={prefs.subcategories || {}}
+                    onAddSubcategory={(category, label) => setPrefs({ subcategories: { ...(prefs.subcategories || {}), [category]: [...new Set([...((prefs.subcategories || {})[category] || []), label])] } })}
                 />
             </>
         );

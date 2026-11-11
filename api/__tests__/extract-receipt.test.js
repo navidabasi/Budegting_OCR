@@ -78,7 +78,39 @@ describe('receiptSchema / normalizeReceipt', () => {
         expect(r.currency).toBe('EUR');
         expect(r.paymentMethod).toBe('unknown');
         expect(r.category).toBe('Groceries');
-        expect(r.items).toEqual([{ name: 'x', quantity: 1, unitPrice: null, price: 1, category: null }]);
+        expect(r.items).toEqual([{ rawText: null, name: 'x', quantity: 1, unit: null, packSize: null, unitPrice: null, price: 1, discount: null, taxRate: null, category: null, subcategory: null }]);
+    });
+
+    it('keeps printed quantity, unit, unit price, discount and tax; subcategories only from the allowed grocery list', () => {
+        const r = normalizeReceipt(
+            {
+                ...GOOD,
+                items: [
+                    { rawText: 'BANANE 0,812 KG', name: 'Banane', quantity: 0.812, unit: 'KG', unitPrice: '1,59', price: '1,29', discount: '-0,20', taxRate: 4, category: 'groceries', subcategory: 'Produce' },
+                    { name: 'Acqua 6x1,5L', quantity: 1, unit: 'bottles', packSize: '6x1,5L', price: 2.4, category: 'Groceries', subcategory: 'drinks' },
+                    { name: 'Batterie', price: 5, category: 'Shopping', subcategory: 'produce' },
+                    { name: 'Latte', price: 1.2, unit: 'lt', taxRate: 400 },
+                ],
+            },
+            { today: TODAY }
+        );
+        expect(r.items[0]).toMatchObject({ rawText: 'BANANE 0,812 KG', unit: 'kg', unitPrice: 1.59, price: 1.29, discount: 0.2, taxRate: 4, category: 'Groceries', subcategory: 'produce' });
+        expect(r.items[1]).toMatchObject({ unit: null, packSize: '6x1,5L', subcategory: null }); // 'bottles' is not a unit, 'drinks' is not a subcategory key
+        expect(r.items[2].subcategory).toBeNull(); // subcategories belong to groceries
+        expect(r.items[3]).toMatchObject({ unit: 'l', taxRate: null }); // alias normalised, absurd tax dropped
+    });
+
+    it('never invents: absent optional fields stay null', () => {
+        const r = normalizeReceipt({ ...GOOD, items: [{ name: 'Pane', price: 2 }] }, { today: TODAY });
+        expect(r.items[0]).toMatchObject({ rawText: null, unit: null, packSize: null, unitPrice: null, discount: null, taxRate: null, subcategory: null });
+    });
+
+    it('the extraction prompt asks for rawText, units and subcategories and forbids inventing them', async () => {
+        const { buildSystemPrompt } = await import('../extract-receipt.js');
+        const p = buildSystemPrompt({ categories: ['Groceries', 'Other'] });
+        for (const needle of ['rawText', 'unitPrice', 'discount', 'taxRate', 'packSize', 'subcategory', 'produce, dairy, meat_fish, pantry, snacks, beverages, frozen, bakery, other']) expect(p).toContain(needle);
+        expect(p).toMatch(/ONLY when they are printed/);
+        expect(p).not.toMatch(/\{\{\w+\}\}/); // every placeholder is filled
     });
 
     it('restricts categories to the provided list and falls back to Other', () => {

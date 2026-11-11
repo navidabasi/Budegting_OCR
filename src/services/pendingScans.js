@@ -3,8 +3,10 @@
  * transaction flagged `extraction.pending = true`. When the app is back online `processPendingScans` reads each
  * photo through /api/extract-receipt and fills the placeholder in.
  */
-import { createTransaction, getTransaction, listTransactions, updateTransaction } from '../data/repo';
+import { createTransaction, getTransaction, listRows, listTransactions, updateTransaction } from '../data/repo';
 import { mergeExtraction } from '../utils/extractionMerge';
+import { itemsFromExtraction, serializeItems } from '../utils/receiptItems';
+import { applyItemRules } from '../utils/itemRules';
 import { queueImage, requestImageFlush, getSignedUrl } from '../data/images';
 import { db, openDb } from '../data/db';
 import { ScanError, extractReceipt, isRetryable } from './receiptScan';
@@ -70,7 +72,7 @@ export function processPendingScans({ userId, getToken, getHints, fetchImpl }) {
                             currency: receipt.currency,
                             date: receipt.date,
                             category: receipt.category,
-                            lineItems: receipt.items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, category: it.category || receipt.category || '' })),
+                            lineItems: serializeItems(applyItemRules(itemsFromExtraction(receipt.items, { category: receipt.category || '', confidence: receipt.confidence?.items }), await listRows('rules', userId))),
                         },
                         { ...extraction, confidence: receipt.confidence, paymentMethod: receipt.paymentMethod, time: receipt.time, merchantRaw: receipt.merchantRaw, tax: receipt.tax }
                     );

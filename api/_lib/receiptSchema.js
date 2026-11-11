@@ -1,6 +1,6 @@
 // Output contract of /api/extract-receipt (plan P2-T3) + derived confidence rules.
 import { z } from 'zod';
-import { EXPENSE_CATEGORIES, FALLBACK_CATEGORY, canonicalCategory } from '../../src/utils/categoryNames.js';
+import { EXPENSE_CATEGORIES, FALLBACK_CATEGORY, canonicalCategory, canonicalSubcategory } from '../../src/utils/categoryNames.js';
 
 /** "23,47" / "1.234,56" / "€ 5.00" -> number; passes numbers through; anything else -> null. */
 export function toNumber(v) {
@@ -27,12 +27,28 @@ const unit = z.preprocess((v) => {
     return n === null ? 0 : Math.min(1, Math.max(0, n));
 }, z.number());
 
+// Units a receipt prints next to a quantity or unit price; anything else is dropped (never guessed).
+const UNITS = ['kg', 'g', 'l', 'ml', 'cl', 'pc'];
+const UNIT_ALIASES = { kgs: 'kg', gr: 'g', grammi: 'g', lt: 'l', litri: 'l', litro: 'l', pz: 'pc', pcs: 'pc', piece: 'pc', pieces: 'pc', pezzi: 'pc' };
+const unitName = z.preprocess((v) => {
+    if (typeof v !== 'string') return null;
+    const u = v.trim().toLowerCase().replace(/\.$/, '');
+    const mapped = UNIT_ALIASES[u] || u;
+    return UNITS.includes(mapped) ? mapped : null;
+}, z.string().nullable());
+
 const itemSchema = z.object({
+    rawText: str.optional().default(null),
     name: z.string().trim().min(1),
     quantity: numOr(1),
+    unit: unitName.optional().default(null),
+    packSize: z.preprocess((v) => (typeof v === 'number' ? String(v) : typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : null), z.string().nullable()).optional().default(null),
     unitPrice: num.optional().default(null),
     price: numOr(0),
+    discount: num.optional().default(null),
+    taxRate: num.optional().default(null),
     category: str.optional().default(null),
+    subcategory: str.optional().default(null),
 });
 
 export const receiptSchema = z.object({
@@ -110,6 +126,7 @@ export function deriveConfidence(receipt, { today = new Date() } = {}) {
 export function normalizeReceipt(raw, { categories = EXPENSE_CATEGORIES, defaultCurrency = 'EUR', today = new Date() } = {}) {
     const parsed = receiptSchema.parse(raw);
     const pickCategory = (c) => canonicalCategory(c, categories) || (c ? FALLBACK_CATEGORY : null);
+    const receiptCategory = pickCategory(parsed.category);
     const receipt = {
         ...parsed,
         date: isRealIsoDate(parsed.date) ? parsed.date : null,
@@ -117,12 +134,19 @@ export function normalizeReceipt(raw, { categories = EXPENSE_CATEGORIES, default
         total: parsed.total === null ? null : round2(parsed.total),
         tax: parsed.tax === null ? null : round2(parsed.tax),
         category: pickCategory(parsed.category),
-        items: parsed.items.map((it) => ({
-            ...it,
-            price: round2(it.price),
-            unitPrice: it.unitPrice === null ? null : round2(it.unitPrice),
-            category: pickCategory(it.category),
-        })),
+        items: parsed.items.map((it) => {
+            const category = pickCategory(it.category);
+            return {
+                ...it,
+                price: round2(it.price),
+                unitPrice: it.unitPrice === null ? null : round2(it.unitPrice),
+                discount: it.discount === null ? null : round2(Math.abs(it.discount)), // printed discounts are positive amounts taken off the line
+                taxRate: it.taxRate === null || it.taxRate < 0 || it.taxRate > 100 ? null : it.taxRate,
+                category,
+                // subcategories exist for groceries only; anything the model returns outside the allowed list is dropped, not mapped
+                subcategory: canonicalSubcategory(it.subcategory, category || receiptCategory) || null,
+            };
+        }),
     };
     receipt.confidence = deriveConfidence(receipt, { today });
     return receipt;

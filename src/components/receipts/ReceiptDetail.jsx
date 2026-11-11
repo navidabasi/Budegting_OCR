@@ -3,10 +3,15 @@ import { Check, ChevronLeft, Copy, Edit3, MoreHorizontal, Pin, PinOff, Trash2 } 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chip, ChipRow, IconButton, Sheet } from '../ui';
 import Amount from '../ui/Amount';
-import LeaderRow from '../ui/LeaderRow';
 import ImageViewer from '../scan/ImageViewer';
 import RecordSyncBadge from '../sync/RecordSyncBadge';
 import { PendingTotalCard, SuggestedTotalCard } from './CaptureNotices';
+import ItemReviewList from './ItemReviewList';
+import { BulkChangeSheet } from './ItemEditor';
+import { useUserPrefs } from '../../hooks/useUserPrefs';
+import { applyBulkItemChange, saveItemRule, saveItems } from '../../services/itemCorrections';
+import { previewBulkItemChange } from '../../utils/itemRules';
+import { normalizeItems } from '../../utils/receiptItems';
 import { useRecordSyncStates } from '../../data/syncHooks';
 import { resolveReceiptBackTarget } from '../../utils/helpers';
 import { useAccounts, useDeleteTransaction, useMarkTransactionDone, useReceiptImage, useTransactions, useUpdateTransaction } from '../../data/hooks';
@@ -16,7 +21,6 @@ import { getTrackingStatus, isTrackedReceipt } from '../../utils/tracking';
 import { getEffectiveAmount } from '../../utils/helpers';
 import { useCategoryChange } from '../../hooks/useCategoryChange';
 import { countSameMerchant } from '../../services/categoryLearning';
-import { isUnreadable } from '../../services/receiptScan';
 import { rankCategories, dateKey } from '../../utils/quickAdd';
 import { currencySymbol, localeFor, formatAmount } from '../../utils/format';
 import { displayName } from '../../utils/merchant';
@@ -62,6 +66,10 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [allCategories, setAllCategories] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [showItems, setShowItems] = useState(false);
+    const [bulk, setBulk] = useState(null); // { item, preview }
+    const { prefs, setPrefs } = useUserPrefs();
+    const userId = useAppStore((s) => s.currentUser?.userId);
 
     const type = receipt.transactionType || 'expense';
     const status = getTrackingStatus(receipt);
@@ -71,7 +79,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const toAccount = accounts.find((a) => a.id === receipt.toAccountId);
     const names = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const ranked = useMemo(() => rankCategories({ suggested: receipt.category, transactions, names, limit: 4 }), [receipt.category, transactions, names]);
-    const items = receipt.lineItems || [];
+    const items = useMemo(() => normalizeItems(receipt.lineItems, receipt.category), [receipt.lineItems, receipt.category]);
     const sameMerchantCount = useMemo(() => countSameMerchant(transactions, receipt), [transactions, receipt]);
     const { Icon: CatIcon } = categoryVisual(receipt.category, type);
 
@@ -229,27 +237,26 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     </Kv>
                 </section>
 
-                {items.length > 0 ? (
-                    <section className={`${card} flex flex-col gap-0.5 px-4 py-3`}>
-                        <div className="mb-1 flex items-baseline justify-between">
-                            <span className={cap}>{t('detail.itemsCount', { count: items.length })}</span>
-                            <button type="button" onClick={() => openQuickAdd({ transaction: receipt })} className="h-11 px-2 text-[13px] font-semibold text-forest-ink">
-                                {t('common.actions.edit')}
-                            </button>
-                        </div>
-                        {items.map((it, i) => {
-                            const bad = isUnreadable({ ...it, price: it.price === '' ? null : it.price });
-                            return (
-                                <LeaderRow
-                                    key={i}
-                                    className={`py-1.5 text-sm ${bad ? 'text-warn-ink' : ''}`}
-                                    label={String(it.name || '').trim() ? it.name : t('detail.unreadableLine')}
-                                    value={it.price === null || it.price === undefined || it.price === '' ? <span className="font-mono">?</span> : <Amount value={Number(it.price) * (Number(it.quantity) > 1 ? Number(it.quantity) : 1)} />}
-                                />
-                            );
-                        })}
-                        <LeaderRow className="mt-1 border-t border-line pt-2 text-sm font-semibold" label={t('receipts.form.total')} value={<Amount value={receipt.total} />} />
+                {type === 'expense' && (items.length > 0 || receipt.imagePath || showItems) ? (
+                    <section className={`${card} px-4 py-3`}>
+                        <ItemReviewList
+                            items={items}
+                            receipt={receipt}
+                            categoryNames={names}
+                            customSubcategories={prefs.subcategories || {}}
+                            onViewPhoto={image.url ? () => setViewer(true) : undefined}
+                            onChange={(next) => saveItems(receipt, next).then(() => onUpdate?.()).catch(() => showToast(t('quickAdd.saveFailed'), 'error'))}
+                            onFutureRule={(item) =>
+                                saveItemRule(userId, item.name, { category: item.category, subcategory: item.subcategory }).then(() => showToast(t('items.ruleSaved', { name: item.name }), 'success'))
+                            }
+                            onBulkChange={(item) => setBulk({ item, preview: previewBulkItemChange(transactions, { name: item.name, category: item.category, subcategory: item.subcategory, excludeTxId: receipt.id }) })}
+                            onAddSubcategory={(category, label) => setPrefs({ subcategories: { ...(prefs.subcategories || {}), [category]: [...new Set([...((prefs.subcategories || {})[category] || []), label])] } })}
+                        />
                     </section>
+                ) : type === 'expense' ? (
+                    <button type="button" onClick={() => setShowItems(true)} className="flex h-12 items-center justify-center rounded-[14px] border border-line-strong bg-surface text-sm font-semibold text-ink">
+                        {t('items.addItems')}
+                    </button>
                 ) : null}
             </div>
 
@@ -274,6 +281,28 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     </button>
                 </div>
             </div>
+
+            <BulkChangeSheet
+                open={!!bulk}
+                onClose={() => setBulk(null)}
+                preview={bulk?.preview || []}
+                itemName={bulk?.item?.name || ''}
+                busy={busy}
+                onApply={async () => {
+                    setBusy(true);
+                    try {
+                        const r = await applyBulkItemChange(transactions, bulk.preview);
+                        setBulk(null);
+                        showToast(t('items.bulkDone', { count: r.count }), 'success', {
+                            action: { label: t('quickAdd.undo'), onClick: () => r.undo().then(() => showToast(t('items.bulkUndone'), 'info')) },
+                        });
+                    } catch {
+                        showToast(t('quickAdd.saveFailed'), 'error');
+                    } finally {
+                        setBusy(false);
+                    }
+                }}
+            />
 
             {viewer && image.url ? <ImageViewer src={image.url} alt={t('scan.receiptPhoto')} onClose={() => setViewer(false)} /> : null}
 

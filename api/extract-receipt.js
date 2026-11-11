@@ -10,7 +10,7 @@ import { chat, hasVisionModel, NoVisionModelError } from './_lib/llm.js';
 import { ocrImage } from './_lib/ocr.js';
 import { loadPrompt, fillPrompt } from './_lib/prompts.js';
 import { normalizeReceipt } from './_lib/receiptSchema.js';
-import { EXPENSE_CATEGORIES } from '../src/utils/categoryNames.js';
+import { EXPENSE_CATEGORIES, GROCERY_SUBCATEGORIES } from '../src/utils/categoryNames.js';
 
 const inputSchema = z.object({
     file: z.string().min(16),
@@ -36,6 +36,7 @@ export function buildSystemPrompt(hints, today = new Date()) {
         LANGUAGE: hints.language || 'it',
         DEFAULT_CURRENCY: (hints.defaultCurrency || 'EUR').toUpperCase(),
         CATEGORIES: categories.join(', '),
+        SUBCATEGORIES: GROCERY_SUBCATEGORIES.join(', '),
         KNOWN_MERCHANTS: hints.knownMerchants?.length ? hints.knownMerchants.join(', ') : '(none)',
     });
 }
