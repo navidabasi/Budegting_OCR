@@ -7,6 +7,7 @@ import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
 import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
+import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 import { getAccessToken } from '../../services/accessToken';
 import { actionHref, loadThread, saveThread, sendEvidenceChat } from '../../services/chatApi';
 import { buildEvidencePack, routeQuestion } from '../../services/evidencePack';
@@ -32,6 +33,7 @@ const readBasis = () => {
 export default function ChatPanel({ ctx, month, language, extraQuestions = [], fetchImpl, getToken = getAccessToken }) {
     const { t } = useTranslation();
     const { short } = useMoney();
+    const keyboard = useKeyboardOpen();
     const [thread, setThread] = useState(() => loadThread());
     const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
@@ -42,8 +44,12 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
     const guard = useRef(false); // synchronous: two taps in one frame send one question
     const ready = !!ctx && ctx.transactions;
 
-    useEffect(() => saveThread(thread), [thread]);
-    useEffect(() => endRef.current?.scrollIntoView?.({ block: 'nearest' }), [thread, busy]);
+    useEffect(() => {
+        saveThread(thread);
+    }, [thread]);
+    useEffect(() => {
+        endRef.current?.scrollIntoView?.({ block: 'nearest' });
+    }, [thread, busy]);
 
     const changeBasis = (b) => {
         setBasis(b);
@@ -136,7 +142,7 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
                     {t('chat.clear')}
                 </button>
             ) : null}
-            <div className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 shadow-[0_-6px_16px_rgba(16,33,27,.06)]" style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}>
+            <div className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 desk:start-24 shadow-[0_-6px_16px_rgba(16,33,27,.06)]" style={keyboard.open ? { bottom: `${keyboard.inset}px`, paddingBottom: '8px' } : { bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}>
                 <div className="mx-auto flex max-w-[520px] flex-col gap-2 px-5">
                     <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto overscroll-x-contain px-5">
                         {suggestions.map((s) => (

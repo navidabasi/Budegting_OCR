@@ -7,6 +7,8 @@ export default {
     darkMode: 'class', // Enable class-based dark mode
     theme: {
         extend: {
+            // md (768) is the tablet layout; desk (1100) is the PC layout: nav rail and the Activity table
+            screens: { desk: '1100px' },
             fontFamily: {
                 sans: ['"Albert Sans"', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
                 display: ['"Bricolage Grotesque"', '"Albert Sans"', 'system-ui', 'sans-serif'],

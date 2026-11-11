@@ -1809,4 +1809,17 @@ export const de = {
         activityShare: "Volle gezahlte Beträge. Dein Anteil an geteilten Ausgaben: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "Händler",
+        colCategory: "Kategorie",
+        colAccount: "Konto",
+        colAmount: "Betrag",
+        detail: "Transaktionsdetails",
+        selectPrompt: "Wähle eine Transaktion, um hier die Details zu sehen.",
+        keyboardHint: "Tastatur: J / K oder Pfeiltasten bewegen, Enter öffnet die Details, Esc schließt sie.",
+        photo: "Belegfoto",
+        reviewForm: "Belegdaten",
+    },
+    // @i18n:end pane
 };

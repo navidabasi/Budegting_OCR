@@ -156,7 +156,7 @@ export default function GroupsPage() {
                                         type="color"
                                         value={newGroupColor}
                                         onChange={(e) => setNewGroupColor(e.target.value)}
-                                        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                        className="h-11 w-12 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
                                     />
                                     <input
                                         type="text"
@@ -271,7 +271,7 @@ export default function GroupsPage() {
                                         type="color"
                                         value={newGroupColor}
                                         onChange={(e) => setNewGroupColor(e.target.value)}
-                                        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                        className="h-11 w-12 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
                                     />
                                     <input
                                         type="text"

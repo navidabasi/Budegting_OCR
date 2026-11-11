@@ -502,7 +502,7 @@ export default function SettingsPage() {
                             render={({ field }) => (
                                 <select
                                     {...field}
-                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                 >
                                     {currencies.map(currency => (
                                         <option key={currency.code} value={currency.code}>
@@ -538,7 +538,7 @@ export default function SettingsPage() {
                                 setSelectedLanguage(language);
                                 setLanguageCode(language);
                             }}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                         >
                             {LANGUAGE_OPTIONS.map((option) => (
                                 <option key={option.code} value={option.code}>
@@ -589,7 +589,7 @@ export default function SettingsPage() {
                     {darkModeManual !== null && (
                         <button
                             onClick={resetToSystemDarkMode}
-                            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                            className="min-h-[44px] text-start text-sm text-primary-600 hover:underline dark:text-primary-400"
                         >
                             {t('settings.appearance.resetSystem')}
                         </button>
@@ -899,7 +899,7 @@ export default function SettingsPage() {
                             type="color"
                             value={newCategoryColor}
                             onChange={(e) => setNewCategoryColor(e.target.value)}
-                            className="w-12 h-[42px] rounded border border-gray-300 dark:border-gray-600 cursor-pointer mt-0"
+                            className="h-11 w-12 rounded border border-gray-300 dark:border-gray-600 cursor-pointer mt-0"
                         />
                     </div>
                     <div className="flex gap-2">

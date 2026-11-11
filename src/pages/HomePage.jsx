@@ -1,4 +1,5 @@
 import { Suspense, lazy, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ConversionNote from '../components/common/ConversionNote';
 import { Plane, Settings } from 'lucide-react';
 import { IconButton, PeriodSwitcher } from '../components/ui';
@@ -30,8 +31,8 @@ const HomeCharts = lazy(() => import('../components/home/HomeCharts'));
 
 /** Home (docs/design/Main.dc.html): the month as a receipt, trip banner, top insight, budgets strip, upcoming bills, charts. */
 export default function HomePage() {
+    const navigate = useNavigate();
     const { t, languageCode } = useTranslation();
-    const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
     const p = usePeriod();
     const month = p.period;
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
@@ -64,7 +65,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex gap-2">
                     {!activeTrip ? <IconButton label={t('trips.start')} icon={Plane} variant="surface" onClick={() => setTripOpen(true)} /> : null}
-                    <IconButton label={t('navigation.settings')} icon={Settings} variant="surface" onClick={() => setSidebarOpen(true)} />
+                    <IconButton label={t('navigation.settings')} icon={Settings} variant="surface" onClick={() => navigate('/settings')} />
                 </div>
             </div>
             <PeriodSwitcher p={p} />

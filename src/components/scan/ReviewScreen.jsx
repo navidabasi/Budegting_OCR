@@ -14,6 +14,7 @@ import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { rankCategories } from '../../utils/quickAdd';
 import DateField from '../ui/DateField';
+import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 
 const lbl = 'text-[11px] font-semibold uppercase tracking-wider text-ink-muted';
 const fieldBox = (check) =>
@@ -24,6 +25,7 @@ const fieldBox = (check) =>
  */
 export default function ReviewScreen({ result, form, onChange, imageUrl, accounts, groups, trips = [], categoryNames, transactions, rules = [], onCreateGroup, onSave, onManual, onRescan, onBack, saving, matches = [], onAttach, customSubcategories = {}, onAddSubcategory }) {
     const { t, languageCode, localizeCategory } = useTranslation();
+    const keyboard = useKeyboardOpen();
     const [viewer, setViewer] = useState(false);
     const [itemsOpen, setItemsOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
@@ -61,7 +63,16 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
     const canSave = totalNum > 0 && !saving;
 
     return (
-        <div className="flex min-h-[100dvh] flex-col bg-ground">
+        <div className="flex h-[100dvh] flex-col overflow-hidden bg-ground md:flex-row" data-testid="review-layout">
+            {imageUrl ? (
+                // tablet and PC: the photo stays beside the form, so the lines can be checked against it while editing
+                <div className="hidden md:flex md:w-[46%] md:shrink-0 md:items-center md:justify-center md:bg-tint md:p-4" data-testid="review-photo-pane">
+                    <button type="button" onClick={() => setViewer(true)} aria-label={t('scan.tapToZoom')} className="flex h-full w-full items-center justify-center overflow-hidden rounded-[18px]">
+                        <img src={imageUrl} alt={t('pane.photo')} className="max-h-full max-w-full object-contain" />
+                    </button>
+                </div>
+            ) : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),16px)] pb-1.5">
                 <IconButton label={t('common.actions.back')} icon={ChevronLeft} size={22} onClick={onBack} />
                 <h1 className="font-display text-[17px] font-bold text-ink">{t('scan.reviewTitle')}</h1>
@@ -72,7 +83,7 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
 
             <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-5 pb-4 pt-1">
                 {imageUrl ? (
-                    <button type="button" onClick={() => setViewer(true)} aria-label={t('scan.tapToZoom')} className="relative flex h-44 shrink-0 items-start justify-center overflow-hidden rounded-[18px] bg-tint">
+                    <button type="button" onClick={() => setViewer(true)} aria-label={t('scan.tapToZoom')} className="relative flex h-44 shrink-0 items-start justify-center overflow-hidden rounded-[18px] bg-tint md:hidden">
                         <img src={imageUrl} alt={t('scan.receiptPhoto')} className="h-full w-full object-contain" />
                         <span className="absolute bottom-2.5 end-3 rounded-lg bg-surface/85 px-2 py-1 text-[11px] font-semibold text-ink">{t('scan.tapToZoom')}</span>
                     </button>
@@ -210,9 +221,12 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                     <Check size={20} strokeWidth={2.4} aria-hidden="true" />
                     {saveLabel}
                 </button>
-                <button type="button" onClick={onManual} className="flex h-11 items-center justify-center text-sm font-semibold text-ink-muted">
-                    {t('scan.enterManually')}
-                </button>
+                {keyboard.open ? null : (
+                    <button type="button" onClick={onManual} className="flex h-11 items-center justify-center text-sm font-semibold text-ink-muted">
+                        {t('scan.enterManually')}
+                    </button>
+                )}
+            </div>
             </div>
 
             {viewer && imageUrl ? <ImageViewer src={imageUrl} alt={t('scan.receiptPhoto')} onClose={() => setViewer(false)} /> : null}

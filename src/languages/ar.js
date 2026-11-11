@@ -1841,4 +1841,17 @@ export const ar = {
         activityShare: "المبالغ الكاملة المدفوعة. حصتك من المصروفات المقسّمة: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "التاجر",
+        colCategory: "الفئة",
+        colAccount: "الحساب",
+        colAmount: "المبلغ",
+        detail: "تفاصيل المعاملة",
+        selectPrompt: "اختر معاملة لعرض تفاصيلها هنا.",
+        keyboardHint: "لوحة المفاتيح: J / K أو الأسهم للتنقل، Enter يفتح التفاصيل، Esc يغلقها.",
+        photo: "صورة الإيصال",
+        reviewForm: "بيانات الإيصال",
+    },
+    // @i18n:end pane
 };

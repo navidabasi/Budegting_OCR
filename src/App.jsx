@@ -42,7 +42,9 @@ const SharedPage = lazy(() => import('./pages/SharedPage'));
 const TripPage = lazy(() => import('./pages/TripPage'));
 const ScanPage = lazy(() => import('./pages/ScanPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
-const Sidebar = lazy(() => import('./components/layout/Sidebar'));
+const SettingsRoute = lazy(() => import('./pages/SettingsRoute'));
+import NavRail from './components/layout/NavRail';
+import ShellFrame from './components/layout/ShellFrame';
 const AddReceiptModal = lazy(() => import('./components/layout/AddReceiptModal'));
 import InstallAppPrompt from './components/common/InstallAppPrompt';
 import Modal from './components/common/Modal';
@@ -610,6 +612,7 @@ function App() {
                     </div>
                 )}
                 <Suspense fallback={<LoadingSpinner className="pb-20" />}>
+                <ShellFrame authed={isAuthenticated}>
                 <Routes>
                     <Route
                         path="/login"
@@ -656,6 +659,7 @@ function App() {
                     <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
                     <Route path="/breakdown" element={<ProtectedRoute><BreakdownPage /></ProtectedRoute>} />
                     <Route path="/shared" element={<ProtectedRoute><SharedPage /></ProtectedRoute>} />
+                    <Route path="/settings" element={<ProtectedRoute><SettingsRoute /></ProtectedRoute>} />
                     <Route
                         path="/receipts/:id"
                         element={
@@ -665,13 +669,14 @@ function App() {
                         }
                     />
                 </Routes>
+                </ShellFrame>
                 </Suspense>
 
                 {isAuthenticated && (
                     <>
                         <BottomNav />
+                        <NavRail />
                         <Suspense fallback={null}>
-                            <Sidebar />
                             <AddReceiptModal />
                         </Suspense>
                         <InstallAppPrompt />

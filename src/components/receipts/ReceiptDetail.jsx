@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronLeft, Copy, Edit3, MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, Copy, Edit3, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chip, ChipRow, IconButton, Sheet } from '../ui';
 import Amount from '../ui/Amount';
@@ -47,7 +47,7 @@ const withoutSuggestion = (receipt, field) => {
 };
 
 /** Transaction detail (docs/design/Detail.dc.html). */
-export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
+export default function ReceiptDetail({ receipt, onUpdate, onDelete, embedded = false, onClose }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
@@ -115,7 +115,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
         try {
             await deleteReceipt(receipt.id);
             showToast(t('receipts.detail.deleteSuccess'), 'success');
-            navigate(backTarget, { replace: true });
+            if (!embedded) navigate(backTarget, { replace: true });
             onDelete?.();
         } catch {
             showToast(t('receipts.detail.deleteFailed'), 'error');
@@ -144,9 +144,9 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
     const actionBtn = 'flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-line-strong bg-surface text-sm font-semibold text-ink active:opacity-80';
 
     return (
-        <div className="mx-auto flex min-h-[100dvh] max-w-xl flex-col">
-            <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),12px)]">
-                <IconButton label={t('common.actions.back')} icon={ChevronLeft} size={22} onClick={() => navigate(backTarget)} />
+        <div className={embedded ? 'flex min-h-full flex-col' : 'mx-auto flex min-h-[100dvh] max-w-xl flex-col'} data-testid={embedded ? 'detail-embedded' : undefined}>
+            <div className={`flex items-center justify-between px-3 ${embedded ? 'pt-3' : 'pt-[max(env(safe-area-inset-top),12px)]'}`}>
+                {embedded ? <IconButton label={t('common.actions.close')} icon={X} size={22} onClick={() => onClose?.()} /> : <IconButton label={t('common.actions.back')} icon={ChevronLeft} size={22} onClick={() => navigate(backTarget)} />}
                 <span className="text-[13px] font-semibold uppercase tracking-wider text-ink-muted">{type === 'income' ? t('quickAdd.income') : type === 'transfer' ? t('quickAdd.transfer') : t('quickAdd.expense')}</span>
                 <IconButton label={t('detail.moreActions')} icon={MoreHorizontal} onClick={() => setMenu(true)} />
             </div>
@@ -239,7 +239,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                     {status ? <Kv label={t('detail.status')}>{status === 'open' ? t('activity.unpaid') : t('detail.paid')}</Kv> : null}
                     <Kv label={t('quickAdd.notes')} last>
                         {receipt.notes ? receipt.notes : (
-                            <button type="button" onClick={() => openQuickAdd({ transaction: receipt })} className="min-h-[32px] text-ink-faint">
+                            <button type="button" onClick={() => openQuickAdd({ transaction: receipt })} className="min-h-[44px] text-ink-faint">
                                 {t('detail.addNote')}
                             </button>
                         )}

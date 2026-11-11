@@ -1,4 +1,4 @@
-/** Pill used for filters, categories, dates and accounts. 40 px tall (44 px hit area on touch via min-h). */
+/** Pill used for filters, categories, dates and accounts. 44 px tall (touch target). */
 const TONES = {
     default: 'border-line-strong bg-surface text-ink',
     suggested: 'border-forest-ink bg-surface text-forest-ink',
@@ -6,7 +6,7 @@ const TONES = {
 };
 
 export default function Chip({ selected = false, tone = 'default', size = 'md', icon: Icon, children, className = '', ...rest }) {
-    const sizing = size === 'sm' ? 'h-9 px-3 text-[13px]' : 'h-10 px-3.5 text-sm';
+    const sizing = size === 'sm' ? 'h-11 px-3 text-[13px]' : 'h-11 px-3.5 text-sm';
     const look = selected ? 'border-ink bg-ink text-ground' : TONES[tone] || TONES.default;
     return (
         <button

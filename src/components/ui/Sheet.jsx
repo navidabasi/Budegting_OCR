@@ -11,6 +11,10 @@ export default function Sheet({ open, onClose, label, children, className = '', 
     const panelRef = useRef(null);
     const dragRef = useRef(null);
     const returnFocusRef = useRef(null);
+    // The effect below must run when the sheet opens or closes only: a parent that passes a new onClose on every render (typing in a
+    // field re-renders it) would otherwise move the focus back to the first control each time.
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
     useEffect(() => {
         if (!open) return undefined;
@@ -26,7 +30,7 @@ export default function Sheet({ open, onClose, label, children, className = '', 
             if (panel && e.target?.nodeType === 1 && e.target !== document.body && !panel.contains(e.target)) return;
             if (e.key === 'Escape') {
                 e.stopPropagation();
-                onClose?.();
+                onCloseRef.current?.();
                 return;
             }
             if (e.key !== 'Tab' || !panel) return;
@@ -51,7 +55,7 @@ export default function Sheet({ open, onClose, label, children, className = '', 
             document.body.style.overflow = prevOverflow;
             returnFocusRef.current?.focus?.();
         };
-    }, [open, onClose]);
+    }, [open]);
 
     if (!open) return null;
 

@@ -1859,4 +1859,17 @@ export const fa = {
         activityShare: "کل مبالغ پرداخت‌شده. سهم شما از هزینه‌های تقسیم‌شده: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "فروشگاه",
+        colCategory: "دسته",
+        colAccount: "حساب",
+        colAmount: "مبلغ",
+        detail: "جزئیات تراکنش",
+        selectPrompt: "برای دیدن جزئیات، یک تراکنش انتخاب کنید.",
+        keyboardHint: "صفحه‌کلید: J / K یا کلیدهای جهت‌نما حرکت می‌کنند، Enter جزئیات را باز می‌کند، Esc می‌بندد.",
+        photo: "عکس رسید",
+        reviewForm: "جزئیات رسید",
+    },
+    // @i18n:end pane
 };

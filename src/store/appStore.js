@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getLanguageDirection, normalizeLanguageCode } from '../languages';
+import { applyMotionMode } from '../utils/motion';
 
 export const useAppStore = create(
     persist(
@@ -18,6 +19,7 @@ export const useAppStore = create(
             toast: null,
             darkMode: false,
             darkModeManual: null, // null = use system, true/false = manual override
+            motionMode: 'system', // 'system' | 'reduced' | 'full': the app setting for reduced motion (src/utils/motion.js)
             languageCode: '',
             storageHealth: {
                 hasLocalCache: true,
@@ -60,6 +62,12 @@ export const useAppStore = create(
             },
 
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+            setMotionMode: (mode) => {
+                const next = ['reduced', 'full'].includes(mode) ? mode : 'system';
+                set({ motionMode: next });
+                applyMotionMode(next);
+            },
 
             setAddReceiptModalOpen: (open) => set(open ? { addReceiptModalOpen: true } : { addReceiptModalOpen: false, quickAddPreset: null }),
 
@@ -187,6 +195,7 @@ export const useAppStore = create(
                 isAuthenticated: state.isAuthenticated,
                 darkMode: state.darkMode,
                 darkModeManual: state.darkModeManual,
+                motionMode: state.motionMode,
                 languageCode: state.languageCode
             })
         }

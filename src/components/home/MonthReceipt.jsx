@@ -61,7 +61,7 @@ export default function MonthReceipt({ month, totals, wholeBudget, today }) {
                 <p className="text-[13px] opacity-90">{t('savings.noIncome')}</p>
             )}
             {totals.travelByTrip.map((trip) => (
-                <Link key={trip.tripId} to={`/trips/${trip.tripId}`} className={`${row} min-h-[28px]`}>
+                <Link key={trip.tripId} to={`/trips/${trip.tripId}`} className={`${row} min-h-[44px]`}>
                     <span>{t('home.travel', { name: trip.name })}</span>
                     <span className="lead" aria-hidden="true" />
                     <span className={val}>{num(trip.total)}</span>

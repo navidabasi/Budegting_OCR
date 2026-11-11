@@ -35,6 +35,7 @@ import { useTripGroup } from '../../hooks/useTripGroup';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 import { itemsToRows, mergeEditedItems, serializeItems } from '../../utils/receiptItems';
 import { confirmedPatch } from '../../utils/fx';
+import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
 const newId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -86,6 +87,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const currentUser = useAppStore((s) => s.currentUser);
     const showToast = useAppStore((s) => s.showToast);
     const { defaultCurrency } = useSettings();
+    const keyboard = useKeyboardOpen(); // with the keyboard open the keypad would fill the screen: a compact amount + Save bar takes its place
     const { transactions } = useTransactions();
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
@@ -491,11 +493,14 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                         ) : null}
                     </div>
                 </div>
-                {state.showMore ? (
-                    <div className="flex shrink-0 gap-2 px-5 pt-2">
+                {state.showMore || keyboard.open ? (
+                    <div className="flex shrink-0 gap-2 px-5 pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }} data-testid="compact-save-bar">
                         <button
                             type="button"
-                            onClick={() => set({ showMore: false })}
+                            onClick={() => {
+                                document.activeElement?.blur?.(); // typing is done: the keypad comes back
+                                set({ showMore: false });
+                            }}
                             className="h-14 flex-1 rounded-2xl border border-line-strong bg-surface font-mono text-lg text-ink"
                             aria-label={t('quickAdd.editAmount')}
                             dir="ltr"

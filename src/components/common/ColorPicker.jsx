@@ -74,7 +74,7 @@ export default function ColorPicker({ value = '#3b82f6', onChange, label = 'Colo
                         type="color"
                         value={customColor}
                         onChange={handleCustomChange}
-                        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                        className="h-11 w-12 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
                     />
                     <input
                         type="text"

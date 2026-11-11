@@ -39,7 +39,7 @@ export default function UpcomingBills({ unpaid, today }) {
                     const soon = daysBetween(todayKey, dateKey(tx.date)) <= 3;
                     return (
                         <div key={tx.id} className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
-                            <Link to={`/receipts/${tx.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                            <Link to={`/receipts/${tx.id}`} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3">
                                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] font-mono text-xs font-semibold ${soon ? 'bg-warn-soft text-warn-ink' : 'bg-tint text-ink-muted'}`}>{Number(String(tx.date).slice(8, 10))}</span>
                                 <span className="flex min-w-0 flex-1 flex-col">
                                     <span className="truncate text-[15px] font-medium text-ink">{tx.merchant}</span>

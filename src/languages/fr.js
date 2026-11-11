@@ -1696,4 +1696,17 @@ export const fr = {
         activityShare: "Montants totaux payés. Votre part des dépenses partagées : {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "Commerçant",
+        colCategory: "Catégorie",
+        colAccount: "Compte",
+        colAmount: "Montant",
+        detail: "Détail de l’opération",
+        selectPrompt: "Sélectionnez une opération pour voir son détail ici.",
+        keyboardHint: "Clavier : J / K ou les flèches pour se déplacer, Entrée ouvre le détail, Échap le ferme.",
+        photo: "Photo du ticket",
+        reviewForm: "Données du ticket",
+    },
+    // @i18n:end pane
 };

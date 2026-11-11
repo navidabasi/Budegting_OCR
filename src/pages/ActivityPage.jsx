@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConversionNote from '../components/common/ConversionNote';
 import { useSearchParams } from 'react-router-dom';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUpDown, Search, Sparkles, Tags, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Chip, IconButton, Sheet } from '../components/ui';
@@ -11,6 +10,11 @@ import MonthStrip from '../components/activity/MonthStrip';
 import PickerSheet from '../components/activity/PickerSheet';
 import CategoriseSheet from '../components/activity/CategoriseSheet';
 import TransactionRow from '../components/activity/TransactionRow';
+import ActivityList from '../components/activity/ActivityList';
+import ActivityTable from '../components/activity/ActivityTable';
+import DetailPane from '../components/activity/DetailPane';
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useScrollMemory } from '../hooks/useScrollMemory';
 import SyncChip from '../components/sync/SyncChip';
 import EmptyState from '../components/common/EmptyState';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -26,8 +30,6 @@ import { useCategoryChange } from '../hooks/useCategoryChange';
 import { useTranslation } from '../languages/useTranslation';
 import { applyFilters, groupByDay, isUncategorised, isUnpaid, parseFilters, serializeFilters, summarize } from '../utils/activityFilters';
 
-const DAY_H = 44;
-const ROW_H = 62;
 const UNDO_MS = 6000;
 
 function dayLabel(key, now, languageCode, t, withMonth) {
@@ -70,10 +72,39 @@ export default function ActivityPage() {
     const defaultSpec = periodSpecOf(p.current);
     const filters = useMemo(() => parseFilters(searchParams, new Date(), { defaultSpec }), [searchParams, defaultSpec]);
     const activePeriod = useMemo(() => periodFromSpec(filters.month, p.config) || p.period, [filters.month, p.config, p.period]);
+    // Tablet and PC keep the open transaction in the URL (?sel=) so filters, selection and back navigation stay together
+    const bp = useBreakpoint();
+    const split = bp !== 'phone';
+    const desk = bp === 'desktop';
+    const selectedId = searchParams.get('sel') || '';
     const setFilters = useCallback(
-        (patch) => setSearchParams(serializeFilters({ ...filters, ...patch }, new Date(), { defaultSpec }), { replace: true }),
-        [filters, setSearchParams, defaultSpec]
+        (patch) => {
+            const next = serializeFilters({ ...filters, ...patch }, new Date(), { defaultSpec });
+            if (selectedId) next.set('sel', selectedId);
+            setSearchParams(next, { replace: true });
+        },
+        [filters, setSearchParams, defaultSpec, selectedId]
     );
+    const select = useCallback(
+        (id) =>
+            setSearchParams(
+                (prev) => {
+                    const n = new URLSearchParams(prev);
+                    if (id) n.set('sel', id);
+                    else n.delete('sel');
+                    return n;
+                },
+                { replace: true }
+            ),
+        [setSearchParams]
+    );
+    const paneRef = useRef(null);
+    const detailRef = useRef(null);
+    const [paneEl, setPaneEl] = useState(null);
+    const onPaneRef = useCallback((el) => {
+        paneRef.current = el;
+        setPaneEl(el);
+    }, []);
 
     const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
@@ -150,15 +181,8 @@ export default function ActivityPage() {
         }
     };
 
-    // ----- virtual list -----
-    const listRef = useRef(null);
-    const virtualizer = useWindowVirtualizer({
-        count: items.length,
-        estimateSize: (i) => (items[i].kind === 'day' ? DAY_H : ROW_H),
-        overscan: 10,
-        scrollMargin: listRef.current?.offsetTop || 0,
-        initialRect: { width: 390, height: 844 },
-    });
+    // back from a detail page: same filters (they are in the URL) and the same place in the list
+    useScrollMemory(`activity:${searchParams.toString().replace(/(^|&)sel=[^&]*/, '')}`, { ready: !loading && items.length > 0, getEl: () => (split && !desk ? paneRef.current : null) });
 
     if (loading) return <LoadingSpinner className="pb-20" />;
 
@@ -172,8 +196,29 @@ export default function ActivityPage() {
         { value: 'amount:asc', label: t('activity.sortAmountLow') },
     ];
 
+    const open = (tx) => (split ? select(tx.id) : toReceiptDetail(tx.id));
+    const renderItem = (item) =>
+        item.kind === 'day' ? (
+            <DayGroup label={dayLabel(item.key, now, languageCode, t, spansMonths)} total={item.total} currency={defaultCurrency} />
+        ) : (
+            <TransactionRow
+                tx={item.tx}
+                accountName={accountById.get(item.tx.accountId)}
+                toAccountName={accountById.get(item.tx.toAccountId)}
+                syncState={syncStates.get(item.tx.id)?.overall}
+                onOpen={open}
+                onDelete={handleDelete}
+                onChangeCategory={setCategoryFor}
+            />
+        );
+    const rows = desk ? items.filter((i) => i.kind === 'tx').map((i) => i.tx) : [];
+
     return (
-        <main className="pb-32 pt-[max(env(safe-area-inset-top),16px)]">
+        <div className={split ? 'flex h-[100dvh] overflow-hidden' : ''} data-testid="activity-layout" data-layout={bp}>
+        <main
+            ref={onPaneRef}
+            className={split ? `relative flex min-w-0 flex-col pt-3 ${desk ? 'flex-1' : 'w-[min(420px,46vw)] shrink-0 overflow-y-auto border-e border-line pb-28'}` : 'pb-32 pt-[max(env(safe-area-inset-top),16px)]'}
+        >
             <div className="flex items-center justify-between px-5 pb-1 pt-4">
                 <h1 className="font-display text-[28px] font-bold tracking-tight text-ink">{t('nav.activity')}</h1>
                 <div className="flex gap-2">
@@ -251,34 +296,23 @@ export default function ActivityPage() {
                         }
                     />
                 </div>
-            ) : (
-                <div ref={listRef} className="relative mx-5" style={{ height: virtualizer.getTotalSize() }} role="list" aria-label={t('nav.activity')}>
-                    {virtualizer.getVirtualItems().map((v) => {
-                        const item = items[v.index];
-                        return (
-                            <div
-                                key={item.kind === 'day' ? `d-${item.key}` : item.tx.id}
-                                role="listitem"
-                                className="absolute inset-x-0 top-0"
-                                style={{ height: v.size, transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)` }}
-                            >
-                                {item.kind === 'day' ? (
-                                    <DayGroup label={dayLabel(item.key, now, languageCode, t, spansMonths)} total={item.total} currency={defaultCurrency} />
-                                ) : (
-                                    <TransactionRow
-                                        tx={item.tx}
-                                        accountName={accountById.get(item.tx.accountId)}
-                                        toAccountName={accountById.get(item.tx.toAccountId)}
-                                        syncState={syncStates.get(item.tx.id)?.overall}
-                                        onOpen={(tx) => toReceiptDetail(tx.id)}
-                                        onDelete={handleDelete}
-                                        onChangeCategory={setCategoryFor}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
+            ) : desk ? (
+                <div className="mt-3 flex min-h-0 flex-1 flex-col">
+                    <ActivityTable
+                        rows={rows}
+                        selectedId={selectedId}
+                        onSelect={select}
+                        onActivate={() => detailRef.current?.focus()}
+                        onClear={() => select('')}
+                        sort={{ sort: filters.sort, dir: filters.dir }}
+                        onSort={(next) => setFilters(next)}
+                        accountById={accountById}
+                        syncStates={syncStates}
+                        currency={defaultCurrency}
+                    />
                 </div>
+            ) : (
+                <ActivityList items={items} renderItem={renderItem} label={t('nav.activity')} scrollEl={split ? paneEl : null} />
             )}
 
             <CategoriseSheet open={aiOpen} onClose={() => setAiOpen(false)} transactions={transactions} categoryNames={categoryNames} userId={currentUserId} />
@@ -308,5 +342,7 @@ export default function ActivityPage() {
                 </div>
             </Sheet>
         </main>
+        {split ? <DetailPane ref={detailRef} id={selectedId} onClose={() => select('')} /> : null}
+        </div>
     );
 }

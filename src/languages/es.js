@@ -1696,4 +1696,17 @@ export const es = {
         activityShare: "Importes totales pagados. Tu parte de los gastos divididos: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "Comercio",
+        colCategory: "Categoría",
+        colAccount: "Cuenta",
+        colAmount: "Importe",
+        detail: "Detalle de la transacción",
+        selectPrompt: "Selecciona una transacción para ver aquí su detalle.",
+        keyboardHint: "Teclado: J / K o las flechas mueven, Intro abre el detalle, Esc lo cierra.",
+        photo: "Foto del recibo",
+        reviewForm: "Datos del recibo",
+    },
+    // @i18n:end pane
 };

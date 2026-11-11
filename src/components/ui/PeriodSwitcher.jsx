@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
 import Chip from './Chip';
 import DateField from './DateField';
 import Segmented from './Segmented';
 import Sheet from './Sheet';
 import { monthLabel } from '../../hooks/useMoney';
-import { useAppStore } from '../../store/appStore';
 import { addMonths } from '../../utils/monthMath';
 import { cycleRange } from '../../utils/payCycle';
 import { formatRange, periodSpecOf } from '../../utils/period';
@@ -56,7 +56,7 @@ export default function PeriodSwitcher({ p, className = '', showStatus = true })
 /** Choose a period: pay cycles (last 12), calendar months (last 12) or a custom range. */
 export function PeriodPickerSheet({ open, onClose, p, onAll, allSelected = false }) {
     const { t, languageCode } = useTranslation();
-    const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+    const navigate = useNavigate();
     const [kind, setKind] = useState(p.kind);
     const [from, setFrom] = useState(p.period.start);
     const [to, setTo] = useState(p.period.end);
@@ -101,7 +101,7 @@ export function PeriodPickerSheet({ open, onClose, p, onAll, allSelected = false
                                     className="h-11 self-start rounded-[12px] border border-warn-edge bg-surface px-3.5 text-sm font-semibold"
                                     onClick={() => {
                                         onClose();
-                                        setSidebarOpen(true);
+                                        navigate('/settings');
                                     }}
                                 >
                                     {t('period.openSettings')}

@@ -84,17 +84,17 @@ describe('App smoke (offline, local mirror)', () => {
         await act(async () => home.root.unmount());
     });
 
-    it('renders the settings sidebar with stored settings and custom categories', async () => {
-        useAppStore.setState({ currentUser: { userId: 'u1', email: 'a@b.c' }, isAuthenticated: true, sidebarOpen: true });
+    it('renders the settings route with stored settings and custom categories', async () => {
+        useAppStore.setState({ currentUser: { userId: 'u1', email: 'a@b.c' }, isAuthenticated: true });
         await saveSettings('u1', { defaultCurrency: 'USD', ocrApiKey: 'my-key' });
         const { createCategory } = await import('../repo');
         await createCategory('u1', { name: 'Pets Smoke', color: '#123456' });
 
-        const { el, root } = await renderApp('/', 'Pets Smoke');
+        const { el, root } = await renderApp('/settings', 'Pets Smoke');
         expect(el.textContent).toContain('Pets Smoke');
         expect([...el.querySelectorAll('input')].some((i) => i.value === 'my-key')).toBe(true);
+        expect(el.querySelector('[data-testid="settings-route"] h1')).not.toBeNull(); // a real destination with its own header
         await act(async () => root.unmount());
-        useAppStore.setState({ sidebarOpen: false });
     });
 
     it('renders the landing page when signed out', async () => {

@@ -23,11 +23,11 @@ export default function GroupCard({ group, onClick, onEdit, onDelete, onTogglePi
             onDragLeave={onDragLeave}
             onDrop={onDrop}
         >
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-1">
+                <div className="min-w-0 flex-1 basis-40">
+                    <div className="flex flex-wrap items-center gap-2">
                         {isExpanded ? <ChevronDown size={18} className="text-gray-500 dark:text-gray-400" /> : <ChevronUp size={18} className="text-gray-500 dark:text-gray-400" />}
-                        <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{group.name}</h3>
+                        <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900 dark:text-gray-100">{group.name}</h3>
                         <span
                             className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded"
                             style={{
@@ -50,24 +50,27 @@ export default function GroupCard({ group, onClick, onEdit, onDelete, onTogglePi
                         })}
                     </p>
                 </div>
-                <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                <div className="ms-1 flex shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
                     <button
                         onClick={onTogglePin}
-                        className={`p-1.5 rounded ${group.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                        aria-label={group.isPinned ? t('receipts.groups.unpinGroup') : t('receipts.groups.pinGroup')}
+                        className={`flex h-11 w-11 items-center justify-center rounded-lg ${group.isPinned ? 'text-red-500 hover:text-red-700' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                         title={group.isPinned ? t('receipts.groups.unpinGroup') : t('receipts.groups.pinGroup')}
                     >
                         {group.isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                     </button>
                     <button
                         onClick={onEdit}
-                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded"
+                        aria-label={t('receipts.groups.editGroupTitle')}
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         title={t('receipts.groups.editGroupTitle')}
                     >
                         <Edit2 size={16} />
                     </button>
                     <button
                         onClick={onDelete}
-                        className="p-1.5 text-red-500 hover:text-red-700 rounded"
+                        aria-label={t('receipts.groups.deleteGroupTitle')}
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-red-500 hover:text-red-700"
                         title={t('receipts.groups.deleteGroupTitle')}
                     >
                         <Trash2 size={16} />

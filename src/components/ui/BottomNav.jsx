@@ -2,6 +2,7 @@ import { Home, ListFilter, PieChart, Plus, Sparkles } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store/appStore';
 import { useTranslation } from '../../languages/useTranslation';
+import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 
 const itemClass = (active) =>
     `flex h-14 w-16 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest-ink ${
@@ -13,6 +14,8 @@ export default function BottomNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
     const setAddReceiptModalOpen = useAppStore((state) => state.setAddReceiptModalOpen);
+    const keyboard = useKeyboardOpen();
+    if (keyboard.open) return null; // typing: the bar would sit on top of the field
     if (pathname.startsWith('/scan') || pathname.startsWith('/receipts/') || pathname.startsWith('/welcome') || pathname.startsWith('/trips/')) return null; // full-screen flows with their own thumb-zone actions
     const isHome = pathname === '/' || pathname === '/dashboard';
 
@@ -29,7 +32,7 @@ export default function BottomNav() {
     return (
         <nav
             aria-label={t('nav.main')}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ground/95 px-3 pt-2 backdrop-blur"
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ground/95 px-3 pt-2 backdrop-blur desk:hidden"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
         >
             <div className="mx-auto flex max-w-[520px] items-center justify-between">

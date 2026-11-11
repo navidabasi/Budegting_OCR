@@ -1965,4 +1965,17 @@ export const en = {
         activityShare: "Full amounts paid. Your share of split expenses: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "Merchant",
+        colCategory: "Category",
+        colAccount: "Account",
+        colAmount: "Amount",
+        detail: "Transaction detail",
+        selectPrompt: "Select a transaction to see its detail here.",
+        keyboardHint: "Keyboard: J / K or the arrow keys move, Enter opens the detail, Esc closes it.",
+        photo: "Receipt photo",
+        reviewForm: "Receipt details",
+    },
+    // @i18n:end pane
 };

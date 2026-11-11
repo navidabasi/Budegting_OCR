@@ -1809,4 +1809,17 @@ export const it = {
         activityShare: "Importi interi pagati. La tua quota delle spese divise: {{amount}}.",
     },
     // @i18n:end basis
+    // @i18n:begin pane
+    pane: {
+        colMerchant: "Esercente",
+        colCategory: "Categoria",
+        colAccount: "Conto",
+        colAmount: "Importo",
+        detail: "Dettaglio della transazione",
+        selectPrompt: "Seleziona una transazione per vederne qui il dettaglio.",
+        keyboardHint: "Tastiera: J / K o le frecce per spostarti, Invio apre il dettaglio, Esc lo chiude.",
+        photo: "Foto dello scontrino",
+        reviewForm: "Dati dello scontrino",
+    },
+    // @i18n:end pane
 };
