@@ -1068,4 +1068,29 @@ export const fr = {
         },
     },
     // @i18n:end insights
+    // @i18n:begin chat
+    chat: {
+        title: "Pose une question sur ton argent",
+        q1: "Où puis-je économiser 100 € ?",
+        q2: "Suis-je dans les temps pour mes objectifs ?",
+        q3: "Qu’est-ce qui a changé par rapport au mois dernier ?",
+        placeholder: "Pose n’importe quelle question sur tes dépenses…",
+        inputLabel: "Question sur tes dépenses",
+        send: "Envoyer",
+        thinking: "Je réfléchis…",
+        clear: "Effacer la conversation",
+        error: {
+            offline: "Tu es hors ligne. Connecte-toi pour poser une question.",
+            rateLimit: "Limite quotidienne d’IA atteinte. Réessaie demain.",
+            notConfigured: "L’IA n’est pas encore configurée.",
+            auth: "Reconnecte-toi pour poser des questions.",
+            server: "Un problème est survenu. Réessaie.",
+        },
+        action: {
+            setBudget: "Fixer le budget {{category}} à {{amount}}",
+            addGoal: "Ajouter l’objectif « {{name}} » ({{amount}})",
+            openFilter: "Afficher ces transactions",
+        },
+    },
+    // @i18n:end chat
 };

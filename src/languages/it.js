@@ -1181,4 +1181,29 @@ export const it = {
         },
     },
     // @i18n:end insights
+    // @i18n:begin chat
+    chat: {
+        title: "Chiedi dei tuoi soldi",
+        q1: "Dove posso tagliare 100 €?",
+        q2: "Sono in linea con i miei obiettivi?",
+        q3: "Cosa è cambiato rispetto al mese scorso?",
+        placeholder: "Chiedi qualsiasi cosa sulle tue spese…",
+        inputLabel: "Chiedi delle tue spese",
+        send: "Invia",
+        thinking: "Ci penso…",
+        clear: "Cancella conversazione",
+        error: {
+            offline: "Sei offline. Connettiti per fare una domanda.",
+            rateLimit: "Limite giornaliero AI raggiunto. Riprova domani.",
+            notConfigured: "L’AI non è ancora configurata.",
+            auth: "Accedi di nuovo per fare domande.",
+            server: "Qualcosa è andato storto. Riprova.",
+        },
+        action: {
+            setBudget: "Imposta il budget {{category}} a {{amount}}",
+            addGoal: "Aggiungi obiettivo “{{name}}” ({{amount}})",
+            openFilter: "Mostra queste transazioni",
+        },
+    },
+    // @i18n:end chat
 };

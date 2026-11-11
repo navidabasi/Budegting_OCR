@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { MonthSwitcher } from '../components/ui';
 import NarrativeCard from '../components/insights/NarrativeCard';
 import FindingsList from '../components/insights/FindingsList';
+import ChatPanel from '../components/insights/ChatPanel';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
 import { useSelectedMonth } from '../hooks/useSelectedMonth';
@@ -49,6 +50,7 @@ export default function InsightsPage() {
             <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
             {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} /> : null}
             <FindingsList findings={findings} />
+            <ChatPanel aggregates={aggregates} month={month} language={languageCode} extraQuestions={narrative.data?.questions || []} />
         </main>
     );
 }

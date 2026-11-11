@@ -1068,4 +1068,29 @@ export const es = {
         },
     },
     // @i18n:end insights
+    // @i18n:begin chat
+    chat: {
+        title: "Pregunta sobre tu dinero",
+        q1: "¿Dónde puedo recortar 100 €?",
+        q2: "¿Voy bien con mis metas?",
+        q3: "¿Qué cambió respecto al mes pasado?",
+        placeholder: "Pregunta lo que quieras sobre tus gastos…",
+        inputLabel: "Pregunta sobre tus gastos",
+        send: "Enviar",
+        thinking: "Pensando…",
+        clear: "Borrar conversación",
+        error: {
+            offline: "Estás sin conexión. Conéctate para preguntar.",
+            rateLimit: "Límite diario de IA alcanzado. Inténtalo mañana.",
+            notConfigured: "La IA aún no está configurada.",
+            auth: "Inicia sesión de nuevo para preguntar.",
+            server: "Algo salió mal. Inténtalo de nuevo.",
+        },
+        action: {
+            setBudget: "Fijar presupuesto de {{category}} en {{amount}}",
+            addGoal: "Añadir meta «{{name}}» ({{amount}})",
+            openFilter: "Mostrar estas transacciones",
+        },
+    },
+    // @i18n:end chat
 };

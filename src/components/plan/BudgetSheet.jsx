@@ -30,7 +30,9 @@ export default function BudgetSheet({ open, onClose, month, budgets, categoryNam
 
     useEffect(() => {
         if (!open) return;
-        setCategory(initialCategory);
+        // a category suggested from outside (chat) is only taken when it exists; an unknown name leaves the choice open
+        const valid = initialCategory && (initialCategory === WHOLE_MONTH || categoryNames.includes(initialCategory));
+        setCategory(valid ? initialCategory : null);
         const row = initialCategory ? active.find((b) => b.category === initialCategory) : null;
         setText(initialAmount != null ? String(initialAmount).replace('.', ',') : row ? String(row.amount).replace('.', ',') : '');
         setConfirmRemove(false);
