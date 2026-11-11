@@ -192,3 +192,20 @@ export function spentByCategory(transactions = [], month, { trips = [], includeT
     for (const k of Object.keys(out)) out[k] = round2(out[k]);
     return out;
 }
+
+// ---------------------------------------------------------------------------------------
+// Debt / receivable presentation and net worth
+// ---------------------------------------------------------------------------------------
+
+/** Balance as shown: a debt is always negative, a receivable ("owed to you") always positive, others as they are. */
+export function displayBalance(b) {
+    if (!b) return 0;
+    if (b.kind === 'debt') return -Math.abs(b.balance);
+    if (b.kind === 'receivable') return Math.abs(b.balance);
+    return b.balance;
+}
+
+/** Net worth in one currency: every non-archived account by displayBalance (debts subtract, receivables add). */
+export function netWorth(balances = [], { currency } = {}) {
+    return round2(balances.filter((b) => !b.isArchived && (!currency || b.currency === currency)).reduce((s, b) => s + displayBalance(b), 0));
+}

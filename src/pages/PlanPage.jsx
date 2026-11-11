@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 import { MonthSwitcher, Segmented } from '../components/ui';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import BudgetsTab from '../components/plan/BudgetsTab';
+import SavingsTab from '../components/plan/SavingsTab';
 import { useSelectedMonth } from '../hooks/useSelectedMonth';
 import { usePlanData } from '../hooks/usePlanData';
 import { useTranslation } from '../languages/useTranslation';
 
-const TABS = ['budgets'];
+const TABS = ['budgets', 'savings'];
 
 /** Plan: Budgets / Savings & accounts / Trips segments sharing the selected month (?m=) and the tab (?tab=). */
 export default function PlanPage() {
@@ -31,12 +32,17 @@ export default function PlanPage() {
     );
     // The chat's prefilled budget sheet arrives as ?budget=<category>&amount=<n>
     const preset = params.get('budget') ? { category: params.get('budget'), amount: params.get('amount') || null } : null;
+    // ...and the chat's add_goal action as ?goal=<name>&target=<n>&date=YYYY-MM-DD
+    const goalPreset = params.get('goal') ? { name: params.get('goal'), targetAmount: params.get('target') || '', targetDate: params.get('date') || '' } : null;
     const clearPreset = () =>
         setParams(
             (p) => {
                 const n = new URLSearchParams(p);
                 n.delete('budget');
                 n.delete('amount');
+                n.delete('goal');
+                n.delete('target');
+                n.delete('date');
                 return n;
             },
             { replace: true }
@@ -53,6 +59,7 @@ export default function PlanPage() {
             {TABS.length > 1 ? (
                 <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: t(`plan.tab.${v}`) }))} />
             ) : null}
+            {tab === 'savings' ? <SavingsTab month={month} data={data} goalPreset={goalPreset} onGoalSheetClosed={clearPreset} /> : null}
             {tab === 'budgets' ? <BudgetsTab month={month} data={data} sheetPreset={preset} onSheetClosed={clearPreset} /> : null}
         </main>
     );

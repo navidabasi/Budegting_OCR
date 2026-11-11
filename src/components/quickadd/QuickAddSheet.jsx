@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Camera, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import { Calendar, Camera, ChevronDown, Image as ImageIcon, X } from 'lucide-react';
 import { Chip, ChipRow, IconButton, Segmented, Sheet } from '../ui';
 import Keypad from './Keypad';
 import MoreSection from './MoreSection';
@@ -10,6 +10,7 @@ import {
     useCreateGroup,
     useCreateTransaction,
     useDeleteTransaction,
+    useGoals,
     useGroupsData,
     useMerchantRules,
     useSettings,
@@ -53,6 +54,7 @@ function initialState(preset, defaultCurrency) {
         date: src?.date ? String(src.date).slice(0, 10) : dateKey(0),
         accountId: src?.accountId || null,
         toAccountId: src?.toAccountId || null,
+        goalId: src?.goalId || null,
         more,
         showMore: false,
         showAllCategories: false,
@@ -68,6 +70,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     const { transactions } = useTransactions();
     const { accounts } = useAccounts();
     const { groups } = useGroupsData();
+    const { goals } = useGoals();
     const { rules } = useMerchantRules();
     const categoryList = useCategories();
     const createTransaction = useCreateTransaction();
@@ -95,7 +98,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     useEffect(() => {
         if (!open || state.accountId || accounts.length === 0) return;
         const last = getLastAccountId();
-        const pick = accounts.find((a) => a.id === last) || accounts[0];
+        const pick = accounts.find((a) => a.id === last && a.id !== state.toAccountId) || accounts.find((a) => a.id !== state.toAccountId) || accounts[0];
         setState((s) => (s.accountId ? s : { ...s, accountId: pick.id }));
     }, [open, accounts, state.accountId]);
 
@@ -165,6 +168,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             transactionType: state.type,
             accountId: state.accountId || null,
             toAccountId: isTransfer ? state.toAccountId : null,
+            goalId: isTransfer ? state.goalId || null : null,
             groupId: more.groupId,
             groupName: more.groupName,
             groupTags: more.tags,
@@ -270,6 +274,13 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                 <>
                                     {accountChips(state.accountId, (id) => set({ accountId: id }), 'quickAdd.fromAccount')}
                                     {accountChips(state.toAccountId, (id) => set({ toAccountId: id }), 'quickAdd.toAccount')}
+                                    {state.goalId && goals.find((g) => g.id === state.goalId) ? (
+                                        <div>
+                                            <Chip selected icon={X} onClick={() => set({ goalId: null })} aria-label={t('quickAdd.detachGoal')}>
+                                                {t('quickAdd.goalChip', { goal: goals.find((g) => g.id === state.goalId).name })}
+                                            </Chip>
+                                        </div>
+                                    ) : null}
                                 </>
                             ) : (
                                 <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('quickAdd.needTwoAccounts')}</p>
