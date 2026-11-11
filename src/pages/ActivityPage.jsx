@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConversionNote from '../components/common/ConversionNote';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowUpDown, Search, Sparkles, Tags, X } from 'lucide-react';
+import { ArrowUpDown, Bookmark, Clock, Search, SlidersHorizontal, Sparkles, Tags, X } from 'lucide-react';
+import FilterSheet from '../components/activity/FilterSheet';
+import ActiveFilters from '../components/activity/ActiveFilters';
+import { useFilterLabel } from '../components/activity/useFilterLabel';
+import { pushRecent } from '../utils/deviceStore';
 import SectionHeader from '../components/activity/SectionHeader';
 import ViewSheet from '../components/activity/ViewSheet';
 import { useUserPrefs } from '../hooks/useUserPrefs';
 import { useDeviceState } from '../hooks/useDeviceState';
 import { splitGroups } from '../utils/groupStats';
 import { Link } from 'react-router-dom';
-import { Chip, IconButton, Sheet } from '../components/ui';
+import { Chip, ChipRow, IconButton, Sheet } from '../components/ui';
 import DayGroup from '../components/activity/DayGroup';
 import FilterBar from '../components/activity/FilterBar';
 import MonthStrip from '../components/activity/MonthStrip';
@@ -32,7 +36,7 @@ import { useCategories } from '../hooks/useCategories';
 import { useReceiptNavigation } from '../hooks/useNavigation';
 import { useCategoryChange } from '../hooks/useCategoryChange';
 import { useTranslation } from '../languages/useTranslation';
-import { applyFilters, GROUP_BYS, groupItems, isUncategorised, isUnpaid, mergeFilters, NO_GROUP, optionStats, parseFilters, serializeFilters, summarize } from '../utils/activityFilters';
+import { applyFilters, clearedFilters, describeFilters, emptyReason, GROUP_BYS, groupItems, isUncategorised, isUnpaid, merchantOptions, mergeFilters, NO_GROUP, optionStats, parseFilters, serializeFilters, SORTS, summarize, tagOptions } from '../utils/activityFilters';
 
 const UNDO_MS = 6000;
 
@@ -67,6 +71,9 @@ export default function ActivityPage() {
 
     const [searchOpen, setSearchOpen] = useState(!!searchParams.get('q'));
     const [sortOpen, setSortOpen] = useState(false);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [picker, setPicker] = useState(null);
+    const [recentSearches, setRecentSearches] = useDeviceState('wmw.activity.recentSearches', []);
     const [aiOpen, setAiOpen] = useState(false);
     const [categoryFor, setCategoryFor] = useState(null);
     const [hidden, setHidden] = useState(() => new Set()); // swiped-away rows waiting for the undo window to end
@@ -88,7 +95,9 @@ export default function ActivityPage() {
             }),
         [groupBy, setCollapsedByMode]
     );
-    const filters = useMemo(() => parseFilters(searchParams, new Date(), { defaultSpec }), [searchParams, defaultSpec]);
+    // the sort is remembered (synced prefs) and is the default whenever the URL names none
+    const defaultSort = useMemo(() => (prefs.activitySort && SORTS.includes(prefs.activitySort.sort) ? { sort: prefs.activitySort.sort, dir: prefs.activitySort.dir === 'asc' ? 'asc' : 'desc' } : undefined), [prefs.activitySort]);
+    const filters = useMemo(() => parseFilters(searchParams, new Date(), { defaultSpec, defaultSort }), [searchParams, defaultSpec, defaultSort]);
     const activePeriod = useMemo(() => periodFromSpec(filters.month, p.config) || p.period, [filters.month, p.config, p.period]);
     // Tablet and PC keep the open transaction in the URL (?sel=) so filters, selection and back navigation stay together
     const bp = useBreakpoint();
@@ -97,12 +106,24 @@ export default function ActivityPage() {
     const selectedId = searchParams.get('sel') || '';
     const setFilters = useCallback(
         (patch) => {
-            const next = serializeFilters(mergeFilters(filters, patch), new Date(), { defaultSpec });
+            const next = serializeFilters(mergeFilters(filters, patch), new Date(), { defaultSpec, defaultSort });
             if (selectedId) next.set('sel', selectedId);
             setSearchParams(next, { replace: true });
         },
-        [filters, setSearchParams, defaultSpec, selectedId]
+        [filters, setSearchParams, defaultSpec, defaultSort, selectedId]
     );
+    const setSort = useCallback(
+        (next) => {
+            setPrefs({ activitySort: { sort: next.sort, dir: next.dir } });
+            const q = serializeFilters(mergeFilters(filters, next), new Date(), { defaultSpec, defaultSort: next });
+            if (selectedId) q.set('sel', selectedId);
+            setSearchParams(q, { replace: true });
+        },
+        [filters, setPrefs, defaultSpec, selectedId, setSearchParams]
+    );
+    const savedViews = Array.isArray(prefs.savedViews) ? prefs.savedViews : [];
+    const currentQuery = useMemo(() => serializeFilters(filters, new Date(), { defaultSpec, defaultSort }).toString(), [filters, defaultSpec, defaultSort]);
+    const applyQuery = (query) => setSearchParams(new URLSearchParams(query), { replace: true });
     const select = useCallback(
         (id) =>
             setSearchParams(
@@ -127,7 +148,7 @@ export default function ActivityPage() {
     const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
     const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
-    const plainGroups = useMemo(() => splitGroups(groups).groups, [groups]);
+    const { groups: plainGroups, trips } = useMemo(() => splitGroups(groups), [groups]);
     const searchCtx = useMemo(() => ({ localizeCategory, groupById }), [localizeCategory, groupById]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const visible = useMemo(() => transactions.filter((tx) => !hidden.has(tx.id)), [transactions, hidden]);
@@ -149,8 +170,15 @@ export default function ActivityPage() {
             group: optionStats(applyFilters(visible, mergeFilters(filters, { groupIds: [] }), opts), (tx) => tx.groupId),
             category: optionStats(applyFilters(visible, { ...filters, categories: [] }, opts), (tx) => tx.category),
             account: optionStats(applyFilters(visible, mergeFilters(filters, { accountIds: [] }), opts), (tx) => [tx.accountId, tx.toAccountId]),
+            merchants: merchantOptions(applyFilters(visible, mergeFilters(filters, { merchants: [] }), opts)),
         };
     }, [visible, filters, activePeriod, searchCtx]);
+    const tags = useMemo(() => tagOptions(visible), [visible]);
+    const allMerchants = useMemo(() => merchantOptions(visible), [visible]);
+    const merchantLabelByKey = useMemo(() => new Map(allMerchants.map((m) => [m.value, m.label])), [allMerchants]);
+    const descriptors = useMemo(() => describeFilters(filters), [filters]);
+    const labelOf = useFilterLabel({ groupById, accountById, merchantLabel: (m) => merchantLabelByKey.get(m) || m, periodLabel: t('activity.allTime') });
+    const sheetCtx = useMemo(() => ({ period: activePeriod, defaultSpec, ...searchCtx }), [activePeriod, defaultSpec, searchCtx]);
     const summary = useMemo(() => summarize(filtered), [filtered]);
     const counts = useMemo(() => {
         const rest = applyFilters(visible, { ...filters, tracking: '', uncategorised: false }, { ignoreMonth: false, period: activePeriod, ...searchCtx });
@@ -227,7 +255,10 @@ export default function ActivityPage() {
 
     const now = new Date();
     const spansMonths = filters.month === 'all';
-    const hasFilters = filters.type || filters.categories.length || filters.accountIds.length || filters.groupIds.length || filters.tracking || filters.uncategorised || filters.merchants.length || filters.q;
+    const hasFilters = descriptors.length > 0;
+    const reason = items.length === 0 && transactions.length > 0 ? emptyReason(visible, filters, sheetCtx) : null;
+    const rememberSearch = () => filters.q.trim() && setRecentSearches((list) => pushRecent(Array.isArray(list) ? list : [], filters.q));
+    const columnFilters = new Set([filters.categories.length && 'category', filters.groupIds.length && 'group', filters.accountIds.length && 'account', filters.merchants.length && 'merchant'].filter(Boolean));
 
     const open = (tx) => (split ? select(tx.id) : toReceiptDetail(tx.id));
     const groupOf = (tx) => (tx.groupId ? groupById.get(tx.groupId) || (tx.groupName ? { name: tx.groupName } : null) : null);
@@ -269,38 +300,70 @@ export default function ActivityPage() {
             </div>
 
             {searchOpen ? (
-                <div className="flex items-center gap-2 px-5 pb-1 pt-2">
-                    <input
-                        type="search"
-                        autoFocus
-                        inputMode="search"
-                        aria-label={t('activity.search')}
-                        placeholder={t('activity.searchPlaceholder')}
-                        value={filters.q}
-                        onChange={(e) => setFilters({ q: e.target.value })}
-                        className="h-11 min-w-0 flex-1 rounded-[14px] border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink"
-                    />
-                    <IconButton label={t('activity.clear')} icon={X} onClick={() => { setFilters({ q: '' }); setSearchOpen(false); }} />
+                <div className="flex flex-col gap-1.5 px-5 pb-1 pt-2">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="search"
+                            autoFocus
+                            inputMode="search"
+                            enterKeyHint="search"
+                            aria-label={t('activity.search')}
+                            placeholder={t('filters.searchPlaceholder')}
+                            value={filters.q}
+                            onChange={(e) => setFilters({ q: e.target.value })}
+                            onBlur={rememberSearch}
+                            onKeyDown={(e) => e.key === 'Enter' && (rememberSearch(), e.currentTarget.blur())}
+                            className="no-native-clear h-11 min-w-0 flex-1 rounded-[14px] border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink"
+                            data-testid="activity-search"
+                        />
+                        <IconButton label={t('activity.clear')} icon={X} onClick={() => { setFilters({ q: '' }); setSearchOpen(false); }} />
+                    </div>
+                    {!filters.q && Array.isArray(recentSearches) && recentSearches.length > 0 ? (
+                        <ChipRow className="pb-0.5" >
+                            {recentSearches.map((q) => (
+                                <Chip key={q} size="sm" icon={Clock} onClick={() => setFilters({ q })} data-testid="recent-search">
+                                    {q}
+                                </Chip>
+                            ))}
+                        </ChipRow>
+                    ) : !filters.q ? (
+                        <p className="px-1 text-xs text-ink-muted">{t('filters.searchHint')}</p>
+                    ) : null}
                 </div>
             ) : null}
 
             <div className="px-5">
                 <SyncChip className="mb-1" />
-                <FilterBar filters={filters} onChange={setFilters} p={p} categoryNames={categoryNames} accounts={accounts} groups={plainGroups} stats={stats} currency={defaultCurrency} unpaidCount={counts.unpaid} uncategorisedCount={counts.uncategorised} />
-                {filters.groupIds.filter((id) => !plainGroups.some((g) => g.id === id)).map((id) => (
-                    <div className="pb-2" key={id}>
-                        <Chip size="sm" selected icon={X} onClick={() => setFilters({ groupIds: filters.groupIds.filter((g) => g !== id) })}>
-                            {groupById.get(id)?.name || t('receipts.page.groups')}
-                        </Chip>
-                    </div>
-                ))}
-                {filters.merchant ? (
-                    <div className="pb-2">
-                        <Chip size="sm" selected icon={X} onClick={() => setFilters({ merchants: [] })}>
-                            {filters.merchant}
-                        </Chip>
-                    </div>
+                {savedViews.length > 0 ? (
+                    <ChipRow className="pb-0.5 pt-1">
+                        {savedViews.map((v) => (
+                            <Chip key={v.id} size="sm" icon={Bookmark} tone="suggested" selected={currentQuery === v.query} onClick={() => applyQuery(currentQuery === v.query ? '' : v.query)} data-testid="saved-view">
+                                {v.name}
+                            </Chip>
+                        ))}
+                    </ChipRow>
                 ) : null}
+                <FilterBar
+                    filters={filters}
+                    onChange={setFilters}
+                    p={p}
+                    categoryNames={categoryNames}
+                    accounts={accounts}
+                    groups={plainGroups}
+                    merchants={stats.merchants}
+                    stats={stats}
+                    currency={defaultCurrency}
+                    unpaidCount={counts.unpaid}
+                    uncategorisedCount={counts.uncategorised}
+                    picker={picker}
+                    onPicker={setPicker}
+                    leading={
+                        <Chip size="sm" icon={SlidersHorizontal} selected={descriptors.length > 0} onClick={() => setFiltersOpen(true)} data-testid="chip-filters">
+                            {descriptors.length ? t('filters.chipCount', { count: descriptors.length }) : t('filters.chip')}
+                        </Chip>
+                    }
+                />
+                <ActiveFilters descriptors={descriptors} labelOf={labelOf} onRemove={(d) => setFilters(d.patch)} onClearAll={() => setFilters(clearedFilters(filters))} />
                 {counts.uncategorised > 0 ? (
                     <div className="pb-2">
                         <Chip size="sm" tone="suggested" icon={Sparkles} onClick={() => setAiOpen(true)} data-testid="categorise-ai">
@@ -315,9 +378,20 @@ export default function ActivityPage() {
             {items.length === 0 ? (
                 <div className="px-5 pt-6">
                     <EmptyState
-                        message={hasFilters ? t('activity.noMatches') : t('activity.empty')}
+                        message={reason ? t('filters.emptyBecause', { filter: reason.descriptor.kind === 'period' ? p.label : labelOf(reason.descriptor) }) : transactions.length > 0 ? t('activity.noMatches') : t('activity.empty')}
                         action={
-                            hasFilters ? (
+                            reason ? (
+                                <div className="flex flex-col items-center gap-1" data-testid="empty-reason">
+                                    <button type="button" onClick={() => setFilters(reason.descriptor.patch)} className="h-11 rounded-xl bg-forest px-4 text-sm font-semibold text-white">
+                                        {reason.descriptor.kind === 'period' ? t('filters.emptyShowAllTime', { count: reason.count }) : t('filters.emptyRemove', { filter: labelOf(reason.descriptor), count: reason.count })}
+                                    </button>
+                                    {hasFilters ? (
+                                        <button type="button" onClick={() => setFilters(clearedFilters(filters))} className="h-11 rounded-xl px-4 text-sm font-semibold text-forest-ink">
+                                            {t('activity.clearFilters')}
+                                        </button>
+                                    ) : null}
+                                </div>
+                            ) : transactions.length > 0 ? (
                                 <button type="button" onClick={() => setSearchParams({}, { replace: true })} className="mt-2 h-11 rounded-xl px-4 text-sm font-semibold text-forest-ink">
                                     {t('activity.clearFilters')}
                                 </button>
@@ -344,7 +418,9 @@ export default function ActivityPage() {
                         onActivate={() => detailRef.current?.focus()}
                         onClear={() => select('')}
                         sort={{ sort: filters.sort, dir: filters.dir }}
-                        onSort={(next) => setFilters(next)}
+                        onSort={setSort}
+                        onHeaderFilter={(column) => setPicker(column)}
+                        activeColumns={columnFilters}
                         accountById={accountById}
                         groupById={groupById}
                         syncStates={syncStates}
@@ -364,7 +440,36 @@ export default function ActivityPage() {
                 onGroupBy={(v) => setPrefs({ activityGroupBy: v })}
                 sort={filters.sort}
                 dir={filters.dir}
-                onSort={(next) => setFilters(next)}
+                onSort={setSort}
+            />
+            <FilterSheet
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                filters={filters}
+                onApply={(next) => {
+                    setFilters(next);
+                    setFiltersOpen(false);
+                }}
+                rows={visible}
+                ctx={sheetCtx}
+                periodLabel={p.label}
+                categoryNames={categoryNames}
+                groups={plainGroups}
+                trips={trips}
+                accounts={accounts}
+                merchants={allMerchants}
+                tags={tags}
+                savedViews={savedViews}
+                onApplyView={(v) => {
+                    applyQuery(v.query);
+                    setFiltersOpen(false);
+                }}
+                onDeleteView={(v) => setPrefs({ savedViews: savedViews.filter((x) => x.id !== v.id) })}
+                onSaveView={(name, draft) => {
+                    const query = serializeFilters(draft, new Date(), { defaultSpec, defaultSort }).toString();
+                    setPrefs({ savedViews: [...savedViews.filter((x) => x.name !== name), { id: `v${Date.now().toString(36)}`, name, query }] });
+                    showToast(t('filters.viewSaved', { name }), 'success');
+                }}
             />
             <Sheet open={!!categoryFor} onClose={() => setCategoryFor(null)} label={t('activity.changeCategory')}>
                 <div className="px-5 pb-3">

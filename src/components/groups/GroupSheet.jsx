@@ -69,13 +69,11 @@ export default function GroupSheet({ open, onClose, group = null, onSave, onDele
                         ))}
                     </div>
                 </fieldset>
-                <button type="button" role="switch" aria-checked={pinned} onClick={() => setPinned((p) => !p)} className="flex min-h-[48px] items-center gap-3 rounded-[14px] border border-line-strong bg-surface px-3.5 text-start">
+                <label className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-[14px] border border-line-strong bg-surface px-3.5">
                     <Pin size={18} className={pinned ? 'text-forest-ink' : 'text-ink-muted'} aria-hidden="true" />
                     <span className="flex-1 text-[15px] text-ink">{t('groups.pin')}</span>
-                    <span className={`flex h-7 w-12 items-center rounded-full p-0.5 transition-colors duration-press ${pinned ? 'bg-forest' : 'bg-line-strong'}`} aria-hidden="true">
-                        <span className={`h-6 w-6 rounded-full bg-white shadow transition-transform duration-press ${pinned ? 'translate-x-5 rtl:-translate-x-5' : ''}`} />
-                    </span>
-                </button>
+                    <input type="checkbox" role="switch" checked={pinned} onChange={(e) => setPinned(e.target.checked)} data-testid="group-pin" className="relative h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-line-strong transition-colors duration-press before:absolute before:start-0.5 before:top-0.5 before:h-5 before:w-5 before:rounded-full before:bg-white before:transition-transform checked:bg-forest checked:before:translate-x-5 rtl:checked:before:-translate-x-5" />
+                </label>
                 {confirm ? <p className="rounded-[14px] bg-warn-soft px-3.5 py-3 text-sm text-warn-ink">{t('groups.deleteNote')}</p> : null}
             </div>
             <div className="flex flex-col gap-2 px-5 pt-3">

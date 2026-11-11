@@ -10,7 +10,7 @@ import { ariaSort, isNavKey, moveSelection, SORTABLE, toggleSort } from '../../u
 
 const ROW_H = 48;
 const SECTION_H = 52;
-const COLS = 'grid-cols-[96px_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_120px]';
+const COLS = 'grid-cols-[84px_minmax(0,1.8fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_104px]';
 
 /**
  * PC Activity: one row per transaction as a sortable table. Date, Merchant, Category and Amount headers sort; Merchant, Category,
@@ -90,7 +90,7 @@ export default function ActivityTable({ rows, items = null, selectedId, onSelect
         const sortable = !!SORTABLE[column];
         const state = ariaSort(sort, column);
         const Icon = sort.dir === 'asc' ? ArrowUp : ArrowDown;
-        const text = 'text-xs font-semibold uppercase tracking-wider';
+        const text = 'text-xs font-semibold uppercase tracking-wide';
         return (
             <div role="columnheader" aria-sort={sortable ? state : undefined} className={`flex min-h-[44px] min-w-0 items-center gap-0.5 ${align}`}>
                 {sortable ? (
@@ -99,7 +99,7 @@ export default function ActivityTable({ rows, items = null, selectedId, onSelect
                         {state !== 'none' ? <Icon size={13} aria-hidden="true" /> : null}
                     </button>
                 ) : (
-                    <span className={`truncate px-1 ${text} text-ink-muted`}>{label}</span>
+                    <span className={`truncate px-1 ${text} text-ink-muted`} title={label}>{label}</span>
                 )}
                 {filter && onHeaderFilter ? (
                     <button
@@ -107,7 +107,8 @@ export default function ActivityTable({ rows, items = null, selectedId, onSelect
                         onClick={() => onHeaderFilter(column)}
                         aria-label={t('activity.filterColumn', { column: label })}
                         aria-pressed={activeColumns.has(column)}
-                        className={`flex h-11 w-9 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest-ink ${activeColumns.has(column) ? 'text-forest-ink' : 'text-ink-faint hover:text-ink'}`}
+                        title={t('activity.filterColumn', { column: label })}
+                        className={`flex h-11 w-6 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest-ink ${activeColumns.has(column) ? 'text-forest-ink' : 'text-ink-faint hover:text-ink'}`}
                         data-testid={`filter-${column}`}
                     >
                         <Filter size={13} fill={activeColumns.has(column) ? 'currentColor' : 'none'} aria-hidden="true" />
@@ -119,7 +120,7 @@ export default function ActivityTable({ rows, items = null, selectedId, onSelect
 
     return (
         <div role="table" aria-label={t('nav.activity')} aria-rowcount={txRows.length + 1} className="flex min-h-0 flex-1 flex-col" data-testid="activity-table">
-            <div role="row" className={`grid ${COLS} items-center gap-3 border-b border-line bg-ground px-4`}>
+            <div role="row" className={`grid ${COLS} items-center gap-2 border-b border-line bg-ground px-4`}>
                 {head('date', t('receipts.form.date'))}
                 {head('merchant', t('pane.colMerchant'), { filter: true })}
                 {head('category', t('pane.colCategory'), { filter: true })}
@@ -167,7 +168,7 @@ export default function ActivityTable({ rows, items = null, selectedId, onSelect
                                 onDoubleClick={() => onActivate(tx.id)}
                                 data-testid="activity-row"
                                 data-selected={selected ? 'true' : undefined}
-                                className={`absolute inset-x-0 top-0 grid ${COLS} cursor-pointer items-center gap-3 rounded-xl px-2 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-forest-ink ${selected ? 'bg-mint' : 'hover:bg-tint'}`}
+                                className={`absolute inset-x-0 top-0 grid ${COLS} cursor-pointer items-center gap-2 rounded-xl px-2 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-forest-ink ${selected ? 'bg-mint' : 'hover:bg-tint'}`}
                                 style={{ height: v.size, transform: `translateY(${v.start}px)` }}
                             >
                                 <span role="cell" className="truncate text-ink-muted">{date(tx.date)}</span>

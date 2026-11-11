@@ -27,6 +27,28 @@ def('activity-view-sheet', async (page) => {
     await page.click('[data-testid="view-button"]');
     await page.waitForTimeout(450);
 }, { path: '/activity' });
+def('activity-filter-sheet', async (page) => {
+    await page.click('[data-testid="chip-filters"]');
+    await page.waitForTimeout(350);
+    await page.fill('[data-testid="amount-min"]', '20');
+    await page.locator('[data-testid="filter-sheet"] button', { hasText: 'Debts' }).click();
+    await page.waitForTimeout(300);
+}, { path: '/activity?m=all' });
+def('activity-filtered', async (page) => {
+    await page.click('[data-testid="chip-filters"]');
+    await page.waitForTimeout(350);
+    await page.locator('[data-testid="filter-sheet"] button', { hasText: 'Debts' }).click();
+    await page.fill('[data-testid="view-name"]', 'Debts this year');
+    await page.click('[data-testid="save-view"]');
+    await page.click('[data-testid="filter-apply"]');
+    await page.waitForTimeout(500);
+}, { wide: true, path: '/activity?m=all&min=20' });
+def('activity-search', async (page) => {
+    await page.click('button[aria-label="Search"]');
+    await page.fill('[data-testid="activity-search"]', 'lidl >40');
+    await page.waitForTimeout(400);
+}, { path: '/activity?m=all' });
+def('activity-empty-reason', async () => {}, { path: '/activity?m=all&group=g-lends&cat=Groceries' });
 def('groups', async () => {}, { wide: true, path: '/groups' });
 def('group-detail', async () => {}, { wide: true, path: '/groups/g-debts' });
 def('group-add', async (page) => {

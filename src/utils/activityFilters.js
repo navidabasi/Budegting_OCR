@@ -446,3 +446,35 @@ export function optionStats(rows, keyOf) {
     }
     return out;
 }
+
+/** Merchants in `rows` for the merchant filter: [{ value: merchant key, label (most used spelling), count, total }], most used first. */
+export function merchantOptions(rows) {
+    const map = new Map();
+    for (const tx of rows) {
+        const key = tx.merchantKey || merchantKey(tx.merchant);
+        if (!key || (tx.transactionType || 'expense') === 'transfer') continue;
+        const m = map.get(key) || { value: key, count: 0, total: 0, spellings: new Map() };
+        m.count += 1;
+        if (shouldIncludeInSpendingTotals(tx)) m.total = Math.round((m.total + fullAmount(tx)) * 100) / 100;
+        m.spellings.set(tx.merchant, (m.spellings.get(tx.merchant) || 0) + 1);
+        map.set(key, m);
+    }
+    return [...map.values()]
+        .map(({ spellings, ...m }) => ({ ...m, label: [...spellings.entries()].sort((a, b) => b[1] - a[1])[0][0] || m.value }))
+        .sort((a, b) => b.count - a.count || b.total - a.total);
+}
+
+/** Tags used in `rows`, most used first. */
+export function tagOptions(rows) {
+    const counts = new Map();
+    for (const tx of rows) for (const tag of tx.groupTags || []) counts.set(tag, (counts.get(tag) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, label: `#${value}`, count }));
+}
+
+/** Quick amount ranges for the filter sheet. */
+export const AMOUNT_RANGES = [
+    { id: 'lt10', min: '', max: 10 },
+    { id: '10to50', min: 10, max: 50 },
+    { id: '50to100', min: 50, max: 100 },
+    { id: 'gt100', min: 100, max: '' },
+];

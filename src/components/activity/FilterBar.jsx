@@ -6,11 +6,12 @@ import { useTranslation } from '../../languages/useTranslation';
 import { categoryVisual } from '../../utils/categoryVisual.jsx';
 
 /**
- * Quick filter chips: period, Group, type, category (multi), account (multi), Unpaid, Uncategorised. Period/group/type/category/account
- * open a picker sheet with counts and totals per option; Unpaid and Uncategorised toggle. `stats` holds { group, category, account }
+ * Quick filter chips after `leading` (the "Filters · N" chip): period, Group, Category, Unpaid, Uncategorised. Period, group and category
+ * open a picker sheet with counts and totals per option; Unpaid and Uncategorised toggle. The type, account and merchant pickers are
+ * opened from outside (the desktop table's column headers) through `picker` / `onPicker`. `stats` holds { group, category, account }
  * Maps of value -> { count, total } computed without that filter so the counts stay meaningful.
  */
-export default function FilterBar({ filters, onChange, p, categoryNames, accounts, groups = [], stats = {}, unpaidCount, uncategorisedCount, currency, picker: controlledPicker, onPicker, leading = null }) {
+export default function FilterBar({ filters, onChange, p, categoryNames, accounts, groups = [], merchants = [], stats = {}, unpaidCount, uncategorisedCount, currency, picker: controlledPicker, onPicker, leading = null }) {
     const { t, localizeCategory } = useTranslation();
     const [ownPicker, setOwnPicker] = useState(null); // 'month' | 'group' | 'type' | 'category' | 'account'
     const picker = controlledPicker !== undefined ? controlledPicker : ownPicker;
@@ -19,7 +20,6 @@ export default function FilterBar({ filters, onChange, p, categoryNames, account
 
     const typeLabels = { expense: t('quickAdd.expense'), income: t('quickAdd.income'), transfer: t('quickAdd.transfer') };
     const categoryText = filters.categories.length === 0 ? t('activity.category') : filters.categories.length === 1 ? localizeCategory(filters.categories[0]) : t('activity.categoriesCount', { count: filters.categories.length });
-    const accountText = filters.accountIds.length === 0 ? t('activity.account') : filters.accountIds.length === 1 ? accounts.find((a) => a.id === filters.accountIds[0])?.name || t('activity.account') : t('activity.accountsCount', { count: filters.accountIds.length });
     const selectedGroups = filters.groupIds.map((id) => groups.find((g) => g.id === id)).filter(Boolean);
     const groupText = filters.groupIds.length === 0 ? t('activity.group') : filters.groupIds.length === 1 ? selectedGroups[0]?.name || t('activity.group') : t('activity.groupsCount', { count: filters.groupIds.length });
     const toggleIn = (key, v) => onChange({ [key]: filters[key].includes(v) ? filters[key].filter((x) => x !== v) : [...filters[key], v] });
@@ -44,14 +44,6 @@ export default function FilterBar({ filters, onChange, p, categoryNames, account
                 <Chip size="sm" selected={filters.categories.length > 0} onClick={() => setPicker('category')} data-testid="chip-category">
                     {categoryText}
                 </Chip>
-                <Chip size="sm" selected={!!filters.type} onClick={() => setPicker('type')}>
-                    {filters.type ? typeLabels[filters.type] : t('activity.allTypes')}
-                </Chip>
-                {accounts.length > 0 ? (
-                    <Chip size="sm" selected={filters.accountIds.length > 0} onClick={() => setPicker('account')}>
-                        {accountText}
-                    </Chip>
-                ) : null}
                 <Chip size="sm" tone="warn" selected={filters.tracking === 'open'} onClick={() => onChange({ tracking: filters.tracking === 'open' ? '' : 'open' })}>
                     {t('activity.unpaidCount', { count: unpaidCount })}
                 </Chip>
@@ -94,6 +86,17 @@ export default function FilterBar({ filters, onChange, p, categoryNames, account
                 onPick={(n) => toggleIn('categories', n)}
                 onSelectAll={(names) => onChange({ categories: [...new Set([...filters.categories, ...names])] })}
                 onClear={() => onChange({ categories: [] })}
+                onClose={close}
+            />
+            <PickerSheet
+                open={picker === 'merchant'}
+                title={t('filters.merchant')}
+                multi
+                currency={currency}
+                options={merchants.map((m) => ({ value: m.value, label: m.label, count: m.count, total: m.total }))}
+                selected={filters.merchants}
+                onPick={(v) => toggleIn('merchants', v)}
+                onClear={() => onChange({ merchants: [] })}
                 onClose={close}
             />
             <PickerSheet
