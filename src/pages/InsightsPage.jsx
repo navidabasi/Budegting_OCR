@@ -6,6 +6,10 @@ import FindingsList from '../components/insights/FindingsList';
 import ChatPanel from '../components/insights/ChatPanel';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
+import { usePeople } from '../hooks/usePeople';
+import { useCategories } from '../hooks/useCategories';
+import { useMerchantRules } from '../data/hooks';
+import { suggestForMerchant } from '../services/categorizer';
 import { usePeriod } from '../hooks/usePayCycle';
 import { useInsightsNarrative } from '../hooks/useInsightsNarrative';
 import { useTranslation } from '../languages/useTranslation';
@@ -24,6 +28,21 @@ export default function InsightsPage() {
         [loading, transactions, budgets, goals, accounts, trips, month, today, currency]
     );
     const findings = useMemo(() => (loading ? [] : computeInsights({ transactions, budgets, goals, accounts, trips, month, today, currency })), [loading, transactions, budgets, goals, accounts, trips, month, today, currency]);
+    const { people } = usePeople();
+    const categoryList = useCategories();
+    const { rules } = useMerchantRules();
+    const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n && n !== 'Income' && n !== 'Transfer'), [categoryList]);
+    // everything the assistant's evidence is computed from (src/services/evidencePack.js); nothing here leaves the device
+    const ctx = useMemo(
+        () =>
+            loading
+                ? null
+                : {
+                      transactions, trips, accounts, budgets, goals, people, period: p.period, config: p.config, today: p.today, currency, categoryNames,
+                      suggest: (tx) => suggestForMerchant({ merchant: tx.merchant, items: tx.lineItems, rules, transactions, names: categoryNames }),
+                  },
+        [loading, transactions, trips, accounts, budgets, goals, people, p.period, p.config, p.today, currency, categoryNames, rules]
+    );
     const narrative = useInsightsNarrative({ aggregates, language: languageCode, enabled: transactions.length > 0 });
 
     if (loading) return <LoadingSpinner className="pb-20" />;
@@ -48,9 +67,9 @@ export default function InsightsPage() {
                 </button>
             </div>
             <PeriodSwitcher p={p} />
-            {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} /> : null}
+            {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} stale={narrative.stale} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} /> : null}
             <FindingsList findings={findings} />
-            <ChatPanel aggregates={aggregates} month={aggregates?.month || p.key} language={languageCode} extraQuestions={narrative.data?.questions || []} />
+            <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} extraQuestions={narrative.data?.questions || []} />
         </main>
     );
 }

@@ -177,6 +177,13 @@ export function recurringProducts(transactions, period, { basis = 'share', minRe
 // Unit families: prices can only be compared inside one family, after conversion to its base unit.
 const UNIT_TABLE = { kg: ['mass', 'kg', 1], g: ['mass', 'kg', 1000], l: ['volume', 'l', 1], cl: ['volume', 'l', 100], ml: ['volume', 'l', 1000], pc: ['count', 'pc', 1] };
 
+/** Quantity of an item in the base unit of its family ({ family, base, qty }), or null when it has no unit or quantity. 250 g -> 0.25 kg. */
+export function baseQuantityOf(item) {
+    const spec = UNIT_TABLE[item?.unit];
+    if (!spec || !Number.isFinite(item.quantity) || item.quantity <= 0) return null;
+    return { family: spec[0], base: spec[1], qty: item.quantity / spec[2] };
+}
+
 /**
  * Price per base unit of an item, or null when the line has no unit. A printed unit price wins; otherwise it is derived from
  * quantity and amount (flagged `derived`). { family, base, value (receipt currency per base unit), derived }

@@ -21,7 +21,7 @@ export function toApiMessages(thread = []) {
 export function loadThread(storage = typeof sessionStorage === 'undefined' ? null : sessionStorage) {
     try {
         const raw = JSON.parse(storage?.getItem(STORAGE_KEY) || '[]');
-        return Array.isArray(raw) ? trimThread(raw.map((m) => ({ ...m }))) : [];
+        return Array.isArray(raw) ? trimThread(raw.map((m) => ({ ...m }))) : []; // keeps `ev` (the evidence shown under an answer)
     } catch {
         return [];
     }
@@ -29,7 +29,18 @@ export function loadThread(storage = typeof sessionStorage === 'undefined' ? nul
 
 export function saveThread(thread, storage = typeof sessionStorage === 'undefined' ? null : sessionStorage) {
     try {
-        storage?.setItem(STORAGE_KEY, JSON.stringify(trimThread(thread.filter((m) => !m.error)).map(({ role, content, action }) => ({ role, content, ...(action ? { action } : {}) }))));
+        storage?.setItem(
+            STORAGE_KEY,
+            JSON.stringify(
+                trimThread(thread.filter((m) => !m.error)).map(({ role, content, action, ev }) => ({
+                    role,
+                    content,
+                    ...(action ? { action } : {}),
+                    // proposals are not kept: they were previewed against the records of that moment
+                    ...(ev ? { ev: { ...ev, proposals: [] } } : {}),
+                }))
+            )
+        );
     } catch {
         /* storage unavailable: the thread just lives in memory */
     }
@@ -76,4 +87,19 @@ export function actionHref(action, month) {
         return `/activity?${q.toString()}`;
     }
     return null;
+}
+
+/**
+ * Ask a question answered from an evidence pack (src/services/evidencePack.js). The pack's facts were computed on the device; the
+ * model explains them and must cite fact ids. -> { answer, citations, uncertain, grounded, unsupported, proposals, suggestedAction, model }
+ * An insufficient pack is answered locally (no request, no tokens): see insufficientAnswer.
+ */
+export async function sendEvidenceChat({ pack, thread, language = 'en', getToken, fetchImpl }) {
+    const json = await postAi(CHAT_ENDPOINT, { evidence: pack, messages: toApiMessages(thread), language }, { getToken, fetchImpl });
+    if (typeof json.answer !== 'string' || !json.answer.trim()) {
+        const { AiError } = await import('./aiCategorize');
+        throw new AiError('server', 502);
+    }
+    const { validateAnswer } = await import('./evidencePack');
+    return { ...validateAnswer(json, pack), suggestedAction: json.suggestedAction || null, model: json.model || null };
 }

@@ -251,6 +251,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
                             receipt={receipt}
                             categoryNames={names}
                             customSubcategories={prefs.subcategories || {}}
+                            highlightId={new URLSearchParams(location.search).get('item')}
                             onViewPhoto={image.url ? () => setViewer(true) : undefined}
                             onChange={(next) => saveItems(receipt, next).then(() => onUpdate?.()).catch(() => showToast(t('quickAdd.saveFailed'), 'error'))}
                             onFutureRule={(item) =>

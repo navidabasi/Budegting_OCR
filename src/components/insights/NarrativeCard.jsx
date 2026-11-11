@@ -8,7 +8,7 @@ const when = (iso, lang) => {
 };
 
 /** AI narrative card (docs/design/Insights.dc.html). status: loading | ready | offline | notConfigured | rateLimit | error */
-export default function NarrativeCard({ status, data, onRetry }) {
+export default function NarrativeCard({ status, data, onRetry, stale = false, onUpdate, canUpdate = true }) {
     const { t, languageCode } = useTranslation();
     const card = 'flex flex-col gap-2 rounded-[20px] bg-ink p-4 text-ground dark:bg-surface dark:text-ink dark:ring-1 dark:ring-line';
     if (status === 'idle' || (status === 'loading' && !data)) {
@@ -52,6 +52,17 @@ export default function NarrativeCard({ status, data, onRetry }) {
             {list(data.wins)}
             {list(data.concerns)}
             {list(data.actions)}
+            {stale ? (
+                <div className="flex flex-col gap-1.5 rounded-xl bg-white/10 px-3 py-2" data-testid="narrative-stale">
+                    <span className="text-xs font-semibold">{t('evidence.stale')}</span>
+                    {onUpdate ? (
+                        <button type="button" onClick={onUpdate} disabled={!canUpdate} className="flex h-11 w-fit items-center gap-1.5 rounded-xl bg-white/15 px-3.5 text-sm font-semibold disabled:opacity-50">
+                            <RefreshCw size={15} aria-hidden="true" />
+                            {t('evidence.updateSummary')}
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
             {status !== 'ready' && status !== 'loading' ? <span className="text-xs opacity-80">{status === 'offline' ? t('insights.connect') : status === 'rateLimit' ? t('insights.rateLimit') : t('insights.failed')}</span> : null}
             <span className="text-[11px] opacity-60">{t('insights.madeFrom', { model: data.model || '', time: when(data.generatedAt, languageCode) }).replace(/ · +·/g, ' ·').replace(/ · $/, '')}</span>
         </section>

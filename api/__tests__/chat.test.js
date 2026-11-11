@@ -119,3 +119,67 @@ describe('POST /api/chat', () => {
         expect(writes).not.toHaveBeenCalled(); // consume/recordTokens are mocked; the handler itself never touches tables
     });
 });
+
+describe('POST /api/chat with an evidence pack', () => {
+    const EVIDENCE = {
+        version: 1,
+        intent: 'grocery_breakdown',
+        period: { kind: 'cycle', start: '2026-10-12', end: '2026-11-11' },
+        currency: 'EUR',
+        basis: 'share',
+        coverage: { total: 120, itemised: 60, unknown: 60, share: 50 },
+        facts: [{ id: 'F1', kind: 'category_total', amount: 120 }, { id: 'F2', kind: 'subcategory', label: 'dairy', amount: 30 }],
+        evidence: [{ id: 'R1', type: 'receipt', merchant: 'Lidl', amount: 30 }, { id: 'R2', type: 'receipt', merchant: 'Conad', amount: 20 }],
+        insufficient: null,
+    };
+    const q = [{ role: 'user', content: 'what drove grocery spending' }];
+
+    it('uses the evidence prompt, sends only the pack and gives the answer enough tokens', async () => {
+        reply({ answer: 'Groceries were 120.', citations: ['F1', 'F9'], uncertain: ['F2', 'F1'], proposals: [] });
+        const res = await post({ evidence: EVIDENCE, messages: q });
+        expect(res.statusCode).toBe(200);
+        const args = chat.mock.calls[0][0];
+        expect(args.maxTokens).toBeGreaterThanOrEqual(1000);
+        expect(args.messages[0].content).toMatch(/evidence pack/i);
+        expect(args.messages[1].content).toContain('"F1"');
+        expect(args.messages[1].content).not.toMatch(/Aggregates/);
+        expect(res.body.citations).toEqual(['F1']);
+        expect(res.body.grounded).toBe(true);
+    });
+
+    it('keeps only citations that exist in the pack and reports grounding', async () => {
+        reply({ answer: 'x', citations: ['F1', 'F9', 7], uncertain: ['F2'] });
+        const res = await post({ evidence: EVIDENCE, messages: q });
+        const json = res.body;
+        expect(json.citations).toEqual(['F1']);
+        expect(json.uncertain).toEqual([]); // an uncertain id that is not cited is dropped
+        expect(json.grounded).toBe(true);
+        reply({ answer: 'x', citations: [] });
+        const none = await post({ evidence: EVIDENCE, messages: q });
+        const j2 = none.body;
+        expect(j2.grounded).toBe(false);
+    });
+
+    it('sanitizes proposals: unknown refs, missing fields and unknown types are dropped', async () => {
+        const { sanitizeProposals } = await import('../chat.js');
+        const out = sanitizeProposals(
+            [
+                { type: 'recategorise', ref: 'R1', category: 'Fuel' },
+                { type: 'recategorise', ref: 'R7', category: 'Fuel' },
+                { type: 'recategorise', ref: 'R1' },
+                { type: 'mark_duplicate', ref: 'R1', toRef: 'R2' },
+                { type: 'mark_duplicate', ref: 'R1' },
+                { type: 'pay_invoice', ref: 'R1' },
+                { type: 'create_recurring', ref: 'R2', frequency: 'monthly' },
+                { type: 'prepare_correction', ref: 'R2' },
+            ],
+            EVIDENCE
+        );
+        expect(out.map((p) => p.type)).toEqual(['recategorise', 'mark_duplicate', 'create_recurring']);
+        expect(out).toHaveLength(3);
+    });
+
+    it('rejects a body with neither aggregates nor evidence', async () => {
+        expect((await post({ messages: q })).statusCode).toBe(400);
+    });
+});

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Camera, ChevronRight, Plus } from 'lucide-react';
 import { Chip, ChipRow, Sheet } from '../ui';
 import { ItemSheet } from './ItemEditor';
@@ -16,8 +16,12 @@ const cap = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
  * Controlled: `items` in, `onChange(items)` out (the parent persists). A correction changes that one line unless the user
  * explicitly picks "also for future purchases" (onFutureRule) or previews a change to history (onBulkChange).
  */
-export default function ItemReviewList({ items, receipt, categoryNames = [], customSubcategories = {}, onChange, onFutureRule, onBulkChange, onAddSubcategory, onViewPhoto, readOnly = false }) {
+export default function ItemReviewList({ items, receipt, categoryNames = [], customSubcategories = {}, onChange, onFutureRule, onBulkChange, onAddSubcategory, onViewPhoto, readOnly = false, highlightId = null }) {
     const { t, languageCode, localizeCategory } = useTranslation();
+    useEffect(() => {
+        // arriving from an assistant answer: bring the cited line into view
+        if (highlightId) document.getElementById(`line-${highlightId}`)?.scrollIntoView?.({ block: 'center' });
+    }, [highlightId]);
     const [editing, setEditing] = useState(null); // item id | 'new'
     const [diffOpen, setDiffOpen] = useState(false);
     const list = useMemo(() => normalizeItems(items, receipt?.category), [items, receipt?.category]);
@@ -45,7 +49,7 @@ export default function ItemReviewList({ items, receipt, categoryNames = [], cus
                     const flags = uncertainFields(it);
                     const sub = subcategoryLabel(t, it.subcategory);
                     return (
-                        <li key={it.id} className="border-b border-line last:border-b-0">
+                        <li key={it.id} id={`line-${it.id}`} className={`border-b border-line last:border-b-0 ${highlightId === it.id ? 'rounded-xl bg-mint px-2' : ''}`} data-highlight={highlightId === it.id ? 'true' : undefined}>
                             <button
                                 type="button"
                                 disabled={readOnly}

@@ -8,6 +8,7 @@ const FILES = {
     categorize: new URL('../_prompts/categorize.md', import.meta.url),
     insights: new URL('../_prompts/insights.md', import.meta.url),
     chat: new URL('../_prompts/chat.md', import.meta.url),
+    'chat-evidence': new URL('../_prompts/chat-evidence.md', import.meta.url),
 };
 
 const cache = new Map();
