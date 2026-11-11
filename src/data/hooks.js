@@ -374,6 +374,13 @@ export function useConversationMessages(conversationId, { pageSize = repo.MESSAG
     };
 }
 
+/** One conversation (or null when it does not exist or was deleted); `loaded` is false until the mirror answered. */
+export function useConversation(id) {
+    const userId = useUserId();
+    const query = useQuery(dataQuery('chatConversations', userId, ['one', id], () => repo.getConversation(id), !!id));
+    return { conversation: query.data || null, loaded: !id || query.isSuccess };
+}
+
 export function useChatActions() {
     const userId = useUserId();
     const create = useDataMutation(repo.createConversation);

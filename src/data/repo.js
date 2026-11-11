@@ -577,7 +577,7 @@ export const CHAT_TITLE_MAX = 60;
 const KEY_LOW = '';
 const KEY_HIGH = '￿';
 
-export const chatTitle = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_TITLE_MAX);
+export const chatTitle = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_TITLE_MAX).trimEnd();
 const cursorOf = (row) => (row ? { createdAt: row.createdAt, updatedAt: row.updatedAt, id: row.id } : null);
 
 /** Conversations strictly older than `after` ({ updatedAt, id }), newest first, not deleted. -> { items, next } */

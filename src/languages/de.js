@@ -1176,31 +1176,6 @@ export const de = {
         },
     },
     // @i18n:end insights
-    // @i18n:begin chat
-    chat: {
-        title: "Frag zu deinem Geld",
-        q1: "Wo kann ich 100 € einsparen?",
-        q2: "Liege ich bei meinen Zielen im Plan?",
-        q3: "Was hat sich zum Vormonat geändert?",
-        placeholder: "Frag alles zu deinen Ausgaben …",
-        inputLabel: "Frag zu deinen Ausgaben",
-        send: "Senden",
-        thinking: "Ich denke nach …",
-        clear: "Unterhaltung löschen",
-        error: {
-            offline: "Du bist offline. Verbinde dich, um zu fragen.",
-            rateLimit: "Tageslimit für KI erreicht. Versuche es morgen erneut.",
-            notConfigured: "KI ist noch nicht eingerichtet.",
-            auth: "Melde dich erneut an, um Fragen zu stellen.",
-            server: "Etwas ist schiefgelaufen. Versuche es erneut.",
-        },
-        action: {
-            setBudget: "Budget {{category}} auf {{amount}} setzen",
-            addGoal: "Ziel „{{name}}“ hinzufügen ({{amount}})",
-            openFilter: "Diese Transaktionen anzeigen",
-        },
-    },
-    // @i18n:end chat
     // @i18n:begin csvImport
     csvImport: {
         title: "Bank-CSV importieren",
@@ -1833,4 +1808,32 @@ export const de = {
         nowFull: "Volle Bewegung ist aktiv.",
     },
     // @i18n:end motion
+    // @i18n:begin chat
+    chat: {
+        title: "Frag zu deinem Geld",
+        q1: "Wo kann ich 100 € einsparen?",
+        q2: "Liege ich bei meinen Zielen im Plan?",
+        q3: "Was hat sich zum Vormonat geändert?",
+        placeholder: "Frag alles zu deinen Ausgaben …",
+        inputLabel: "Frag zu deinen Ausgaben",
+        send: "Senden",
+        thinking: "Ich denke nach …",
+        error: {
+            offline: "Du bist offline. Verbinde dich, um zu fragen.",
+            rateLimit: "Tageslimit für KI erreicht. Versuche es morgen erneut.",
+            notConfigured: "KI ist noch nicht eingerichtet.",
+            auth: "Melde dich erneut an, um Fragen zu stellen.",
+            server: "Etwas ist schiefgelaufen. Versuche es erneut.",
+        },
+        action: {
+            setBudget: "Budget {{category}} auf {{amount}} setzen",
+            addGoal: "Ziel „{{name}}“ hinzufügen ({{amount}})",
+            openFilter: "Diese Transaktionen anzeigen",
+        },
+        newChat: "Neuer Chat",
+        earlier: "Frühere Nachrichten",
+        loadingEarlier: "Frühere Nachrichten werden geladen…",
+        saveFailed: "Diese Nachricht konnte auf diesem Gerät nicht gespeichert werden.",
+    },
+    // @i18n:end chat
 };

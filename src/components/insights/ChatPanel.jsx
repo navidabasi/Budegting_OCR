@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight } from 'lucide-react';
 import { Chip, Segmented } from '../ui';
@@ -9,7 +9,13 @@ import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
 import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 import { getAccessToken } from '../../services/accessToken';
-import { actionHref, loadThread, saveThread, sendEvidenceChat } from '../../services/chatApi';
+import { actionHref, loadThread, saveThread, sendEvidenceChat, STORAGE_KEY } from '../../services/chatApi';
+import { packMeta, unpackMessage } from '../../services/chatMeta';
+import { useKeepChatHistory, useOpenConversation } from '../../services/chatPrefs';
+import { useChatActions, useConversation, useConversationMessages } from '../../data/hooks';
+import { useAppStore } from '../../store/appStore';
+import { captureAnchor, restoreAnchor } from '../../utils/scrollAnchor';
+import { chatTitle } from '../../data/repo';
 import { buildEvidencePack, routeQuestion } from '../../services/evidencePack';
 import { localProposals, resolveProposals } from '../../services/aiActions';
 import { restoreAliases } from '../../services/aiOutbound';
@@ -34,22 +40,107 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
     const { t } = useTranslation();
     const { short } = useMoney();
     const keyboard = useKeyboardOpen();
-    const [thread, setThread] = useState(() => loadThread());
+    const userId = useAppStore((state) => state.currentUser?.userId || null);
+    const showToast = useAppStore((state) => state.showToast);
+    const [keep] = useKeepChatHistory();
+    const persist = keep && !!userId; // off (or signed out): the thread lives for this session only, as before
+    const [openId, setOpenId] = useOpenConversation(userId);
+    const [session, setSession] = useState(() => (persist ? [] : loadThread()));
+    const stored = useConversationMessages(persist ? openId : null);
+    const { conversation, loaded: convLoaded } = useConversation(persist ? openId : null);
+    const chat = useChatActions();
+    const thread = useMemo(() => (persist ? stored.messages.map(unpackMessage) : session), [persist, stored.messages, session]);
     const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
     const [basis, setBasis] = useState(readBasis);
     const [proposal, setProposal] = useState(null);
     const [historyKey, setHistoryKey] = useState(0);
     const endRef = useRef(null);
+    const itemRefs = useRef(new Map());
+    const anchorRef = useRef(null);
+    const scrolledFor = useRef(null);
+    const lastKey = useRef(null);
+    const [armed, setArmed] = useState(false);
     const guard = useRef(false); // synchronous: two taps in one frame send one question
+    const migrated = useRef(false);
     const ready = !!ctx && ctx.transactions;
 
+    // Session-only mode keeps the thread in sessionStorage like before
     useEffect(() => {
-        saveThread(thread);
+        if (!persist) saveThread(session);
+    }, [persist, session]);
+
+    // A thread left in sessionStorage by the previous version becomes a conversation, once; the key is removed afterwards
+    useEffect(() => {
+        if (!persist || migrated.current) return;
+        migrated.current = true;
+        const old = loadThread();
+        if (old.length === 0) {
+            try {
+                sessionStorage.removeItem(STORAGE_KEY);
+            } catch {
+                /* nothing to clean */
+            }
+            return;
+        }
+        (async () => {
+            try {
+                const first = old.find((m) => m.role === 'user');
+                const conv = await chat.createConversation({ title: first?.content || '' });
+                for (const m of old) await chat.appendMessage({ conversationId: conv.id, role: m.role, content: m.content, meta: packMeta(m) });
+                setOpenId(conv.id);
+                sessionStorage.removeItem(STORAGE_KEY);
+            } catch (err) {
+                console.error('[chat] could not move the session thread into the history', err);
+                migrated.current = false; // try again next time; the session copy is still there
+            }
+        })();
+    }, [persist]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The remembered conversation was deleted (here or on another device): start fresh
+    useEffect(() => {
+        if (persist && openId && convLoaded && !conversation) setOpenId(null);
+    }, [persist, openId, convLoaded, conversation, setOpenId]);
+
+    // Older messages come in above the visible ones: keep the reading position exactly
+    useLayoutEffect(() => {
+        const a = anchorRef.current;
+        if (!a || thread[0]?.id === a.firstId) return;
+        restoreAnchor(a, itemRefs.current.get(a.key));
+        anchorRef.current = null;
     }, [thread]);
+    // Open at the newest message; follow new ones at the bottom
     useEffect(() => {
-        endRef.current?.scrollIntoView?.({ block: 'nearest' });
-    }, [thread, busy]);
+        if (anchorRef.current || thread.length === 0) return;
+        const convKey = persist ? openId : 'session';
+        const last = thread[thread.length - 1].id ?? thread.length;
+        if (scrolledFor.current !== convKey) {
+            scrolledFor.current = convKey;
+            endRef.current?.scrollIntoView?.({ block: 'end' });
+            const timer = setTimeout(() => setArmed(true), 400);
+            lastKey.current = last;
+            return () => clearTimeout(timer);
+        }
+        if (lastKey.current !== last || busy) endRef.current?.scrollIntoView?.({ block: 'nearest' });
+        lastKey.current = last;
+        return undefined;
+    }, [thread, busy, persist, openId]);
+
+    const loadOlder = useCallback(async () => {
+        if (!stored.hasOlder || stored.loadingOlder) return;
+        const items = thread.map((m) => ({ key: m.id, el: itemRefs.current.get(m.id) }));
+        const a = captureAnchor(items, 0);
+        anchorRef.current = a ? { ...a, firstId: thread[0]?.id } : null;
+        await stored.loadOlder();
+    }, [stored, thread]);
+    const topRef = useRef(null);
+    useEffect(() => {
+        const el = topRef.current;
+        if (!armed || !el || !stored.hasOlder || typeof IntersectionObserver === 'undefined') return undefined;
+        const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && loadOlder(), { rootMargin: '200px 0px 0px 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+    }, [armed, stored.hasOlder, loadOlder]);
 
     const changeBasis = (b) => {
         setBasis(b);
@@ -62,38 +153,63 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
 
     const errorKey = (err) => (['offline', 'rateLimit', 'notConfigured', 'auth'].includes(err?.kind) ? err.kind : 'server');
 
-    const ask = async (question, { intent, base = thread } = {}) => {
+    // Write one message: into the open conversation (created on the first question) or, in session mode, into memory
+    const post = async (convRef, m) => {
+        if (!persist) {
+            setSession((cur) => [...cur, m]);
+            return;
+        }
+        try {
+            if (!convRef.id) convRef.id = (await chat.createConversation({ title: chatTitle(m.content) })).id;
+            await chat.appendMessage({ conversationId: convRef.id, role: m.role, content: m.content, meta: packMeta(m) });
+            if (convRef.id !== openId) setOpenId(convRef.id);
+        } catch (err) {
+            console.error('[chat] could not save a message', err);
+            showToast?.(t('chat.saveFailed'), 'error');
+        }
+    };
+
+    /** `retryOf`: the question is already in the thread (its answer failed): only a new answer is added after the error. */
+    const ask = async (question, { intent, retryOf = false } = {}) => {
         const q = question.trim();
         if (!q || guard.current || !ready) return;
         guard.current = true;
-        const next = [...base, { role: 'user', content: q }];
-        setThread(next);
+        const convRef = { id: persist ? openId : null };
+        const userMsg = { role: 'user', content: q };
+        const next = retryOf ? thread : [...thread, userMsg];
         setText('');
         setBusy(true);
         try {
+            if (!retryOf) await post(convRef, userMsg);
             const route = intent || routeQuestion(q);
             const { pack, refs } = buildEvidencePack({ ...ctx, intent: route, question: q, basis });
             const locals = route === 'review' ? localProposals(ctx.transactions, { period: ctx.period, today: ctx.today, suggest: ctx.suggest, categories: ctx.categoryNames }) : [];
             if (pack.insufficient) {
                 // nothing to explain: answered here, no request is made
-                setThread([...next, { role: 'assistant', content: t(`evidence.insufficient.${pack.insufficient}`), ev: { pack, refs, citations: [], uncertain: [], grounded: true, unsupported: [], proposals: pack.insufficient === 'nothing_to_review' ? [] : locals, state: 'insufficient' } }]);
+                await post(convRef, { role: 'assistant', content: t(`evidence.insufficient.${pack.insufficient}`), ev: { pack, refs, citations: [], uncertain: [], grounded: true, unsupported: [], proposals: pack.insufficient === 'nothing_to_review' ? [] : locals, state: 'insufficient' } });
                 return;
             }
             try {
                 const out = await sendEvidenceChat({ pack, thread: next, language, getToken, fetchImpl });
                 const resolved = resolveProposals(out.proposals, refs, ctx.transactions, { categories: ctx.categoryNames || [] });
                 const proposals = [...resolved, ...locals.filter((l) => !resolved.some((r) => r.type === l.type && JSON.stringify(r.records || r.remove) === JSON.stringify(l.records || l.remove)))];
-                setThread([...next, { role: 'assistant', content: restoreAliases(out.answer), ...(out.suggestedAction ? { action: out.suggestedAction } : {}), ev: { pack, refs, citations: out.citations, uncertain: out.uncertain, grounded: out.grounded, unsupported: out.unsupported, proposals, state: 'ok' } }]);
+                await post(convRef, { role: 'assistant', content: restoreAliases(out.answer), ...(out.suggestedAction ? { action: out.suggestedAction } : {}), ev: { pack, refs, citations: out.citations, uncertain: out.uncertain, grounded: out.grounded, unsupported: out.unsupported, proposals, state: 'ok' } });
             } catch (err) {
                 // the facts were computed here, so they are still worth showing when the explanation fails
-                setThread([...next, { role: 'assistant', content: t(`chat.error.${errorKey(err)}`), error: true, retry: q, intent: route, ev: { pack, refs, citations: [], uncertain: [], grounded: true, unsupported: [], proposals: locals, state: err?.kind === 'offline' ? 'offline' : 'failed' } }]);
+                await post(convRef, { role: 'assistant', content: t(`chat.error.${errorKey(err)}`), error: true, retry: q, intent: route, ev: { pack, refs, citations: [], uncertain: [], grounded: true, unsupported: [], proposals: locals, state: err?.kind === 'offline' ? 'offline' : 'failed' } });
             }
         } finally {
             guard.current = false;
             setBusy(false);
         }
     };
-    const retry = (m) => ask(m.retry, { intent: m.intent, base: thread.filter((x) => x !== m).slice(0, -1) });
+    const retry = (m) => ask(m.retry, { intent: m.intent, retryOf: true });
+    const newChat = () => {
+        if (persist) setOpenId(null);
+        else setSession([]);
+        setText('');
+        scrolledFor.current = null;
+    };
 
     const suggestions = useMemo(() => [...CHIPS.map((i) => ({ intent: i, label: t(`evidence.chip.${i}`) })), ...extraQuestions.slice(0, 2).map((q) => ({ intent: undefined, label: q }))], [extraQuestions, t]); // eslint-disable-line react-hooks/exhaustive-deps
     const actionLabel = (a) => {
@@ -111,11 +227,25 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
             </div>
             {thread.length > 0 ? (
                 <ol className="flex flex-col gap-2" aria-live="polite">
+                    {persist && stored.hasOlder ? (
+                        <li ref={topRef} className="flex justify-center">
+                            <button type="button" onClick={loadOlder} disabled={stored.loadingOlder} className="h-11 rounded-xl px-3 text-[13px] font-semibold text-forest-ink disabled:opacity-60" data-testid="chat-earlier">
+                                {stored.loadingOlder ? t('chat.loadingEarlier') : t('chat.earlier')}
+                            </button>
+                        </li>
+                    ) : null}
                     {thread.map((m, i) => (
-                        <li key={i} className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <li
+                            key={m.id ?? i}
+                            ref={(el) => {
+                                if (m.id == null) return;
+                                if (el) itemRefs.current.set(m.id, el);
+                                else itemRefs.current.delete(m.id);
+                            }}
+                            className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                             <p className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-snug ${m.role === 'user' ? 'bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'bg-warn-soft text-warn-ink' : 'bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line'}`}>{m.content}</p>
                             {m.role === 'assistant' && m.ev ? <EvidenceAnswer ev={m.ev} onProposal={setProposal} /> : null}
-                            {m.error && m.retry && m.content !== t('chat.error.rateLimit') ? (
+                            {m.error && m.retry && i === thread.length - 1 && !busy && m.content !== t('chat.error.rateLimit') ? (
                                 <button type="button" onClick={() => retry(m)} className="h-11 rounded-xl px-3 text-sm font-semibold text-forest-ink">
                                     {t('insights.retry')}
                                 </button>
@@ -138,8 +268,8 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
             ) : null}
             <AiHistory refreshKey={historyKey} />
             {thread.length > 0 ? (
-                <button type="button" onClick={() => setThread([])} className="h-11 self-start rounded-xl px-2 text-[13px] font-semibold text-ink-muted">
-                    {t('chat.clear')}
+                <button type="button" onClick={newChat} className="h-11 self-start rounded-xl px-2 text-[13px] font-semibold text-ink-muted" data-testid="chat-new">
+                    {t('chat.newChat')}
                 </button>
             ) : null}
             <div className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 desk:start-24 shadow-[0_-6px_16px_rgba(16,33,27,.06)]" style={keyboard.open ? { bottom: `${keyboard.inset}px`, paddingBottom: '8px' } : { bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}>

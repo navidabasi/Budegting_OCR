@@ -1208,31 +1208,6 @@ export const ar = {
         },
     },
     // @i18n:end insights
-    // @i18n:begin chat
-    chat: {
-        title: "اسأل عن أموالك",
-        q1: "أين يمكنني توفير 100 €؟",
-        q2: "هل أنا على المسار لأهدافي؟",
-        q3: "ما الذي تغيّر عن الشهر الماضي؟",
-        placeholder: "اسأل أي شيء عن إنفاقك…",
-        inputLabel: "اسأل عن إنفاقك",
-        send: "إرسال",
-        thinking: "أفكّر…",
-        clear: "مسح المحادثة",
-        error: {
-            offline: "أنت غير متصل. اتصل لتسأل.",
-            rateLimit: "تم بلوغ الحد اليومي للذكاء الاصطناعي. جرّب غدًا.",
-            notConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد.",
-            auth: "سجّل الدخول مجددًا لتسأل.",
-            server: "حدث خطأ. حاول مجددًا.",
-        },
-        action: {
-            setBudget: "ضبط ميزانية {{category}} على {{amount}}",
-            addGoal: "إضافة الهدف «{{name}}» ({{amount}})",
-            openFilter: "عرض هذه المعاملات",
-        },
-    },
-    // @i18n:end chat
     // @i18n:begin csvImport
     csvImport: {
         title: "استيراد CSV من البنك",
@@ -1865,4 +1840,32 @@ export const ar = {
         nowFull: "الحركة الكاملة مفعّلة.",
     },
     // @i18n:end motion
+    // @i18n:begin chat
+    chat: {
+        title: "اسأل عن أموالك",
+        q1: "أين يمكنني توفير 100 €؟",
+        q2: "هل أنا على المسار لأهدافي؟",
+        q3: "ما الذي تغيّر عن الشهر الماضي؟",
+        placeholder: "اسأل أي شيء عن إنفاقك…",
+        inputLabel: "اسأل عن إنفاقك",
+        send: "إرسال",
+        thinking: "أفكّر…",
+        error: {
+            offline: "أنت غير متصل. اتصل لتسأل.",
+            rateLimit: "تم بلوغ الحد اليومي للذكاء الاصطناعي. جرّب غدًا.",
+            notConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد.",
+            auth: "سجّل الدخول مجددًا لتسأل.",
+            server: "حدث خطأ. حاول مجددًا.",
+        },
+        action: {
+            setBudget: "ضبط ميزانية {{category}} على {{amount}}",
+            addGoal: "إضافة الهدف «{{name}}» ({{amount}})",
+            openFilter: "عرض هذه المعاملات",
+        },
+        newChat: "محادثة جديدة",
+        earlier: "الرسائل السابقة",
+        loadingEarlier: "جارٍ تحميل الرسائل السابقة…",
+        saveFailed: "تعذّر حفظ هذه الرسالة على هذا الجهاز.",
+    },
+    // @i18n:end chat
 };

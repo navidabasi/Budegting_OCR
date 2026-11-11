@@ -1332,31 +1332,6 @@ export const en = {
         },
     },
     // @i18n:end insights
-    // @i18n:begin chat
-    chat: {
-        title: "Ask about your money",
-        q1: "Where can I cut 100 €?",
-        q2: "Am I on track for my goals?",
-        q3: "What changed vs last month?",
-        placeholder: "Ask anything about your spending…",
-        inputLabel: "Ask about your spending",
-        send: "Send",
-        thinking: "Thinking…",
-        clear: "Clear conversation",
-        error: {
-            offline: "You are offline. Connect to ask a question.",
-            rateLimit: "Daily AI limit reached. Try again tomorrow.",
-            notConfigured: "AI isn’t set up yet.",
-            auth: "Please sign in again to ask questions.",
-            server: "Something went wrong. Try again.",
-        },
-        action: {
-            setBudget: "Set {{category}} budget to {{amount}}",
-            addGoal: "Add goal “{{name}}” ({{amount}})",
-            openFilter: "Show these transactions",
-        },
-    },
-    // @i18n:end chat
     // @i18n:begin csvImport
     csvImport: {
         title: "Import bank CSV",
@@ -1989,4 +1964,32 @@ export const en = {
         nowFull: "Full motion is on.",
     },
     // @i18n:end motion
+    // @i18n:begin chat
+    chat: {
+        title: "Ask about your money",
+        q1: "Where can I cut 100 €?",
+        q2: "Am I on track for my goals?",
+        q3: "What changed vs last month?",
+        placeholder: "Ask anything about your spending…",
+        inputLabel: "Ask about your spending",
+        send: "Send",
+        thinking: "Thinking…",
+        error: {
+            offline: "You are offline. Connect to ask a question.",
+            rateLimit: "Daily AI limit reached. Try again tomorrow.",
+            notConfigured: "AI isn’t set up yet.",
+            auth: "Please sign in again to ask questions.",
+            server: "Something went wrong. Try again.",
+        },
+        action: {
+            setBudget: "Set {{category}} budget to {{amount}}",
+            addGoal: "Add goal “{{name}}” ({{amount}})",
+            openFilter: "Show these transactions",
+        },
+        newChat: "New chat",
+        earlier: "Earlier messages",
+        loadingEarlier: "Loading earlier messages…",
+        saveFailed: "Couldn’t save this message on this device.",
+    },
+    // @i18n:end chat
 };
