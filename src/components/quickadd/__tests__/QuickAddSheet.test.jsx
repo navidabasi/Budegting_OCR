@@ -13,7 +13,7 @@ import Toast from '../../common/Toast';
 import { db, openDb } from '../../../data/db';
 import { queryClient } from '../../../data/queryClient';
 import { useAppStore } from '../../../store/appStore';
-import { createRow, createTransaction, listTransactions, saveSettings } from '../../../data/repo';
+import { createGroup, createRow, createTransaction, listTransactions, saveSettings } from '../../../data/repo';
 
 beforeEach(async () => {
     await openDb();
@@ -75,6 +75,26 @@ describe('QuickAddSheet', () => {
         await act(async () => fireEvent.click(undo));
         await act(async () => new Promise((r) => setTimeout(r, 80)));
         expect((await listTransactions('u1')).find((r) => r.total === 12.4)).toBeUndefined();
+        await act(async () => root.unmount());
+    });
+
+    it('suggests the group of the last transaction at the same merchant (owner groups) and saves it when tapped', async () => {
+        await saveSettings('u1', { defaultCurrency: 'EUR', languageCode: 'en' });
+        useAppStore.setState({ languageCode: 'en' });
+        const debts = await createGroup('u1', { name: 'Debts', color: '#ef4444' });
+        await createGroup('u1', { name: 'Lends', color: '#3b82f6' });
+        await createTransaction({ userId: 'u1', merchant: 'Klarna', total: 49.9, date: new Date().toISOString().slice(0, 10), category: 'Other', groupId: debts.id, groupName: 'Debts' });
+        const root = await mount(<QuickAddSheet open onClose={() => {}} preset={null} />);
+        await press('4', '9', ',', '9', '0');
+        await act(async () => fireEvent.change(document.querySelector('#qa-merchant'), { target: { value: 'KLARNA' } }));
+        const suggestion = document.querySelector('[data-testid="qa-group-suggestion"]');
+        expect(suggestion.textContent).toContain('Debts · like last time');
+        await act(async () => fireEvent.click(suggestion));
+        expect(document.querySelector('[data-testid="qa-group-suggestion"]')).toBeNull();
+        await press('Save');
+        await act(async () => new Promise((r) => setTimeout(r, 80)));
+        const saved = (await listTransactions('u1')).find((r) => r.merchant === 'KLARNA');
+        expect(saved).toMatchObject({ groupId: debts.id, groupName: 'Debts' });
         await act(async () => root.unmount());
     });
 

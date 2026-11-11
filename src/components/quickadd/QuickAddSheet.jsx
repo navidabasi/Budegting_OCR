@@ -23,6 +23,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { DEFAULT_CATEGORY } from '../../utils/constants';
 import { suggestForMerchant } from '../../services/categorizer';
 import { merchantKey } from '../../utils/merchant';
+import { suggestGroupFor } from '../../utils/groupStats';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
@@ -213,6 +214,9 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
     // Trips: a new transaction joins the active trip (or the trip containing its date) unless the user removes the chip
     const { group, tripOfGroup, mergeMore, detach } = useTripGroup({ trips, date: state.date, more: state.more, detached: state.tripDetached, auto: !editing });
     const onMoreChange = (more) => setState((s) => ({ ...s, ...mergeMore(more) }));
+    // the group of the last transaction at the same merchant, offered when no group is chosen yet
+    const suggestedGroup = useMemo(() => (state.type === 'transfer' || state.more.groupId ? null : suggestGroupFor(state.merchant, transactions, groups, { excludeId: editing?.id })), [state.merchant, state.type, transactions, groups, state.more.groupId, editing]);
+    const pickGroup = (g) => setState((s) => ({ ...s, ...mergeMore({ ...s.more, groupId: g?.id || null, groupName: g?.name || null }) }));
 
     const accountName = (id) => accounts.find((a) => a.id === id)?.name || '';
     const isTransfer = state.type === 'transfer';
@@ -469,7 +473,17 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                             ) : null}
                         </ChipRow>
 
-                        {tripOfGroup ? <TripChip name={tripOfGroup.name} onRemove={() => setState((s) => ({ ...s, ...detach() }))} /> : null}
+                        {tripOfGroup || (suggestedGroup && !state.showMore) ? (
+                            <ChipRow>
+                                {tripOfGroup ? <TripChip name={tripOfGroup.name} onRemove={() => setState((s) => ({ ...s, ...detach() }))} /> : null}
+                                {suggestedGroup && !state.showMore ? (
+                                    <Chip size="sm" tone="suggested" onClick={() => pickGroup(suggestedGroup)} data-testid="qa-group-suggestion" aria-label={t('groups.suggested', { merchant: state.merchant.trim(), name: suggestedGroup.name })}>
+                                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: suggestedGroup.color || '#6b7280' }} aria-hidden="true" />
+                                        {t('groups.addLikeLast', { name: suggestedGroup.name })}
+                                    </Chip>
+                                ) : null}
+                            </ChipRow>
+                        ) : null}
 
                         <button
                             type="button"
@@ -489,6 +503,8 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                 onOpenSplit={() => setSplitOpen(true)}
                                 baseCurrency={defaultCurrency}
                                 onCreateGroup={(name) => createGroup({ name, color: '#3b82f6', isPinned: false })}
+                                suggestedGroup={suggestedGroup}
+                                merchant={state.merchant.trim()}
                             />
                         ) : null}
                     </div>

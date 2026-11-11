@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Plus, Trash2, Users, X } from 'lucide-react';
+import GroupPicker from '../groups/GroupPicker';
 import RecurringManager from '../receipts/RecurringManager';
 import { useTranslation } from '../../languages/useTranslation';
 
@@ -12,10 +12,8 @@ const label = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
  * The "More" accordion body of Quick Add: items, notes, group, tags, split, recurring, planned, currency.
  * Pure controlled component; the sheet owns the state.
  */
-export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date, hide = [], baseCurrency = null }) {
+export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date, hide = [], baseCurrency = null, suggestedGroup = null, merchant = '' }) {
     const { t } = useTranslation();
-    const [newGroup, setNewGroup] = useState('');
-    const [showNewGroup, setShowNewGroup] = useState(false);
     const set = (patch) => onChange({ ...value, ...patch });
 
     const setItem = (i, patch) => set({ items: value.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) });
@@ -66,45 +64,7 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
 
             <div className="flex flex-col gap-1.5">
                 <span className={label}>{t('quickAdd.group')}</span>
-                <div className="flex gap-2">
-                    <select
-                        aria-label={t('quickAdd.group')}
-                        className={`${field} h-12 flex-1`}
-                        value={value.groupId || ''}
-                        onChange={(e) => {
-                            const g = groups.find((x) => String(x.id) === e.target.value);
-                            set({ groupId: g?.id || null, groupName: g?.name || null });
-                        }}
-                    >
-                        <option value="">{t('receipts.form.noGroup')}</option>
-                        {groups.map((g) => (
-                            <option key={g.id} value={g.id}>
-                                {g.name}
-                            </option>
-                        ))}
-                    </select>
-                    <button type="button" aria-label={t('quickAdd.newGroup')} aria-expanded={showNewGroup} onClick={() => setShowNewGroup(!showNewGroup)} className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-line-strong bg-surface text-ink">
-                        <Plus size={18} aria-hidden="true" />
-                    </button>
-                </div>
-                {showNewGroup ? (
-                    <div className="flex gap-2">
-                        <input className={`${field} h-11 flex-1`} placeholder={t('receipts.form.newGroupPlaceholder')} value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
-                        <button
-                            type="button"
-                            className="h-11 rounded-xl bg-forest px-4 text-sm font-semibold text-white disabled:opacity-40"
-                            disabled={!newGroup.trim()}
-                            onClick={async () => {
-                                const g = await onCreateGroup(newGroup.trim());
-                                if (g) set({ groupId: g.id, groupName: g.name });
-                                setNewGroup('');
-                                setShowNewGroup(false);
-                            }}
-                        >
-                            {t('receipts.form.createAndSelect')}
-                        </button>
-                    </div>
-                ) : null}
+                <GroupPicker value={value.groupId || null} groups={groups} suggested={suggestedGroup} merchant={merchant} onChange={(g) => set({ groupId: g?.id || null, groupName: g?.name || null })} onCreate={onCreateGroup} />
             </div>
 
             <div className="flex flex-col gap-1.5">

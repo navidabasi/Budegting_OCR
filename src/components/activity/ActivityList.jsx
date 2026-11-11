@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react';
 import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual';
 
 const DAY_H = 44;
+const SECTION_H = 56;
 const ROW_H = 62;
-const sizeOf = (items) => (i) => (items[i].kind === 'day' ? DAY_H : ROW_H);
-const keyOf = (item) => (item.kind === 'day' ? `d-${item.key}` : item.tx.id);
+const sizeOf = (items) => (i) => (items[i].kind === 'day' ? DAY_H : items[i].kind === 'section' ? SECTION_H : ROW_H);
+const keyOf = (item) => (item.kind === 'day' ? `d-${item.key}` : item.kind === 'section' ? `s-${item.by}-${item.key}` : item.tx.id);
 
 // Rows that appear after the first paint (a new transaction) fade in; the rows below slide to their new place (transform transition)
 // instead of jumping. The first paint and rows that only scroll into view do not animate.
@@ -37,14 +38,14 @@ function Rows({ virtualizer, items, renderItem, listRef, label }) {
 /** Phone: the page itself scrolls. */
 function WindowList({ items, renderItem, label }) {
     const listRef = useRef(null);
-    const virtualizer = useWindowVirtualizer({ count: items.length, estimateSize: sizeOf(items), overscan: 10, scrollMargin: listRef.current?.offsetTop || 0, initialRect: { width: 390, height: 844 } });
+    const virtualizer = useWindowVirtualizer({ count: items.length, getItemKey: (i) => keyOf(items[i]), estimateSize: sizeOf(items), overscan: 10, scrollMargin: listRef.current?.offsetTop || 0, initialRect: { width: 390, height: 844 } });
     return <Rows virtualizer={virtualizer} items={items} renderItem={renderItem} listRef={listRef} label={label} />;
 }
 
 /** Tablet: the list pane scrolls on its own, next to the detail pane. */
 function ElementList({ items, renderItem, label, scrollEl }) {
     const listRef = useRef(null);
-    const virtualizer = useVirtualizer({ count: items.length, getScrollElement: () => scrollEl, estimateSize: sizeOf(items), overscan: 10, scrollMargin: listRef.current?.offsetTop || 0, initialRect: { width: 400, height: 800 } });
+    const virtualizer = useVirtualizer({ count: items.length, getItemKey: (i) => keyOf(items[i]), getScrollElement: () => scrollEl, estimateSize: sizeOf(items), overscan: 10, scrollMargin: listRef.current?.offsetTop || 0, initialRect: { width: 400, height: 800 } });
     return <Rows virtualizer={virtualizer} items={items} renderItem={renderItem} listRef={listRef} label={label} />;
 }
 

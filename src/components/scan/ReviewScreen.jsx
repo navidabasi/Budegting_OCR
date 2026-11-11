@@ -10,6 +10,7 @@ import ImageViewer from './ImageViewer';
 import { lowConfidenceFields } from '../../services/receiptScan';
 import ItemReviewList from '../receipts/ItemReviewList';
 import { reconcile, uncertainFields } from '../../utils/receiptItems';
+import { suggestGroupFor } from '../../utils/groupStats';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { rankCategories } from '../../utils/quickAdd';
@@ -211,6 +212,8 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                             date={form.date}
                             onOpenSplit={() => setSplitOpen(true)}
                             onCreateGroup={onCreateGroup}
+                            suggestedGroup={form.more?.groupId ? null : suggestGroupFor(form.merchant, transactions, groups)}
+                            merchant={form.merchant.trim()}
                         />
                     </div>
                 ) : null}

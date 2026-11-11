@@ -17,11 +17,11 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe('ActivityTable', () => {
-    it('is a table with sortable Date and Amount headers', () => {
+    it('is a table with sortable Date, Merchant, Category and Amount headers', () => {
         const p = base();
         render(<ActivityTable {...p} />);
         expect(screen.getByRole('table')).toBeTruthy();
-        expect(screen.getAllByRole('columnheader').length).toBe(5);
+        expect(screen.getAllByRole('columnheader').length).toBe(6);
         expect(screen.getAllByRole('columnheader').find((h) => h.getAttribute('aria-sort') === 'descending')).toBeTruthy();
         fireEvent.click(screen.getByTestId('sort-amount'));
         expect(p.onSort).toHaveBeenCalledWith({ sort: 'amount', dir: 'desc' });
@@ -63,6 +63,34 @@ describe('ActivityTable', () => {
         );
         fireEvent.keyDown(screen.getByLabelText('search'), { key: 'j' });
         expect(p.onSelect).not.toHaveBeenCalled();
+    });
+
+    it('shows the group badge and opens a column filter from the header', async () => {
+        const onHeaderFilter = vi.fn();
+        const p = { ...base(), rows: [{ ...rows[0], groupId: 'g1' }], groupById: new Map([['g1', { id: 'g1', name: 'Debts', color: '#ef4444' }]]), onHeaderFilter, activeColumns: new Set(['group']) };
+        render(<ActivityTable {...p} />);
+        expect((await screen.findAllByTestId('group-badge'))[0].textContent).toBe('Debts');
+        expect(screen.getByTestId('filter-group').getAttribute('aria-pressed')).toBe('true');
+        fireEvent.click(screen.getByTestId('filter-category'));
+        expect(onHeaderFilter).toHaveBeenCalledWith('category');
+    });
+
+    it('renders grouped sections as header rows and keeps keyboard moves on transactions', async () => {
+        const onToggleSection = vi.fn();
+        const items = [
+            { kind: 'section', by: 'group', key: 'g1', label: 'Debts', count: 1, expense: 23.47, income: 0, collapsed: false },
+            { kind: 'tx', tx: rows[0] },
+            { kind: 'section', by: 'group', key: '__none__', label: 'No group', count: 2, expense: 650, income: 2350, collapsed: false },
+            { kind: 'tx', tx: rows[1] },
+            { kind: 'tx', tx: rows[2] },
+        ];
+        const p = { ...base(), items, selectedId: 'a', onToggleSection };
+        render(<ActivityTable {...p} />);
+        expect(screen.getAllByTestId('table-section')).toHaveLength(2);
+        fireEvent.keyDown(window, { key: 'j' });
+        expect(p.onSelect).toHaveBeenLastCalledWith('b');
+        fireEvent.click(within(screen.getAllByTestId('table-section')[0]).getByRole('button'));
+        expect(onToggleSection).toHaveBeenCalledWith('g1');
     });
 
     it('shows expenses negative and income positive in the amount column', async () => {

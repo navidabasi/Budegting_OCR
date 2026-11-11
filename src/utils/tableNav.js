@@ -1,13 +1,17 @@
 // Keyboard navigation and sorting for the PC Activity table (pass 2 part 2, section 10). Pure.
 
-/** The column that is sorted: 'date' | 'amount' (the sorts the filters already support) | null for the others. */
-export const SORTABLE = { date: 'date', amount: 'amount' };
+/** The columns that sort (the sorts the filters support). Account and group do not. */
+export const SORTABLE = { date: 'date', amount: 'amount', merchant: 'merchant', category: 'category' };
+const TEXT_SORTS = ['merchant', 'category'];
 
-/** Next sort state when a header is activated: a new column starts descending (newest / largest first), the same column flips. */
+/**
+ * Next sort state when a header is activated: a new column starts descending for date and amount (newest / largest first) and
+ * ascending (A to Z) for text columns; the same column flips.
+ */
 export function toggleSort(current, column) {
     if (!SORTABLE[column]) return current;
     if (current.sort === column) return { sort: column, dir: current.dir === 'desc' ? 'asc' : 'desc' };
-    return { sort: column, dir: 'desc' };
+    return { sort: column, dir: TEXT_SORTS.includes(column) ? 'asc' : 'desc' };
 }
 
 export const ariaSort = (current, column) => (current.sort === column ? (current.dir === 'asc' ? 'ascending' : 'descending') : 'none');

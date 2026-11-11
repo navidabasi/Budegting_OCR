@@ -7,9 +7,12 @@ describe('table sorting', () => {
         expect(toggleSort({ sort: 'amount', dir: 'desc' }, 'amount')).toEqual({ sort: 'amount', dir: 'asc' });
         expect(toggleSort({ sort: 'amount', dir: 'asc' }, 'amount')).toEqual({ sort: 'amount', dir: 'desc' });
     });
-    it('only date and amount sort', () => {
+    it('merchant and category sort A to Z first; account and group do not sort', () => {
         const cur = { sort: 'date', dir: 'desc' };
-        expect(toggleSort(cur, 'merchant')).toBe(cur);
+        expect(toggleSort(cur, 'merchant')).toEqual({ sort: 'merchant', dir: 'asc' });
+        expect(toggleSort({ sort: 'category', dir: 'asc' }, 'category')).toEqual({ sort: 'category', dir: 'desc' });
+        expect(toggleSort(cur, 'account')).toBe(cur);
+        expect(toggleSort(cur, 'group')).toBe(cur);
     });
     it('reports aria-sort for the active column only', () => {
         expect(ariaSort({ sort: 'amount', dir: 'asc' }, 'amount')).toBe('ascending');

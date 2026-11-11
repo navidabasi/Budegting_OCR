@@ -4,6 +4,7 @@ import Amount from '../ui/Amount';
 import { categoryVisual } from '../../utils/categoryVisual.jsx';
 import { isUncategorised, isUnpaid } from '../../utils/activityFilters';
 import RecordSyncBadge from '../sync/RecordSyncBadge';
+import GroupBadge from '../groups/GroupBadge';
 import { useTranslation } from '../../languages/useTranslation';
 import { readSplit } from '../../utils/splits';
 import { formatMoney, localeFor } from '../../utils/format';
@@ -17,7 +18,7 @@ const START = 10; // px before a gesture counts as a swipe
  * One transaction. Swipe left = delete (with undo), swipe right = change category (pointer events).
  * Both actions also exist as real buttons behind the row; they are focusable and slide the row open on focus.
  */
-function TransactionRow({ tx, accountName, toAccountName, syncState, onOpen, onDelete, onChangeCategory }) {
+function TransactionRow({ tx, accountName, toAccountName, group, syncState, onOpen, onDelete, onChangeCategory }) {
     const { t, languageCode, localizeCategory } = useTranslation();
     const [offset, setOffset] = useState(0);
     const [dragging, setDragging] = useState(false);
@@ -127,6 +128,7 @@ function TransactionRow({ tx, accountName, toAccountName, syncState, onOpen, onD
                         <span className="truncate text-[15px] font-medium text-ink">{title}</span>
                         <span className={`flex items-center gap-1 truncate text-xs ${warn ? 'text-warn-ink' : 'text-ink-muted'}`}>
                             <span className="truncate">{subtitle}</span>
+                            {group ? <GroupBadge group={group} className="text-ink-muted before:me-0.5 before:content-['·']" /> : null}
                             {tx.imagePath ? <Camera size={12} className="shrink-0 text-ink-faint" aria-label={t('activity.hasPhoto')} /> : null}
                             {syncState ? <RecordSyncBadge state={syncState} compact /> : null}
                         </span>
