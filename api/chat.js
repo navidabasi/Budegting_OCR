@@ -31,7 +31,7 @@ const actionPayloads = {
             screen: z.enum(['activity', 'budgets', 'savings']).optional().default('activity'),
             category: z.string().trim().min(1).max(40).optional(),
             merchant: z.string().trim().min(1).max(80).optional(),
-            month: month.optional(),
+            month: z.union([month, z.literal('all')]).optional(),
         })
         .strict(),
     add_goal: z

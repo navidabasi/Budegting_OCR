@@ -64,7 +64,9 @@ export function actionHref(action, month) {
         return `/plan?${q.toString()}`;
     }
     if (action.type === 'open_filter') {
-        const m = p.month || month;
+        // An answer's link must show what the answer talks about. Without an explicit month the model is talking
+        // about the history (averages, trends), so open all time rather than silently narrowing to the current period.
+        const m = p.month || (p.screen === 'activity' || !p.screen ? 'all' : month);
         if (m) q.set('m', m);
         if (p.screen === 'budgets') return `/plan?${q.toString()}`;
         if (p.screen === 'savings') {

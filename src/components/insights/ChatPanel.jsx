@@ -83,8 +83,8 @@ export default function ChatPanel({ aggregates, month, language, extraQuestions 
                 </button>
             ) : null}
             <div
-                className="fixed inset-x-0 z-30 bg-ground/95 pb-1 pt-2.5 backdrop-blur"
-                style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 100px)' }}
+                className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 shadow-[0_-6px_16px_rgba(16,33,27,.06)]"
+                style={{ bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}
             >
             <div className="mx-auto flex max-w-[520px] flex-col gap-2 px-5">
             <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto overscroll-x-contain px-5">
