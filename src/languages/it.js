@@ -866,6 +866,9 @@ export const it = {
             trips: "Viaggi",
         },
         prevMonth: "Mese precedente",
+        pickMonth: "Scegli il mese",
+        prevYear: "Anno precedente",
+        nextYear: "Anno successivo",
         nextMonth: "Mese successivo",
     },
     // @i18n:end plan
@@ -976,6 +979,7 @@ export const it = {
         transferTo: "Verso {{account}}",
         categoryLabel: "Categoria · prima il suggerimento",
         categoryMore: "Altre",
+        categoryLess: "Meno",
         today: "Oggi",
         yesterday: "Ieri",
         pick: "Scegli",

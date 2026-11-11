@@ -898,6 +898,9 @@ export const ar = {
             trips: "الرحلات",
         },
         prevMonth: "الشهر السابق",
+        pickMonth: "اختر الشهر",
+        prevYear: "السنة السابقة",
+        nextYear: "السنة التالية",
         nextMonth: "الشهر التالي",
     },
     // @i18n:end plan
@@ -1008,6 +1011,7 @@ export const ar = {
         transferTo: "إلى {{account}}",
         categoryLabel: "الفئة · المقترحة أولاً",
         categoryMore: "المزيد",
+        categoryLess: "أقل",
         today: "اليوم",
         yesterday: "أمس",
         pick: "اختر",

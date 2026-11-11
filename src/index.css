@@ -49,7 +49,16 @@
         --c-over: 240 121 74;
         --c-over-ink: 245 154 120;
     }
-    html { -webkit-tap-highlight-color: transparent; }
+    /* App-like touch behaviour: no pinch-zoom (and no zoom-then-pan sideways), normal vertical and in-component
+       horizontal scrolling still work; sideways overflow is clipped without creating a scroll container. */
+    html {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: pan-x pan-y;
+        overflow-x: clip;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+    body { overflow-x: clip; overscroll-behavior-x: none; }
     .mono-num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     .lead { flex: 1; border-bottom: 2px dotted currentColor; opacity: 0.3; margin: 0 8px 4px; min-width: 12px; }
     .no-scrollbar { scrollbar-width: none; }
@@ -87,32 +96,24 @@
     }
 
     /* Fix date input overflow on mobile */
+    /* Date inputs: keep the design's own field classes in charge (radius, padding, height) and neutralise the native
+       iOS/Android look so a date field matches the text fields next to it. */
     input[type="date"] {
-        max-width: 100% !important;
-        width: 100% !important;
-        min-width: 0 !important;
+        max-width: 100%;
+        min-width: 0;
         box-sizing: border-box;
-        /* overflow: hidden removed — clips right border/radius on iOS Safari */
+        -webkit-appearance: none;
+        appearance: none;
+        font-size: 16px; /* prevents iOS zoom on focus */
     }
 
-    /* Ensure date picker doesn't overflow on mobile */
-    @media (max-width: 640px) {
-        input[type="date"] {
-            font-size: 16px;
-            /* Prevents zoom on iOS */
-            padding: 0.75rem;
-            max-width: 100% !important;
-            width: 100% !important;
-            border-radius: 0.5rem;
-        }
+    input[type="date"]::-webkit-date-and-time-value {
+        text-align: start;
+        margin: 0;
+    }
 
-        /* Ensure parent containers don't overflow */
-        .card input[type="date"],
-        form input[type="date"] {
-            max-width: 100% !important;
-            width: 100% !important;
-            border-radius: 0.5rem;
-        }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        opacity: 0.6;
     }
 
     .card {

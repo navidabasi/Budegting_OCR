@@ -26,7 +26,7 @@ const HomeCharts = lazy(() => import('../components/home/HomeCharts'));
 export default function HomePage() {
     const { t, languageCode } = useTranslation();
     const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const { month, isCurrent, prev, next, setMonth, current } = useSelectedMonth();
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
     const { trip: activeTrip } = useActiveTrip();
     const [tripOpen, setTripOpen] = useState(false);
@@ -62,7 +62,7 @@ export default function HomePage() {
                     <IconButton label={t('navigation.settings')} icon={Settings} variant="surface" onClick={() => setSidebarOpen(true)} />
                 </div>
             </div>
-            <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+            <MonthSwitcher month={month} onPrev={prev} onNext={next} onSelect={setMonth} max={current} canNext={!isCurrent} className="self-start" />
 
             {activeTrip && tripStats ? <TripBanner trip={activeTrip} totals={tripStats} /> : null}
 

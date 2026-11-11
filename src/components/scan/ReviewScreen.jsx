@@ -116,13 +116,14 @@ export default function ReviewScreen({ result, form, onChange, imageUrl, account
                             {catChips.map((n) => (
                                 <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n, categoryTouched: true })}>{localizeCategory(n)}</Chip>
                             ))}
+                            <Chip size="sm" aria-expanded="true" onClick={() => setAllCats(false)}>{t('quickAdd.categoryLess')}</Chip>
                         </div>
                     ) : (
                         <ChipRow>
                             {catChips.map((n) => (
                                 <Chip key={n} size="sm" selected={form.category === n} onClick={() => set({ category: n, categoryTouched: true })}>{localizeCategory(n)}</Chip>
                             ))}
-                            {ranked.all.length > catChips.length ? <Chip size="sm" onClick={() => setAllCats(true)}>{t('quickAdd.categoryMore')}</Chip> : null}
+                            {ranked.all.length > catChips.length ? <Chip size="sm" aria-expanded="false" onClick={() => setAllCats(true)}>{t('quickAdd.categoryMore')}</Chip> : null}
                         </ChipRow>
                     )}
                 </div>

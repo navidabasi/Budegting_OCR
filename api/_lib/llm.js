@@ -38,7 +38,21 @@ export function getConfig({ vision = false, env = process.env } = {}) {
     const apiKey = clean(env[`${prefix}API_KEY`]);
     const model = clean(env[`${prefix}MODEL`]);
     if (!baseUrl || !model) return null;
-    return { baseUrl, apiKey, model };
+    // DeepSeek models reason by default, and reasoning tokens count against max_tokens: with a
+    // modest limit the model can spend the whole budget thinking and return an empty answer.
+    // Thinking is therefore off unless LLM_THINKING / LLM_VISION_THINKING is "enabled".
+    const thinkingSetting = clean(env[`${prefix}THINKING`]).toLowerCase();
+    const isDeepSeek = /(^|\.)deepseek\.com/i.test(hostOf(baseUrl)) || /^deepseek/i.test(model);
+    const disableThinking = isDeepSeek && thinkingSetting !== 'enabled';
+    return { baseUrl, apiKey, model, disableThinking };
+}
+
+function hostOf(url) {
+    try {
+        return new URL(url).host;
+    } catch {
+        return '';
+    }
 }
 
 export function hasVisionModel(env = process.env) {
@@ -151,6 +165,7 @@ export async function chat({
     const body = { model: config.model, messages: outMessages, temperature };
     if (maxTokens) body.max_tokens = maxTokens;
     if (json) body.response_format = { type: 'json_object' };
+    if (config.disableThinking) body.thinking = { type: 'disabled' };
 
     const doFetch = fetchImpl || globalThis.fetch;
     const url = buildEndpoint(config.baseUrl);
@@ -194,6 +209,14 @@ export async function chat({
     if (lastError) throw lastError;
 
     if (!response.ok) {
+        let detail = '';
+        try {
+            const errBody = await response.json();
+            detail = errBody?.error?.message || errBody?.message || '';
+        } catch {
+            /* body is optional */
+        }
+        console.error('[llm] upstream error', response.status, config.model, String(detail).slice(0, 300));
         throw new LlmError(`LLM upstream error ${response.status}`, {
             code: response.status === 429 ? 'rate_limited' : 'upstream',
             upstreamStatus: response.status,
@@ -206,9 +229,14 @@ export async function chat({
     } catch {
         throw new LlmError('LLM returned a non-JSON response', { code: 'bad_response' });
     }
-    const text = payload?.choices?.[0]?.message?.content;
+    const choice = payload?.choices?.[0];
+    const text = choice?.message?.content;
     if (typeof text !== 'string' || text.length === 0) {
-        throw new LlmError('LLM returned an empty response', { code: 'empty' });
+        const truncated = choice?.finish_reason === 'length';
+        console.error('[llm] no answer', config.model, 'finish_reason=', choice?.finish_reason, 'usage=', JSON.stringify(payload?.usage || {}));
+        throw new LlmError(truncated ? 'LLM answer was cut off by the token limit' : 'LLM returned an empty response', {
+            code: truncated ? 'truncated' : 'empty',
+        });
     }
 
     let data = text;
@@ -216,6 +244,7 @@ export async function chat({
         try {
             data = parseJsonText(text);
         } catch {
+            console.error('[llm] invalid JSON', config.model, 'finish_reason=', choice?.finish_reason, text.slice(0, 200));
             throw new LlmError('LLM returned invalid JSON', { code: 'invalid_json' });
         }
         if (schema) {

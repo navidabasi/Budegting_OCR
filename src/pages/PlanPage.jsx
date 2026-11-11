@@ -15,7 +15,7 @@ const TABS = ['budgets', 'savings', 'trips'];
 export default function PlanPage() {
     const { t } = useTranslation();
     const [params, setParams] = useSearchParams();
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const { month, isCurrent, prev, next, setMonth, current } = useSelectedMonth();
     const data = usePlanData();
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'budgets';
     const setTab = useCallback(
@@ -55,7 +55,7 @@ export default function PlanPage() {
         <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-center justify-between pt-4">
                 <h1 className="font-display text-[28px] font-bold tracking-tight text-ink">{t('plan.title')}</h1>
-                {tab !== 'trips' ? <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} /> : null}
+                {tab !== 'trips' ? <MonthSwitcher month={month} onPrev={prev} onNext={next} onSelect={setMonth} max={current} canNext={!isCurrent} /> : null}
             </div>
             {TABS.length > 1 ? (
                 <Segmented fill ariaLabel={t('plan.tabs')} value={tab} onChange={setTab} options={TABS.map((v) => ({ value: v, label: t(`plan.tab.${v}`) }))} />

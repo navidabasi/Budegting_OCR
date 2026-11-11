@@ -916,6 +916,9 @@ export const fa = {
             trips: "سفرها",
         },
         prevMonth: "ماه قبل",
+        pickMonth: "انتخاب ماه",
+        prevYear: "سال قبل",
+        nextYear: "سال بعد",
         nextMonth: "ماه بعد",
     },
     // @i18n:end plan
@@ -1026,6 +1029,7 @@ export const fa = {
         transferTo: "به {{account}}",
         categoryLabel: "دسته‌بندی · ابتدا پیشنهاد",
         categoryMore: "بیشتر",
+        categoryLess: "کمتر",
         today: "امروز",
         yesterday: "دیروز",
         pick: "انتخاب",

@@ -333,6 +333,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                                 {localizeCategory(n)}
                                             </Chip>
                                         ))}
+                                        <Chip aria-expanded="true" onClick={() => set({ showAllCategories: false })}>{t('quickAdd.categoryLess')}</Chip>
                                     </div>
                                 ) : (
                                     <ChipRow>
@@ -341,7 +342,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                                 {localizeCategory(n)}
                                             </Chip>
                                         ))}
-                                        {ranked.all.length > catChips.length ? <Chip onClick={() => set({ showAllCategories: true })}>{t('quickAdd.categoryMore')}</Chip> : null}
+                                        {ranked.all.length > catChips.length ? <Chip aria-expanded="false" onClick={() => set({ showAllCategories: true })}>{t('quickAdd.categoryMore')}</Chip> : null}
                                     </ChipRow>
                                 )}
                             </div>

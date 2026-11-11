@@ -16,7 +16,7 @@ import { computeInsights } from '../services/insightsEngine';
 /** Insights (docs/design/Insights.dc.html): AI narrative on top, deterministic findings below (chat is added by ChatPanel). */
 export default function InsightsPage() {
     const { t, languageCode } = useTranslation();
-    const { month, isCurrent, prev, next } = useSelectedMonth();
+    const { month, isCurrent, prev, next, setMonth, current } = useSelectedMonth();
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
     const today = useMemo(() => new Date(), []);
     const aggregates = useMemo(
@@ -31,7 +31,7 @@ export default function InsightsPage() {
     const busy = narrative.status === 'loading';
 
     return (
-        <main className="flex flex-col gap-3 px-5 pb-32 pt-[max(env(safe-area-inset-top),16px)]">
+        <main className="flex flex-col gap-3 px-5 pb-[260px] pt-[max(env(safe-area-inset-top),16px)]">
             <div className="flex items-end justify-between gap-3 pt-4">
                 <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('nav.insights')}</span>
@@ -47,7 +47,7 @@ export default function InsightsPage() {
                     {t('insights.refresh')}
                 </button>
             </div>
-            <MonthSwitcher month={month} onPrev={prev} onNext={next} canNext={!isCurrent} className="self-start" />
+            <MonthSwitcher month={month} onPrev={prev} onNext={next} onSelect={setMonth} max={current} canNext={!isCurrent} className="self-start" />
             {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} /> : null}
             <FindingsList findings={findings} />
             <ChatPanel aggregates={aggregates} month={month} language={languageCode} extraQuestions={narrative.data?.questions || []} />

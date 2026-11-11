@@ -1022,6 +1022,9 @@ export const en = {
             trips: "Trips",
         },
         prevMonth: "Previous month",
+        pickMonth: "Choose month",
+        prevYear: "Previous year",
+        nextYear: "Next year",
         nextMonth: "Next month",
     },
     // @i18n:end plan
@@ -1132,6 +1135,7 @@ export const en = {
         transferTo: "To {{account}}",
         categoryLabel: "Category · suggested first",
         categoryMore: "More",
+        categoryLess: "Less",
         today: "Today",
         yesterday: "Yesterday",
         pick: "Pick",
