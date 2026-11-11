@@ -4,7 +4,7 @@ import { AlertTriangle, Camera, CloudOff, FileText, Loader2, X } from 'lucide-re
 import ReviewScreen from '../components/scan/ReviewScreen';
 import { useAppStore } from '../store/appStore';
 import { useMerchantRules, useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useTrips, useSettings, useTransactions } from '../data/hooks';
-import { resolveGroup, tripForDate } from '../utils/tripMath';
+import { eligibleForAutoTrip, resolveGroup, tripForDate } from '../utils/tripMath';
 import { useCategories } from '../hooks/useCategories';
 import { useTranslation } from '../languages/useTranslation';
 import { buildHints, extractReceipt, initialScanState, ScanError, scanReducer } from '../services/receiptScan';
@@ -243,7 +243,7 @@ export default function ScanPage() {
         setSaving(true);
         try {
             const id = txIdRef.current;
-            const tripGroup = resolveGroup(form.more, tripForDate(trips, form.date), form.tripDetached);
+            const tripGroup = resolveGroup(form.more, eligibleForAutoTrip(form.more) ? tripForDate(trips, form.date) : null, form.tripDetached);
             const r = state.result.receipt;
             const prefs = getScanPrefs();
             const imagePath = state.file && prefs.saveImages ? await queueImage({ userId: currentUser.userId, transactionId: id, blob: state.file }) : null;

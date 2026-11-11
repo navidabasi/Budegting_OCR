@@ -21,7 +21,8 @@ import { calculateNextRecurringDate } from '../utils/recurring';
 import { normalizeCategoryName } from '../utils/categoryNames';
 import { merchantKey as computeMerchantKey } from '../utils/merchant';
 import { computeBase, needsBase } from '../utils/baseAmount';
-import { getRate } from '../services/exchangeRateService';
+import { getRateInfo } from '../services/exchangeRateService';
+import { estimatedPatch, isConfirmed, pendingPatch } from '../utils/fx';
 import { markEdited } from '../utils/extractionMerge';
 
 const nowIso = () => new Date().toISOString();
@@ -195,23 +196,32 @@ async function baseCurrencyOf(userId) {
     return (await db.settings.get(userId))?.defaultCurrency || 'EUR';
 }
 
-/** { amountBase, baseCurrency, exchangeRate } for a transaction-like { total, currency } in the user's base currency. */
+/**
+ * { amountBase, baseCurrency, exchangeRate, extraction? } for a transaction-like { total, currency } in the user's base currency.
+ * A foreign currency gets its conversion provenance in `extraction.fx` (estimated with the rate and its date, or pending when no
+ * rate is known: offline with nothing cached). Never 1:1.
+ */
 async function baseFor(userId, tx, { baseCurrency } = {}) {
     const base = baseCurrency || (await baseCurrencyOf(userId));
     const currency = tx.currency || 'EUR';
-    const rate = currency === base ? 1 : await getRate(currency, base);
-    return computeBase({ total: tx.total, currency, baseCurrency: base, rate });
+    if (currency === base) return computeBase({ total: tx.total, currency, baseCurrency: base, rate: 1 });
+    const info = await getRateInfo(currency, base);
+    const withCurrency = { ...tx, currency };
+    return info ? estimatedPatch(withCurrency, { baseCurrency: base, rate: info.rate, date: info.date, source: info.source }) : pendingPatch(withCurrency);
 }
 
 async function withBaseAmount(id, patch) {
     if (patch.amountBase !== undefined || !(await mirrorOk())) return;
     const existing = await db.transactions.get(id);
     if (!existing) return;
-    const touches = patch.total !== undefined || patch.currency !== undefined;
-    if (!touches && existing.amountBase !== null && existing.amountBase !== undefined) return;
-    if (!touches && !needsBase(existing, await baseCurrencyOf(existing.userId))) return;
+    // Only a real change of amount or currency re-converts. Saving a record again, or editing its notes, never revalues it:
+    // history keeps the conversion it was saved with (confirmed charges included).
     const total = patch.total !== undefined ? (typeof patch.total === 'string' ? parseFloat(patch.total) : patch.total) : existing.total;
-    Object.assign(patch, await baseFor(existing.userId, { total, currency: patch.currency ?? existing.currency }));
+    const currency = patch.currency ?? existing.currency;
+    const changed = (patch.total !== undefined && Number(total) !== Number(existing.total)) || (patch.currency !== undefined && patch.currency !== existing.currency);
+    if (!changed && existing.amountBase !== null && existing.amountBase !== undefined) return;
+    if (!changed && !needsBase(existing, await baseCurrencyOf(existing.userId))) return;
+    Object.assign(patch, await baseFor(existing.userId, { total, currency, extraction: patch.extraction ?? existing.extraction }));
 }
 
 /**
@@ -239,6 +249,10 @@ export async function recalculateBaseAmounts(userId) {
     const changes = [];
     let skipped = 0;
     for (const tx of rows) {
+        if (isConfirmed(tx)) {
+            skipped += 1; // the amount actually charged is never revalued
+            continue;
+        }
         const b = await baseFor(userId, tx, { baseCurrency: base });
         if (b.amountBase === null) {
             skipped += 1; // no rate available: keep what is stored

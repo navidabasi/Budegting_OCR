@@ -12,6 +12,7 @@
 // Rounding rule (shown to the user): when an amount cannot be divided exactly, the leftover cents go one each to the participants
 // with the largest fractional remainder, ties by the order of the participants list (the owner first). The result is deterministic.
 import { normalizeItems } from './receiptItems';
+import { isUnconverted } from './baseCurrency';
 
 export const ME = 'me';
 export const toCents = (amount) => Math.round((Number(amount) || 0) * 100);
@@ -176,6 +177,7 @@ const baseRatio = (tx) => {
  * cents < 0: I owe them. A refund of a shared purchase (income with the same split) reverses the lines. Amounts in base currency.
  */
 export function obligationsOf(tx) {
+    if (isUnconverted(tx)) return []; // not converted yet: counted once its base amount is known
     const type = tx?.transactionType || 'expense';
     const s = readSplit(tx?.splitData, tx?.total);
     if (!s || (type !== 'expense' && type !== 'income')) return [];

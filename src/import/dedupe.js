@@ -47,6 +47,17 @@ export function findDuplicates(imported = [], existing = [], { amountTolerance =
             if (e.importRef) return;
             if (typeOf(e) !== typeOf(row)) return;
             if (amount === null) return;
+            // A purchase in a foreign currency against a bank row in the account currency: the bank amount is what was actually
+            // charged. Needs a clear merchant match, a date within 2 days and (when a rate was applied) an amount in the same ballpark.
+            if (e.currency && row.currency && e.currency !== row.currency) {
+                const fxDays = Math.abs(daysBetween(e.date, row.date));
+                const fxMerchant = merchantScore(importedKeys[i], existingKeys[j]);
+                if (!e.date || !row.date || fxDays > 2 || fxMerchant < 6) return;
+                const estimate = num(e.amountBase);
+                if (estimate !== null && Math.abs(Math.abs(estimate) - Math.abs(amount)) > Math.max(1, 0.05 * Math.abs(estimate))) return;
+                candidates.push({ i, j, score: 80 + fxMerchant * 10 - fxDays * 5, reason: 'fx_match', daysApart: fxDays, merchantMatch: true });
+                return;
+            }
             const amounts = [num(e.amountBase), num(e.total)].filter((v) => v !== null).map(Math.abs);
             const amountDiff = Math.min(...amounts.map((a) => Math.abs(a - Math.abs(amount))), Infinity);
             if (amountDiff > amountTolerance + 1e-9) return;

@@ -7,6 +7,7 @@ import ImageViewer from '../scan/ImageViewer';
 import RecordSyncBadge from '../sync/RecordSyncBadge';
 import { PendingTotalCard, SuggestedTotalCard } from './CaptureNotices';
 import ItemReviewList from './ItemReviewList';
+import ConversionCard from './ConversionCard';
 import { BulkChangeSheet } from './ItemEditor';
 import { useUserPrefs } from '../../hooks/useUserPrefs';
 import { applyBulkItemChange, saveItemRule, saveItems } from '../../services/itemCorrections';
@@ -167,6 +168,7 @@ export default function ReceiptDetail({ receipt, onUpdate, onDelete }) {
             </div>
 
             <div className="flex flex-1 flex-col gap-3 px-5 pb-4">
+                <ConversionCard receipt={receipt} onSave={(patch) => updateReceipt(receipt.id, patch).then(() => onUpdate?.())} />
                 {receipt.extraction?.pending ? <PendingTotalCard receipt={receipt} onSave={(total) => updateReceipt(receipt.id, { total }).then(() => onUpdate?.())} /> : null}
                 <SuggestedTotalCard
                     receipt={receipt}

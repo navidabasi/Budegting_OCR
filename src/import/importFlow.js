@@ -9,6 +9,7 @@ import { suggestCategory, toSuggestRules } from '../services/categorizer';
 import { displayName, merchantKey } from '../utils/merchant';
 import { normalizeCategoryName } from '../utils/categoryNames';
 import { tripForDate } from '../utils/tripMath';
+import { confirmedPatch } from '../utils/fx';
 
 export const PROVIDERS = ['revolut', 'postepay', 'other'];
 export const FALLBACK = 'Other';
@@ -95,7 +96,10 @@ export async function applyImport({ items, accountId, userId, createTransaction,
     for (const item of items) {
         try {
             if (item.action === 'merge' && item.duplicate) {
-                await updateTransaction(item.duplicate.existing.id, { accountId, importRef: item.row.importRef });
+                const existing = item.duplicate.existing;
+                // Foreign purchase matched to the bank row: what the bank charged is the confirmed base amount
+                const confirmed = item.duplicate.reason === 'fx_match' ? confirmedPatch(existing, { baseCurrency: item.row.currency, charged: Math.abs(item.row.amount), date: item.row.date, source: 'bank' }) : null;
+                await updateTransaction(existing.id, { accountId, importRef: item.row.importRef, ...(confirmed || {}) });
                 out.merged += 1;
             } else if (item.action === 'import') {
                 await createTransaction({ ...toTransaction(item, { accountId }), userId });

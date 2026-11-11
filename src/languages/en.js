@@ -1003,16 +1003,6 @@ export const en = {
         },
     },
     // @i18n:end categorise
-    // @i18n:begin fx
-    fx: {
-        recalcBase: "Recalculate base amounts",
-        recalculating: "Recalculating…",
-        recalcHint: "Converts every transaction to your main currency again, at today’s rate. Use it after changing your currency.",
-        recalcDone: "{{count}} transactions updated",
-        recalcPartial: "{{count}} updated, {{skipped}} skipped (no exchange rate available)",
-        recalcFailed: "Could not recalculate. Try again.",
-    },
-    // @i18n:end fx
     // @i18n:begin plan
     plan: {
         title: "Plan",
@@ -1922,4 +1912,57 @@ export const en = {
         photosOffScan: "Sending receipt photos to the AI provider is switched off in Settings. Enter the receipt by hand; the photo stays on your device.",
     },
     // @i18n:end aiBoundary
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalculate base amounts",
+        recalculating: "Recalculating…",
+        recalcHint: "Converts every transaction to your main currency again, at today’s rate. Use it after changing your currency.",
+        recalcDone: "{{count}} transactions updated",
+        recalcPartial: "{{count}} updated, {{skipped}} skipped (no exchange rate available)",
+        recalcFailed: "Could not recalculate. Try again.",
+        charged: "Charged in {{currency}} (optional)",
+        chargedHint: "From your bank statement. It marks the amount as confirmed. Empty: today’s rate is used, or the amount waits for a rate when you are offline.",
+        title: "Currency conversion",
+        status: {
+            confirmed: "Confirmed",
+            estimated: "Estimated",
+            pending: "Waiting for a rate",
+        },
+        line: {
+            confirmed: "{{original}} was charged as {{base}} (rate {{rate}}).",
+            estimated: "{{original}} is about {{base}} at {{rate}}.",
+            pending: "{{original}}. The {{currency}} amount is not known yet, so this is not counted in totals.",
+        },
+        source: {
+            api: "today’s rate",
+            cache: "saved rate of today",
+            "cache-old": "last saved rate (offline)",
+            manual: "rate you entered",
+            charged: "amount you entered from your statement",
+            bank: "matched bank row",
+            legacy: "rate from when it was saved (date not recorded)",
+        },
+        rateDate: "Rate table of {{date}}, not necessarily the purchase day. History is never revalued automatically.",
+        edit: "Edit conversion",
+        setAmount: "Set the {{currency}} amount",
+        sheetIntro: "Type the amount your bank charged, or a rate. The other one is worked out from it. Nothing else changes.",
+        amountLabel: "Charged in {{currency}}",
+        rateLabel: "Rate (1 {{from}} in {{to}})",
+        useLatest: "Use the latest rate",
+        noRate: "No rate is available right now (offline). Enter one yourself or try later.",
+        save: "Save conversion",
+        saved: "Conversion saved.",
+        failed: "Could not save the conversion.",
+        notConverted: "+ {{count}} transactions not yet converted",
+        notConverted1: "+ 1 transaction not yet converted",
+        notConvertedHint: "They are not in these totals until a rate or the charged amount is known.",
+        review: "Review",
+        matched: "Charged amount taken from the matched bank row.",
+    },
+    // @i18n:end fx
+    // @i18n:begin basis
+    basis: {
+        activityShare: "Full amounts paid. Your share of split expenses: {{amount}}.",
+    },
+    // @i18n:end basis
 };

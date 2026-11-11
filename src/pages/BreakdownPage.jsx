@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import ConversionNote from '../components/common/ConversionNote';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, Chip, ChipRow, IconButton, PeriodSwitcher, Segmented } from '../components/ui';
@@ -88,6 +89,7 @@ export default function BreakdownPage() {
                 ))}
             </ChipRow>
 
+            <ConversionNote transactions={transactions} period={period} hint />
             <Card className={`!rounded-[18px] ${cover.receipts === 0 ? '' : cover.share < 0.5 ? '!bg-warn-soft' : '!bg-mint'}`} data-testid="coverage-banner">
                 {cover.receipts === 0 ? (
                     <p className="text-sm text-ink-muted">{t('breakdown.noSpend', { scope: scopeName })}</p>

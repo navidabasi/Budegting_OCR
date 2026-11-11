@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import ConversionNote from '../common/ConversionNote';
 import { Link } from 'react-router-dom';
 import { Pencil, Plane } from 'lucide-react';
 import { Amount, Card, ProgressBar } from '../ui';
@@ -63,6 +64,7 @@ export default function BudgetsTab({ month, data, sheetPreset, onSheetClosed }) 
 
     return (
         <div className="flex flex-col gap-3">
+            <ConversionNote transactions={transactions} period={month} hint />
             <Card className="!rounded-[20px] !p-4" data-testid="whole-month">
                 <div className="flex items-baseline justify-between">
                     <span className="text-[13px] font-semibold uppercase tracking-[.06em] text-ink-muted">{t('budgets.wholeMonth')}</span>

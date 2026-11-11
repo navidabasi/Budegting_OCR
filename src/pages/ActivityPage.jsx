@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ConversionNote from '../components/common/ConversionNote';
 import { useSearchParams } from 'react-router-dom';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUpDown, Search, Sparkles, Tags, X } from 'lucide-react';
@@ -224,7 +225,8 @@ export default function ActivityPage() {
                         </Chip>
                     </div>
                 ) : null}
-                <MonthStrip count={summary.count} income={summary.income} expense={summary.expense} currency={defaultCurrency} />
+                <ConversionNote transactions={filtered} className="mb-1 px-1" />
+                <MonthStrip count={summary.count} income={summary.income} expense={summary.expense} expenseShare={summary.expenseShare} currency={defaultCurrency} />
             </div>
 
             {items.length === 0 ? (

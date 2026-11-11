@@ -847,16 +847,6 @@ export const it = {
         },
     },
     // @i18n:end categorise
-    // @i18n:begin fx
-    fx: {
-        recalcBase: "Ricalcola gli importi in valuta base",
-        recalculating: "Ricalcolo…",
-        recalcHint: "Converte di nuovo ogni movimento nella tua valuta principale, al cambio di oggi. Usalo dopo aver cambiato valuta.",
-        recalcDone: "{{count}} movimenti aggiornati",
-        recalcPartial: "{{count}} aggiornati, {{skipped}} saltati (cambio non disponibile)",
-        recalcFailed: "Impossibile ricalcolare. Riprova.",
-    },
-    // @i18n:end fx
     // @i18n:begin plan
     plan: {
         title: "Piano",
@@ -1766,4 +1756,57 @@ export const it = {
         photosOffScan: "L’invio delle foto al fornitore AI è disattivato nelle Impostazioni. Inserisci lo scontrino a mano; la foto resta sul dispositivo.",
     },
     // @i18n:end aiBoundary
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Ricalcola gli importi in valuta base",
+        recalculating: "Ricalcolo…",
+        recalcHint: "Converte di nuovo ogni movimento nella tua valuta principale, al cambio di oggi. Usalo dopo aver cambiato valuta.",
+        recalcDone: "{{count}} movimenti aggiornati",
+        recalcPartial: "{{count}} aggiornati, {{skipped}} saltati (cambio non disponibile)",
+        recalcFailed: "Impossibile ricalcolare. Riprova.",
+        charged: "Addebitato in {{currency}} (facoltativo)",
+        chargedHint: "Dall’estratto conto. Segna l’importo come confermato. Vuoto: si usa il cambio di oggi, o l’importo aspetta un cambio se sei offline.",
+        title: "Conversione valuta",
+        status: {
+            confirmed: "Confermato",
+            estimated: "Stimato",
+            pending: "In attesa di un cambio",
+        },
+        line: {
+            confirmed: "{{original}} è stato addebitato come {{base}} (cambio {{rate}}).",
+            estimated: "{{original}} sono circa {{base}} a {{rate}}.",
+            pending: "{{original}}. L’importo in {{currency}} non è ancora noto, quindi non entra nei totali.",
+        },
+        source: {
+            api: "cambio di oggi",
+            cache: "cambio salvato di oggi",
+            "cache-old": "ultimo cambio salvato (offline)",
+            manual: "cambio inserito da te",
+            charged: "importo inserito dal tuo estratto",
+            bank: "riga di banca abbinata",
+            legacy: "cambio di quando è stato salvato (data non registrata)",
+        },
+        rateDate: "Tabella cambi del {{date}}, non necessariamente il giorno dell’acquisto. Lo storico non viene mai rivalutato in automatico.",
+        edit: "Modifica conversione",
+        setAmount: "Imposta l’importo in {{currency}}",
+        sheetIntro: "Scrivi l’importo addebitato dalla banca, oppure un cambio. L’altro valore si calcola da quello. Nient’altro cambia.",
+        amountLabel: "Addebitato in {{currency}}",
+        rateLabel: "Cambio (1 {{from}} in {{to}})",
+        useLatest: "Usa il cambio più recente",
+        noRate: "Nessun cambio disponibile ora (offline). Inseriscilo tu o riprova più tardi.",
+        save: "Salva conversione",
+        saved: "Conversione salvata.",
+        failed: "Impossibile salvare la conversione.",
+        notConverted: "+ {{count}} transazioni non ancora convertite",
+        notConverted1: "+ 1 transazione non ancora convertita",
+        notConvertedHint: "Non sono in questi totali finché non si conosce un cambio o l’importo addebitato.",
+        review: "Rivedi",
+        matched: "Importo addebitato preso dalla riga di banca abbinata.",
+    },
+    // @i18n:end fx
+    // @i18n:begin basis
+    basis: {
+        activityShare: "Importi interi pagati. La tua quota delle spese divise: {{amount}}.",
+    },
+    // @i18n:end basis
 };

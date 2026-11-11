@@ -18,6 +18,7 @@ import { buildHints } from './services/receiptScan';
 import { useAccounts } from './data/hooks';
 import { useCategories } from './hooks/useCategories';
 import { useOutboundContext } from './hooks/useOutboundContext';
+import { setBaseCurrency } from './utils/baseCurrency';
 import { notifyDataChanged } from './data/queryClient';
 import { fillMissingBaseAmounts } from './data/repo';
 import BottomNav from './components/ui/BottomNav';
@@ -116,6 +117,7 @@ function App() {
     const storageWarningShownRef = useRef(false);
     const languagePersistedRef = useRef(false);
     const { settings, isSuccess: settingsLoaded } = useSettings();
+    setBaseCurrency(settings?.defaultCurrency); // money maths needs the base currency to tell 'not converted yet' from 'same currency'
     const saveSettings = useSaveSettings();
     const syncStatus = useSyncStatus();
     const { transactions: receipts } = useTransactions();

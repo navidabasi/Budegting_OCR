@@ -8,6 +8,7 @@
 import { normalizeCategoryName } from './categoryNames';
 import { merchantKey } from './merchant';
 import { inPeriod } from './period';
+import { fullAmount, shareAmount } from './money';
 import { getTrackingStatus, shouldIncludeInSpendingTotals } from './tracking';
 
 export const DEFAULT_FILTERS = Object.freeze({ month: null, type: '', categories: [], accountId: '', groupId: '', tracking: '', uncategorised: false, merchant: '', q: '', sort: 'date', dir: 'desc' });
@@ -119,19 +120,23 @@ export function applyFilters(transactions, f, { ignoreMonth = false, period = nu
     });
 }
 
-const base = (tx) => (Number.isFinite(Number(tx.amountBase)) && tx.amountBase !== null ? Number(tx.amountBase) : Number(tx.total) || 0);
 
 /** { count, income, expense } for the month strip; planned/unpaid and transfers are not money moved. */
 export function summarize(list) {
     let income = 0;
     let expense = 0;
+    let expenseShare = 0;
     for (const tx of list) {
         if (!shouldIncludeInSpendingTotals(tx)) continue;
-        if ((tx.transactionType || 'expense') === 'income') income += base(tx);
-        else expense += base(tx);
+        if ((tx.transactionType || 'expense') === 'income') income += fullAmount(tx); // 0 for a foreign record without a rate: never 1:1
+        else {
+            expense += fullAmount(tx);
+            expenseShare += shareAmount(tx);
+        }
     }
     const r = (n) => Math.round(n * 100) / 100;
-    return { count: list.length, income: r(income), expense: r(expense) };
+    // `expense` is the full amount paid (cash movement); `expenseShare` is the part that is yours when expenses were split
+    return { count: list.length, income: r(income), expense: r(expense), expenseShare: r(expenseShare) };
 }
 
 /** Flat list for a virtual list: [{ kind: 'day', key, total, count }, { kind: 'tx', tx }, ...] in the order given. */
@@ -145,7 +150,7 @@ export function groupByDay(list) {
             items.push(current);
         }
         current.count += 1;
-        if ((tx.transactionType || 'expense') === 'expense' && shouldIncludeInSpendingTotals(tx)) current.total += base(tx);
+        if ((tx.transactionType || 'expense') === 'expense' && shouldIncludeInSpendingTotals(tx)) current.total += fullAmount(tx);
         items.push({ kind: 'tx', tx });
     }
     items.filter((i) => i.kind === 'day').forEach((d) => (d.total = Math.round(d.total * 100) / 100));

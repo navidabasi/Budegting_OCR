@@ -34,10 +34,11 @@ import { isStorageFullError } from '../../data/repo';
 import { useTripGroup } from '../../hooks/useTripGroup';
 import { buildOpenTrackingData, normalizeTrackingData } from '../../utils/tracking';
 import { itemsToRows, mergeEditedItems, serializeItems } from '../../utils/receiptItems';
+import { confirmedPatch } from '../../utils/fx';
 
 const labelClass = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
 const newId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const emptyMore = () => ({ items: [], notes: '', groupId: null, groupName: null, tags: [], splitData: null, recurringData: null, planned: false, currency: 'EUR' });
+const emptyMore = () => ({ items: [], notes: '', groupId: null, groupName: null, tags: [], splitData: null, recurringData: null, planned: false, currency: 'EUR', charged: '' });
 
 function initialState(preset, defaultCurrency) {
     const src = preset?.transaction || preset?.initial || null;
@@ -52,6 +53,8 @@ function initialState(preset, defaultCurrency) {
         more.splitData = src.splitData || null;
         more.recurringData = src.recurringData || null;
         more.planned = !!normalizeTrackingData(src.trackingData)?.isTracked;
+        // a confirmed conversion keeps showing what was charged
+        if (src.extraction?.fx?.status === 'confirmed' && src.amountBase) more.charged = String(src.amountBase);
     }
     return {
         type: src?.transactionType || 'expense',
@@ -241,6 +244,11 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
             recurringData: more.recurringData,
             trackingData: more.planned ? (base?.isTracked ? base : buildOpenTrackingData()) : null,
         };
+        // The amount actually charged in the base currency, when the owner typed it: confirmed, rate derived from it
+        const charged = parseFloat(String(more.charged || '').replace(',', '.'));
+        if (!isTransfer && defaultCurrency && more.currency !== defaultCurrency && charged > 0 && !(editing && editing.extraction?.fx?.status === 'confirmed' && Number(editing.amountBase) === charged && Number(editing.total) === total && editing.currency === more.currency)) {
+            Object.assign(record, confirmedPatch({ total, currency: more.currency, extraction: editing?.extraction }, { baseCurrency: defaultCurrency, charged, date: dateKey(0), source: 'charged' }));
+        }
         try {
             if (state.accountId) setLastAccountId(state.accountId);
             if (editing) {
@@ -477,6 +485,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                                 groups={groups}
                                 date={state.date}
                                 onOpenSplit={() => setSplitOpen(true)}
+                                baseCurrency={defaultCurrency}
                                 onCreateGroup={(name) => createGroup({ name, color: '#3b82f6', isPinned: false })}
                             />
                         ) : null}

@@ -734,16 +734,6 @@ export const fr = {
         },
     },
     // @i18n:end categorise
-    // @i18n:begin fx
-    fx: {
-        recalcBase: "Recalculer les montants en devise de base",
-        recalculating: "Recalcul…",
-        recalcHint: "Reconvertit chaque opération dans votre devise principale, au taux du jour. À utiliser après un changement de devise.",
-        recalcDone: "{{count}} opérations mises à jour",
-        recalcPartial: "{{count}} mis à jour, {{skipped}} ignorés (taux indisponible)",
-        recalcFailed: "Recalcul impossible. Réessayez.",
-    },
-    // @i18n:end fx
     // @i18n:begin plan
     plan: {
         title: "Plan",
@@ -1653,4 +1643,57 @@ export const fr = {
         photosOffScan: "L’envoi des photos au fournisseur d’IA est désactivé dans les Réglages. Saisissez le ticket à la main ; la photo reste sur votre appareil.",
     },
     // @i18n:end aiBoundary
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalculer les montants en devise de base",
+        recalculating: "Recalcul…",
+        recalcHint: "Reconvertit chaque opération dans votre devise principale, au taux du jour. À utiliser après un changement de devise.",
+        recalcDone: "{{count}} opérations mises à jour",
+        recalcPartial: "{{count}} mis à jour, {{skipped}} ignorés (taux indisponible)",
+        recalcFailed: "Recalcul impossible. Réessayez.",
+        charged: "Débité en {{currency}} (facultatif)",
+        chargedHint: "Du relevé bancaire. Marque le montant comme confirmé. Vide : le taux du jour est utilisé, ou le montant attend un taux hors ligne.",
+        title: "Conversion de devise",
+        status: {
+            confirmed: "Confirmé",
+            estimated: "Estimé",
+            pending: "En attente d’un taux",
+        },
+        line: {
+            confirmed: "{{original}} ont été débités comme {{base}} (taux {{rate}}).",
+            estimated: "{{original}} font environ {{base}} à {{rate}}.",
+            pending: "{{original}}. Le montant en {{currency}} n’est pas encore connu : il n’est pas compté dans les totaux.",
+        },
+        source: {
+            api: "taux du jour",
+            cache: "taux enregistré du jour",
+            "cache-old": "dernier taux enregistré (hors ligne)",
+            manual: "taux saisi par vous",
+            charged: "montant de votre relevé",
+            bank: "ligne bancaire rapprochée",
+            legacy: "taux de l’enregistrement (date non conservée)",
+        },
+        rateDate: "Table de taux du {{date}}, pas forcément le jour de l’achat. L’historique n’est jamais réévalué automatiquement.",
+        edit: "Modifier la conversion",
+        setAmount: "Définir le montant en {{currency}}",
+        sheetIntro: "Saisissez le montant débité par la banque, ou un taux. L’autre valeur en est déduite. Rien d’autre ne change.",
+        amountLabel: "Débité en {{currency}}",
+        rateLabel: "Taux (1 {{from}} en {{to}})",
+        useLatest: "Utiliser le dernier taux",
+        noRate: "Aucun taux disponible pour l’instant (hors ligne). Saisissez-en un ou réessayez plus tard.",
+        save: "Enregistrer la conversion",
+        saved: "Conversion enregistrée.",
+        failed: "Impossible d’enregistrer la conversion.",
+        notConverted: "+ {{count}} transactions pas encore converties",
+        notConverted1: "+ 1 transaction pas encore convertie",
+        notConvertedHint: "Ils ne sont pas dans ces totaux tant qu’un taux ou le montant débité n’est pas connu.",
+        review: "Vérifier",
+        matched: "Montant débité repris de la ligne bancaire rapprochée.",
+    },
+    // @i18n:end fx
+    // @i18n:begin basis
+    basis: {
+        activityShare: "Montants totaux payés. Votre part des dépenses partagées : {{amount}}.",
+    },
+    // @i18n:end basis
 };

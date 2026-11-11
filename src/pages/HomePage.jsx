@@ -1,4 +1,5 @@
 import { Suspense, lazy, useMemo, useState } from 'react';
+import ConversionNote from '../components/common/ConversionNote';
 import { Plane, Settings } from 'lucide-react';
 import { IconButton, PeriodSwitcher } from '../components/ui';
 import MonthReceipt from '../components/home/MonthReceipt';
@@ -78,6 +79,7 @@ export default function HomePage() {
             ) : (
                 <>
                     <MonthReceipt month={month} totals={totals} wholeBudget={rows.find((r) => r.category === WHOLE_MONTH) || null} today={today} />
+                    <ConversionNote transactions={transactions} period={month} hint className="px-1" />
                     <InsightCard finding={finding} />
                     <BudgetStrip rows={rows} month={periodSpecOf(month)} />
                     <BreakdownLink month={periodSpecOf(month)} />

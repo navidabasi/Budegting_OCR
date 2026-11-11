@@ -73,7 +73,7 @@ describe('applyFilters / summarize / groupByDay', () => {
         expect(applyFilters(list, { ...f, sort: 'amount' })[0].id).toBe('e');
     });
     it('summarises money moved only', () => {
-        expect(summarize(applyFilters(list, f))).toEqual({ count: 5, income: 2350, expense: 36.07 });
+        expect(summarize(applyFilters(list, f))).toEqual({ count: 5, income: 2350, expense: 36.07, expenseShare: 36.07 });
     });
     it('groups by day with spending totals', () => {
         const items = groupByDay(applyFilters(list, f));
@@ -92,5 +92,17 @@ describe('period specs in the month filter (pay cycles)', () => {
         expect(parseFilters(new URLSearchParams('m=junk'), new Date(2026, 10, 11), { defaultSpec: 'c:2026-10' }).month).toBe('c:2026-10');
         const txs = [{ id: 'a', date: '2026-10-12' }, { id: 'b', date: '2026-11-12' }];
         expect(applyFilters(txs, f, { period: { start: '2026-10-12', end: '2026-11-11' } }).map((t) => t.id)).toEqual(['a']);
+    });
+});
+
+describe('summarize: basis and conversion', () => {
+    const split = { v: 2, payer: 'me', participants: [{ id: 'me', name: 'Me' }, { id: 'm', name: 'M' }], method: 'equal', shares: { me: 2000, m: 2000 } };
+    it('reports the full amount paid and, separately, your share; foreign records without a rate count as zero', () => {
+        const list = [
+            { id: '1', transactionType: 'expense', total: 40, currency: 'EUR', amountBase: 40, splitData: split, date: '2026-11-03' },
+            { id: '2', transactionType: 'expense', total: 10, currency: 'EUR', amountBase: 10, date: '2026-11-03' },
+            { id: '3', transactionType: 'expense', total: 99, currency: 'USD', amountBase: null, date: '2026-11-03' },
+        ];
+        expect(summarize(list)).toMatchObject({ count: 3, expense: 50, expenseShare: 30 });
     });
 });

@@ -103,9 +103,16 @@ export function tripForDate(trips = [], date, today = new Date()) {
     const day = dateKey(date);
     if (!day) return null;
     const active = activeTrip(list, today);
-    if (active && (day === dateKey(today) || tripContainsDate(active, day))) return active;
+    // today's purchase joins the active trip unless that trip has not started yet; any other date only if the trip's range contains it
+    if (active && (tripContainsDate(active, day) || (day === dateKey(today) && (!active.startsOn || dateKey(active.startsOn) <= day)))) return active;
     return list.filter((t) => tripContainsDate(t, day)).sort((a, b) => String(b.startsOn).localeCompare(String(a.startsOn)))[0] || null;
 }
+
+/**
+ * May this record join a trip automatically? Recurring bills and planned (unpaid) items are not travel spending: they are tagged
+ * only by hand. (A scan whose purchase date is outside the trip already gets no trip from tripForDate.)
+ */
+export const eligibleForAutoTrip = (more = {}) => !(more?.recurringData?.isActive || more?.planned);
 
 /**
  * resolveGroup({ groupId, groupName }, autoTrip, detached) -> { groupId, groupName }

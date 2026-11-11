@@ -12,7 +12,7 @@ const label = 'text-xs font-semibold uppercase tracking-wider text-ink-muted';
  * The "More" accordion body of Quick Add: items, notes, group, tags, split, recurring, planned, currency.
  * Pure controlled component; the sheet owns the state.
  */
-export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date, hide = [] }) {
+export default function MoreSection({ value, onChange, groups, onCreateGroup, onOpenSplit, date, hide = [], baseCurrency = null }) {
     const { t } = useTranslation();
     const [newGroup, setNewGroup] = useState('');
     const [showNewGroup, setShowNewGroup] = useState(false);
@@ -170,6 +170,14 @@ export default function MoreSection({ value, onChange, groups, onCreateGroup, on
                         </option>
                     ))}
                 </select>
+            </label>
+            )}
+
+            {!hide.includes('currency') && baseCurrency && value.currency !== baseCurrency && (
+            <label className="flex flex-col gap-1.5" data-testid="charged-field">
+                <span className={label}>{t('fx.charged', { currency: baseCurrency })}</span>
+                <input className={`${field} h-12`} inputMode="decimal" value={value.charged || ''} onChange={(e) => set({ charged: e.target.value })} data-testid="charged-input" />
+                <span className="text-xs text-ink-muted">{t('fx.chargedHint')}</span>
             </label>
             )}
         </div>

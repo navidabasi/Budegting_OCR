@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../services/supabaseService', () => ({ supabase: null, authHelpers: {}, supabaseService: {} }));
-vi.mock('../../services/exchangeRateService', () => ({ getRate: vi.fn(async () => null) }));
+vi.mock('../../services/exchangeRateService', () => ({ getRate: vi.fn(async () => null), getRateInfo: vi.fn(async () => null) }));
 import { db, openDb } from '../db';
 import { mappers } from '../api';
 import { createRow, createTransaction, listRows, listTransactions, normalizeTransaction } from '../repo';

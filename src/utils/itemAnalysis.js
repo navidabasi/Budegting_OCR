@@ -11,6 +11,7 @@ import { normalizeItems, reconcile, round2 } from './receiptItems';
 import { fullAmount, isPlanned, itemShareFactor, shareAmount, typeOf } from './money';
 import { inPeriod } from './period';
 import { displayName, merchantKey } from './merchant';
+import { isUnconverted } from './baseCurrency';
 
 const num = (v) => {
     const n = typeof v === 'number' ? v : parseFloat(v);
@@ -19,7 +20,7 @@ const num = (v) => {
 
 /** Expenses in the period that count as money spent (planned/unpaid and transfers/income left out). */
 export function periodExpenses(transactions = [], period) {
-    return (transactions || []).filter((tx) => tx && typeOf(tx) === 'expense' && !isPlanned(tx) && !tx.isDemo && (period === undefined || period === null || inPeriod(tx.date, period)));
+    return (transactions || []).filter((tx) => tx && typeOf(tx) === 'expense' && !isPlanned(tx) && !tx.isDemo && !isUnconverted(tx) && (period === undefined || period === null || inPeriod(tx.date, period)));
 }
 
 const keyOfMerchant = (tx) => tx.merchantKey || merchantKey(tx.merchant) || 'unknown';

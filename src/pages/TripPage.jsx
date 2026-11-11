@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import ConversionNote from '../components/common/ConversionNote';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Pencil, Plus, ShieldCheck } from 'lucide-react';
 import { Amount, Sheet } from '../components/ui';
@@ -111,6 +112,7 @@ export default function TripPage() {
                     <Amount value={totals.total} className="text-[42px] font-semibold leading-none tracking-tight" />
                     {totals.budget ? <span className="font-mono text-base opacity-85">{t('budgets.of', { amount: short(totals.budget, currency) })}</span> : null}
                 </div>
+                <ConversionNote transactions={transactions.filter((x) => x.groupId === trip.id)} className="!text-[#FFD88A]" />
                 {totals.budget ? (
                     <div className="relative h-2 rounded bg-white/20" role="progressbar" aria-valuemin={0} aria-valuemax={totals.budget} aria-valuenow={Math.min(totals.total, totals.budget)} aria-label={trip.name}>
                         <div className="h-full rounded bg-white" style={{ width: `${Math.max(0, Math.min(100, totals.budgetPct))}%` }} />

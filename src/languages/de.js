@@ -847,16 +847,6 @@ export const de = {
         },
     },
     // @i18n:end categorise
-    // @i18n:begin fx
-    fx: {
-        recalcBase: "Basisbeträge neu berechnen",
-        recalculating: "Wird berechnet…",
-        recalcHint: "Rechnet jede Buchung erneut in deine Hauptwährung um, zum heutigen Kurs. Nutze es nach einem Währungswechsel.",
-        recalcDone: "{{count}} Buchungen aktualisiert",
-        recalcPartial: "{{count}} aktualisiert, {{skipped}} übersprungen (kein Kurs verfügbar)",
-        recalcFailed: "Neuberechnung fehlgeschlagen. Versuche es erneut.",
-    },
-    // @i18n:end fx
     // @i18n:begin plan
     plan: {
         title: "Planung",
@@ -1766,4 +1756,57 @@ export const de = {
         photosOffScan: "Das Senden von Belegfotos an den KI-Anbieter ist in den Einstellungen ausgeschaltet. Gib den Beleg manuell ein; das Foto bleibt auf deinem Gerät.",
     },
     // @i18n:end aiBoundary
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Basisbeträge neu berechnen",
+        recalculating: "Wird berechnet…",
+        recalcHint: "Rechnet jede Buchung erneut in deine Hauptwährung um, zum heutigen Kurs. Nutze es nach einem Währungswechsel.",
+        recalcDone: "{{count}} Buchungen aktualisiert",
+        recalcPartial: "{{count}} aktualisiert, {{skipped}} übersprungen (kein Kurs verfügbar)",
+        recalcFailed: "Neuberechnung fehlgeschlagen. Versuche es erneut.",
+        charged: "Belastet in {{currency}} (optional)",
+        chargedHint: "Vom Kontoauszug. Markiert den Betrag als bestätigt. Leer: Tageskurs, oder der Betrag wartet offline auf einen Kurs.",
+        title: "Währungsumrechnung",
+        status: {
+            confirmed: "Bestätigt",
+            estimated: "Geschätzt",
+            pending: "Wartet auf einen Kurs",
+        },
+        line: {
+            confirmed: "{{original}} wurden als {{base}} belastet (Kurs {{rate}}).",
+            estimated: "{{original}} sind etwa {{base}} bei {{rate}}.",
+            pending: "{{original}}. Der Betrag in {{currency}} ist noch nicht bekannt, daher zählt er nicht in den Summen.",
+        },
+        source: {
+            api: "Tageskurs",
+            cache: "gespeicherter Kurs von heute",
+            "cache-old": "zuletzt gespeicherter Kurs (offline)",
+            manual: "von dir eingegebener Kurs",
+            charged: "Betrag aus deinem Kontoauszug",
+            bank: "zugeordnete Bankzeile",
+            legacy: "Kurs vom Speichern (Datum nicht erfasst)",
+        },
+        rateDate: "Kurstabelle vom {{date}}, nicht unbedingt der Kauftag. Der Verlauf wird nie automatisch neu bewertet.",
+        edit: "Umrechnung bearbeiten",
+        setAmount: "{{currency}}-Betrag festlegen",
+        sheetIntro: "Gib den von der Bank belasteten Betrag oder einen Kurs ein. Der andere Wert wird daraus berechnet. Sonst ändert sich nichts.",
+        amountLabel: "Belastet in {{currency}}",
+        rateLabel: "Kurs (1 {{from}} in {{to}})",
+        useLatest: "Aktuellen Kurs verwenden",
+        noRate: "Gerade ist kein Kurs verfügbar (offline). Gib selbst einen ein oder versuche es später.",
+        save: "Umrechnung speichern",
+        saved: "Umrechnung gespeichert.",
+        failed: "Umrechnung konnte nicht gespeichert werden.",
+        notConverted: "+ {{count}} Transaktionen noch nicht umgerechnet",
+        notConverted1: "+ 1 Transaktion noch nicht umgerechnet",
+        notConvertedHint: "Sie zählen nicht in diese Summen, bis ein Kurs oder der belastete Betrag bekannt ist.",
+        review: "Prüfen",
+        matched: "Belasteter Betrag aus der zugeordneten Bankzeile übernommen.",
+    },
+    // @i18n:end fx
+    // @i18n:begin basis
+    basis: {
+        activityShare: "Volle gezahlte Beträge. Dein Anteil an geteilten Ausgaben: {{amount}}.",
+    },
+    // @i18n:end basis
 };

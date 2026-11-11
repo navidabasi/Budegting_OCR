@@ -10,6 +10,7 @@ import { shouldIncludeInFinancialTotals } from './tracking';
 import { dateKey, daysBetween } from './monthMath';
 import { inPeriod, rangeDays, toRange } from './period';
 import { isSettlement, itemShareFraction, paidByOther } from './splits';
+import { isUnconverted } from './baseCurrency';
 
 export const SAVINGS_KINDS = ['savings', 'investment'];
 
@@ -26,12 +27,14 @@ export const isSavingsKind = (kind) => SAVINGS_KINDS.includes(kind);
 /** Full amount of the transaction in base currency (falls back to the entered total). */
 export function fullAmount(tx) {
     if (!tx) return 0;
+    if (isUnconverted(tx)) return 0; // foreign currency without a rate: never counted 1:1 (see conversion.js for how many are missing)
     return tx.amountBase !== undefined && tx.amountBase !== null ? num(tx.amountBase) : num(tx.total);
 }
 
 /** Your share in base currency: full amount, or your part when the receipt is split. */
 export function shareAmount(tx) {
     if (!tx) return 0;
+    if (isUnconverted(tx)) return 0;
     const total = num(tx.total);
     const effective = getEffectiveAmount(tx);
     if (tx.amountBase === undefined || tx.amountBase === null) return effective;

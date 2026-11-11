@@ -734,16 +734,6 @@ export const es = {
         },
     },
     // @i18n:end categorise
-    // @i18n:begin fx
-    fx: {
-        recalcBase: "Recalcular importes en moneda base",
-        recalculating: "Recalculando…",
-        recalcHint: "Vuelve a convertir cada movimiento a tu moneda principal, al cambio de hoy. Úsalo tras cambiar de moneda.",
-        recalcDone: "{{count}} movimientos actualizados",
-        recalcPartial: "{{count}} actualizados, {{skipped}} omitidos (sin tipo de cambio)",
-        recalcFailed: "No se pudo recalcular. Inténtalo de nuevo.",
-    },
-    // @i18n:end fx
     // @i18n:begin plan
     plan: {
         title: "Plan",
@@ -1653,4 +1643,57 @@ export const es = {
         photosOffScan: "El envío de fotos al proveedor de IA está desactivado en Ajustes. Introduce el recibo a mano; la foto se queda en tu dispositivo.",
     },
     // @i18n:end aiBoundary
+    // @i18n:begin fx
+    fx: {
+        recalcBase: "Recalcular importes en moneda base",
+        recalculating: "Recalculando…",
+        recalcHint: "Vuelve a convertir cada movimiento a tu moneda principal, al cambio de hoy. Úsalo tras cambiar de moneda.",
+        recalcDone: "{{count}} movimientos actualizados",
+        recalcPartial: "{{count}} actualizados, {{skipped}} omitidos (sin tipo de cambio)",
+        recalcFailed: "No se pudo recalcular. Inténtalo de nuevo.",
+        charged: "Cargado en {{currency}} (opcional)",
+        chargedHint: "Del extracto bancario. Marca el importe como confirmado. Vacío: se usa el cambio de hoy, o el importe espera un cambio si estás sin conexión.",
+        title: "Conversión de moneda",
+        status: {
+            confirmed: "Confirmado",
+            estimated: "Estimado",
+            pending: "Esperando un cambio",
+        },
+        line: {
+            confirmed: "{{original}} se cargó como {{base}} (cambio {{rate}}).",
+            estimated: "{{original}} son unos {{base}} a {{rate}}.",
+            pending: "{{original}}. El importe en {{currency}} aún no se conoce, así que no cuenta en los totales.",
+        },
+        source: {
+            api: "cambio de hoy",
+            cache: "cambio guardado de hoy",
+            "cache-old": "último cambio guardado (sin conexión)",
+            manual: "cambio que introdujiste",
+            charged: "importe de tu extracto",
+            bank: "fila del banco emparejada",
+            legacy: "cambio del momento de guardarlo (fecha no registrada)",
+        },
+        rateDate: "Tabla de cambios del {{date}}, no necesariamente el día de la compra. El historial nunca se revalúa automáticamente.",
+        edit: "Editar conversión",
+        setAmount: "Fijar el importe en {{currency}}",
+        sheetIntro: "Escribe el importe que cargó tu banco, o un cambio. El otro se calcula a partir de él. Nada más cambia.",
+        amountLabel: "Cargado en {{currency}}",
+        rateLabel: "Cambio (1 {{from}} en {{to}})",
+        useLatest: "Usar el cambio más reciente",
+        noRate: "No hay cambio disponible ahora (sin conexión). Introdúcelo tú o prueba más tarde.",
+        save: "Guardar conversión",
+        saved: "Conversión guardada.",
+        failed: "No se pudo guardar la conversión.",
+        notConverted: "+ {{count}} transacciones sin convertir",
+        notConverted1: "+ 1 transacción sin convertir",
+        notConvertedHint: "No están en estos totales hasta que se conozca un cambio o el importe cargado.",
+        review: "Revisar",
+        matched: "Importe cargado tomado de la fila del banco emparejada.",
+    },
+    // @i18n:end fx
+    // @i18n:begin basis
+    basis: {
+        activityShare: "Importes totales pagados. Tu parte de los gastos divididos: {{amount}}.",
+    },
+    // @i18n:end basis
 };

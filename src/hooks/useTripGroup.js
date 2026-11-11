@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { resolveGroup, tripForDate } from '../utils/tripMath';
+import { eligibleForAutoTrip, resolveGroup, tripForDate } from '../utils/tripMath';
 
 /**
  * The group a new transaction is saved to: an explicit pick, else the active trip (or the trip containing the date),
@@ -7,7 +7,8 @@ import { resolveGroup, tripForDate } from '../utils/tripMath';
  *   { group, tripOfGroup, mergeMore(newMore) -> { more, tripDetached }, detach() -> { more, tripDetached } }
  */
 export function useTripGroup({ trips, date, more, detached = false, auto = true }) {
-    const autoTrip = useMemo(() => (auto ? tripForDate(trips, date) : null), [auto, trips, date]);
+    const eligible = eligibleForAutoTrip(more);
+    const autoTrip = useMemo(() => (auto && eligible ? tripForDate(trips, date) : null), [auto, eligible, trips, date]);
     const group = resolveGroup(more, autoTrip, detached);
     const tripOfGroup = group.groupId ? (trips || []).find((x) => x.id === group.groupId) || null : null;
     return {
