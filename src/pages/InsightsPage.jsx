@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { History, RefreshCw } from 'lucide-react';
 import { PeriodSwitcher } from '../components/ui';
 import NarrativeCard from '../components/insights/NarrativeCard';
 import FindingsList from '../components/insights/FindingsList';
 import ChatPanel from '../components/insights/ChatPanel';
+import ChatHistorySheet from '../components/insights/ChatHistorySheet';
+import { useKeepChatHistory } from '../services/chatPrefs';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { usePlanData } from '../hooks/usePlanData';
 import { usePeople } from '../hooks/usePeople';
@@ -19,6 +21,8 @@ import { computeInsights } from '../services/insightsEngine';
 /** Insights (docs/design/Insights.dc.html): AI narrative on top, deterministic findings below (chat is added by ChatPanel). */
 export default function InsightsPage() {
     const { t, languageCode } = useTranslation();
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [keepHistory] = useKeepChatHistory();
     const p = usePeriod();
     const month = p.period;
     const { transactions, trips, accounts, budgets, goals, currency, loading } = usePlanData();
@@ -56,20 +60,29 @@ export default function InsightsPage() {
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('nav.insights')}</span>
                     <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink">{title}</h1>
                 </div>
-                <button
-                    type="button"
-                    onClick={narrative.refresh}
-                    disabled={busy || !narrative.online || transactions.length === 0}
-                    className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-forest-ink disabled:opacity-40"
-                >
-                    <RefreshCw size={15} aria-hidden="true" className={busy ? 'animate-spin' : ''} />
-                    {t('insights.refresh')}
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                    {keepHistory ? (
+                        <button type="button" onClick={() => setHistoryOpen(true)} className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-forest-ink" data-testid="chat-history-button">
+                            <History size={15} aria-hidden="true" />
+                            {t('chat.historyButton')}
+                        </button>
+                    ) : null}
+                    <button
+                        type="button"
+                        onClick={narrative.refresh}
+                        disabled={busy || !narrative.online || transactions.length === 0}
+                        className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-forest-ink disabled:opacity-40"
+                    >
+                        <RefreshCw size={15} aria-hidden="true" className={busy ? 'animate-spin' : ''} />
+                        {t('insights.refresh')}
+                    </button>
+                </div>
             </div>
             <PeriodSwitcher p={p} />
             {transactions.length > 0 ? <NarrativeCard status={narrative.status} data={narrative.data} onRetry={narrative.retry} stale={narrative.stale} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} /> : null}
             <FindingsList findings={findings} />
             <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} extraQuestions={narrative.data?.questions || []} />
+            <ChatHistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
         </main>
     );
 }
