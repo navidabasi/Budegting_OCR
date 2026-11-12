@@ -27,7 +27,9 @@ import { cycleIdForDate, cycleRange, normalizeConfig } from '../utils/payCycle';
 import { computeOpportunities, totalMonthlySaving } from './savingsOpportunities';
 
 export const PACK_VERSION = 1;
-export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'general'];
+export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'general'];
+/** Intents whose answers may use general knowledge (concepts, app documentation) beside the owner's cited figures. */
+export const GUIDANCE_INTENTS = ['explain', 'app_help'];
 const MAX_EVIDENCE = 24;
 
 // ---------------------------------------------------------------------------
@@ -46,11 +48,46 @@ const SAVE_Q = /((where|how) (can|could|do|should) i (cut|save|spend less|spend 
 // averages asked per pay cycle rather than per calendar month
 const CYCLE_Q = /((per|each|every|a) (pay ?)?(cycle|paycheck|pay ?period)|pay ?cycle|salary to salary|(per|a|ogni) ciclo|da stipendio a stipendio|pro (gehalts)?zyklus|gehaltszyklus|por ciclo|par cycle|هر دوره|كل دورة)/i;
 
+// "Where do I find X", "how do I scan a receipt": answered from the static app map (assistant v2, A-T1). Checked before the
+// data intents. "Where can I cut/save" is not here: it stays a saving question.
+const APP_HELP_Q = /(where (do|can|could|should) i (find|see|get to|change|set|turn|open|manage|edit|check)|where('s| is| are) the\b|which (screen|page|tab|menu)|how (do|can|could) i (add|scan|import|change|delete|remove|set( up)?|edit|export|turn|switch|start|create|mark|split|undo|enable|disable|connect|record|upload|categori[sz]e|rename|log|hide|share|install|back ?up)\b|how does the app|can the app|does the app|in the app\b|dove (si trova|trovo|posso (trovare|vedere|cambiare|impostare))|come (faccio|si fa) (a|ad|per)\b|come (posso )?(aggiung|scansion|importo|importare|cambi|elimin|impost|esport)|wo (finde|sehe) ich|wo kann ich .{0,30}(finden|sehen|ändern|einstellen)|wie kann ich .{0,30}(hinzufügen|scannen|importieren|ändern|löschen|einstellen|exportieren)|d[oó]nde (encuentro|veo|puedo (encontrar|ver|cambiar))|c[oó]mo (agrego|a[nñ]ado|escaneo|importo|cambio|borro|elimino|configuro|exporto)|o[uù] (trouver|se trouve|puis-je (trouver|voir|changer))|comment (ajouter|scanner|importer|changer|supprimer|modifier|régler|exporter)|کجا.{0,20}(پیدا|ببینم|می‌بینم)|چطور.{0,30}(اضافه|اسکن|وارد|تغییر|حذف)|أين (أجد|يوجد|توجد)|كيف (أضيف|أمسح|أستورد|أغير|أغيّر|أحذف))/i;
+// Conceptual / normative questions: what a budget is, why budget a fixed cost, is it worth... (assistant v2, A-T1).
+// "why did/was my X" is a factual question about the past and keeps routing to change; "what is my ..." is a data question.
+const CONCEPTS = '(budget(ing|s)?|saving(s)? rate|savings?|inflation|interest|compound|emergency fund|net worth|cash ?flow|fixed (cost|expense)s?|variable (cost|expense)s?|sinking fund|zero[- ]based|50/30/20|apr|credit score|tax(es)?|debt|pay ?cycle|envelope)';
+const EXPLAIN_Q = new RegExp(
+    [
+        `what('s| is| are) (a |an )?${CONCEPTS}\\b`,
+        'what (does|do) .{1,40} mean',
+        'what is the (point|purpose|difference|meaning|idea|benefit|rule)',
+        "what's the (point|purpose|difference|meaning|idea|benefit)",
+        'why (should|would|must) i',
+        'why do i (need|have to|want)',
+        "why (is it|it's) (important|good|useful|worth|smart)",
+        'do i (really |even )?need (a |an |to )',
+        'should i (set|have|use|make|create|keep|track|start|bother)',
+        'is it (worth|wise|smart|a good idea)',
+        'does it make sense',
+        `\\bexplain (to me )?(what|how|why (i|a|you)|the (concept|idea|point|difference)|${CONCEPTS})`,
+        `how (does|do) ${CONCEPTS} work`,
+        'meaning of',
+        "cosa significa|che cos'?è|cos'?è (un|una|il|la|l')|perch[eé] dovrei|a cosa serve|ha senso|vale la pena|ho (davvero )?bisogno di",
+        'was (ist|sind|bedeutet) (ein|eine|das|der|die)?\\s?(budget|sparquote|inflation|zins|notgroschen|fixkosten)|was bedeutet|warum sollte ich|brauche ich (wirklich )?(ein|einen|eine)|lohnt es sich|ist es sinnvoll',
+        'qu[eé] (es|son) (un |una |el |la )?(presupuesto|ahorro|inflaci[oó]n|inter[eé]s|tasa)|qu[eé] significa|por qu[eé] (deber[ií]a|necesito)|para qu[eé] sirve|necesito (realmente )?(un|una)|vale la pena|tiene sentido',
+        "qu['’]est-ce (que|qu)|que signifie|pourquoi (devrais|dois)-je|pourquoi (ai-je|j'ai) besoin|à quoi sert|ai-je (vraiment )?besoin|ça vaut la peine|est-ce utile",
+        'چرا باید|چیست|یعنی چه|آیا لازم|به چه درد',
+        'لماذا (يجب|علي|أحتاج)|ما (هو|هي) (ال)?(ميزانية|الادخار|التضخم|الفائدة)|ماذا يعني|هل أحتاج',
+    ].join('|'),
+    'i'
+);
+
 export function routeQuestion(question) {
     const q = String(question || '').toLowerCase();
+    if (APP_HELP_Q.test(q)) return 'app_help';
     if (AFFORD_Q.test(q)) return 'afford';
-    if (has(q, /\b(owe|owed|owing|settle|settlement|reimburs|debt|who pays|devo|mi devono|deve)\b/)) return 'owed';
+    if (has(q, /\b(owe|owed|owing|settle|settlement|reimburs|debt|who pays|devo|mi devono|deve)\b/) && !EXPLAIN_Q.test(q)) return 'owed';
     if (SAVE_Q.test(q)) return 'save_money';
+    // before history ("why should I budget every month" is a concept, not an average) and before the bare budget|goal test
+    if (EXPLAIN_Q.test(q)) return 'explain';
     if (HISTORY_Q.test(q)) return 'history';
     if (has(q, /(per (kg|kilo|litre|liter|l\b|unit|piece)|unit price|price per|paying more|buying more|cost more|more expensive|prezzo al)/)) return 'unit_price';
     if (has(q, /(needs? (review|attention|checking)|to review|review queue|uncategori[sz]ed|duplicate|subscription|recurring|unclear|recategori[sz]e|re-?categori[sz]e|doppion)/)) return 'review';
