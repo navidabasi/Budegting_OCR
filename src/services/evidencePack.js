@@ -22,6 +22,7 @@ import { detectSubscriptions } from './insightsEngine';
 import { goalProgress } from './insightsAggregates';
 import { findDuplicates } from '../import/dedupe';
 import { pendingConversionCount } from '../utils/conversion';
+import { collectNumbers, figuresNotIn } from '../utils/numberGuard';
 
 export const PACK_VERSION = 1;
 export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'general'];
@@ -479,33 +480,12 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
 
 /** Numbers that appear anywhere in the pack's facts (amounts, percentages, counts), rounded to 2 decimals. */
 export function packNumbers(pack) {
-    const out = new Set();
-    const walk = (v) => {
-        if (typeof v === 'number' && Number.isFinite(v)) {
-            out.add(Math.abs(round2(v)));
-            out.add(Math.abs(Math.round(v)));
-        } else if (Array.isArray(v)) v.forEach(walk);
-        else if (v && typeof v === 'object') Object.values(v).forEach(walk);
-    };
-    walk(pack.facts);
-    walk(pack.coverage);
-    walk(pack.period);
-    return out;
+    return collectNumbers([pack.facts, pack.coverage, pack.period], { strings: false });
 }
 
 /** Amounts in an answer text that are not in the evidence ("12.40", "1,250.00" or any number >= 100): to warn that a figure is not backed by the facts. */
 export function unsupportedFigures(text, pack) {
-    const known = packNumbers(pack);
-    const out = [];
-    for (const m of String(text || '').matchAll(/(?<![\w.])(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\w])/g)) {
-        const raw = m[1];
-        const hasDecimals = /[.,]\d{1,2}$/.test(raw);
-        const n = Number(raw.replace(/\s/g, '').replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
-        if (!Number.isFinite(n) || (!hasDecimals && n < 100)) continue;
-        if (n >= 1900 && n <= 2100 && !hasDecimals) continue; // years
-        if (![...known].some((k) => Math.abs(k - Math.abs(n)) < 0.011)) out.push(raw);
-    }
-    return [...new Set(out)];
+    return figuresNotIn(text, packNumbers(pack));
 }
 
 /**

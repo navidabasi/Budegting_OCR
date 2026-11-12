@@ -5,7 +5,7 @@ vi.mock('../_lib/llm.js', async (importOriginal) => ({ ...(await importOriginal(
 vi.mock('../_lib/auth.js', () => ({ requireUser: vi.fn() }));
 vi.mock('../_lib/ratelimit.js', () => ({ consume: vi.fn(), recordTokens: vi.fn() }));
 
-import handler, { narrativeSchema } from '../insights.js';
+import handler, { finalizeNarrative, inputSchema, narrativeSchema, MAX_TOKENS } from '../insights.js';
 import { chat, LlmError } from '../_lib/llm.js';
 import { requireUser } from '../_lib/auth.js';
 import { consume } from '../_lib/ratelimit.js';
@@ -13,14 +13,28 @@ import { HttpError } from '../_lib/http.js';
 import { fakeReq, fakeRes, fakeSupabase } from '../_lib/__tests__/testUtils.js';
 
 const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
-const AGG = { month: '2026-11', currency: 'EUR', summary: { spent: 500, income: 2000, saved: 300 }, findings: [] };
+const AGG = {
+    month: '2026-11',
+    currency: 'EUR',
+    summary: { spent: 500, income: 2000, saved: 300 },
+    verdict: { spent: 500, spentBefore: 440, change: 60, saved: 300, safePerDay: 21.5 },
+    findings: [{ id: 'N1', type: 'streak', severity: 'positive', title: 'Groceries: under budget 3 periods in a row', figures: { count: 3, budget: 260 } }],
+    opportunities: [
+        { id: 'O1', oppKind: 'category_above_baseline', category: 'Dining', monthlySaving: 79, yearlySaving: 948, current: 100.5, baseline: 21.5, excess: 79 },
+        { id: 'O2', oppKind: 'price_creep', merchant: 'Netflix', monthlySaving: 3, yearlySaving: 36, from: 12.99, to: 15.99, increase: 3 },
+    ],
+    dismissed: [{ oppKind: 'subscription_review', category: 'Subscriptions', merchant: 'Spotify' }],
+};
 const NARRATIVE = {
-    headline: 'You saved 15% of your income so far',
-    summary: 'You spent €500 and moved €300 to savings.',
-    wins: ['Savings rate 15%'],
-    concerns: ['Dining is €60 above average'],
-    actions: ['Cap Dining at €120 for the rest of the month'],
-    questions: ['Where can I cut €100?'],
+    verdict: 'You spent €500 so far, €60 more than at this point last period.',
+    summary: 'Dining took €100.50 against your usual €21.50.',
+    opportunities: [
+        { id: 'O1', explanation: 'Dining is €79 above your usual €21.50 so far.', howTo: 'Set a Dining budget and check it weekly.' },
+        { id: 'O2', explanation: 'Netflix went from €12.99 to €15.99 a month.', howTo: 'That is €36 more a year: check if a cheaper plan fits.' },
+    ],
+    wins: [{ text: 'Groceries stayed under the €260 budget again.', ref: 'N1' }],
+    watchouts: [{ text: 'Dining is running ahead of your usual pace.', ref: 'O1' }],
+    questions: ['Where can I cut €79?'],
 };
 let client;
 const post = async (body) => {
@@ -38,17 +52,64 @@ beforeEach(() => {
 });
 
 describe('narrativeSchema', () => {
-    it('trims, limits list sizes and accepts object items', () => {
-        const out = narrativeSchema.parse({ headline: ' Hi ', summary: 's', wins: ['a', 'b', 'c', 'd', { text: 'e' }], concerns: [{ title: 'x' }, '', null], actions: 'oops', questions: ['q1', 'q2', 'q3'] });
-        expect(out.headline).toBe('Hi');
-        expect(out.wins).toEqual(['a', 'b', 'c']);
-        expect(out.concerns).toEqual(['x']);
-        expect(out.actions).toEqual([]);
-        expect(out.questions).toEqual(['q1', 'q2']);
+    it('trims, limits list sizes, accepts strings or objects and reads the v1 names', () => {
+        const out = narrativeSchema.parse({ headline: ' Hi ', summary: 's', wins: ['a', 'b', 'c', 'd', { text: 'e' }], concerns: [{ title: 'x', ref: 'N2' }, '', null], opportunities: 'oops', questions: ['q1', 'q2', 'q3', 'q4'] });
+        expect(out.verdict).toBe('Hi');
+        expect(out.wins).toEqual([{ text: 'a', ref: null }, { text: 'b', ref: null }, { text: 'c', ref: null }]);
+        expect(out.watchouts).toEqual([{ text: 'x', ref: 'N2' }]);
+        expect(out.opportunities).toEqual([]);
+        expect(out.questions).toEqual(['q1', 'q2', 'q3']);
     });
-    it('requires headline and summary', () => {
-        expect(narrativeSchema.safeParse({ summary: 's' }).success).toBe(false);
-        expect(narrativeSchema.safeParse({ headline: 'h' }).success).toBe(false);
+    it('malformed opportunity entries are skipped, a malformed ref is cleared', () => {
+        const out = narrativeSchema.parse({ verdict: 'v', opportunities: [{ id: 'O1', explanation: ' ok ' }, { id: 'O2' }, 'x', { explanation: 'no id' }], wins: [{ text: 'w', ref: 'drop table' }] });
+        expect(out.opportunities).toEqual([{ id: 'O1', explanation: 'ok', howTo: undefined }]);
+        expect(out.wins).toEqual([{ text: 'w', ref: null }]);
+    });
+});
+
+describe('finalizeNarrative: the server checks the model against its input', () => {
+    const run = (raw) => finalizeNarrative(narrativeSchema.parse(raw), AGG);
+    it('keeps an answer whose ids and numbers all come from the input', () => {
+        const { payload, dropped } = run(NARRATIVE);
+        expect(dropped).toEqual([]);
+        expect(payload).toEqual(NARRATIVE);
+    });
+    it('drops opportunity ids that were not sent and duplicates', () => {
+        const { payload, dropped } = run({ ...NARRATIVE, opportunities: [...NARRATIVE.opportunities, { id: 'O9', explanation: 'Cancel your gym.' }, { id: 'O1', explanation: 'Again.' }] });
+        expect(payload.opportunities.map((o) => o.id)).toEqual(['O1', 'O2']);
+        expect(dropped).toEqual([{ where: 'opportunities.O9', reason: 'unknown_id' }, { where: 'opportunities.O1', reason: 'duplicate_id' }]);
+    });
+    it('drops an explanation with an invented number, and only the how-to when just that one invents', () => {
+        const { payload, dropped } = run({
+            ...NARRATIVE,
+            opportunities: [
+                { id: 'O1', explanation: 'Dining is €85 above your usual.', howTo: 'fine' },
+                { id: 'O2', explanation: 'Netflix went from €12.99 to €15.99 a month.', howTo: 'Switching plans saves €48 a year.' },
+            ],
+        });
+        expect(payload.opportunities).toEqual([{ id: 'O2', explanation: 'Netflix went from €12.99 to €15.99 a month.', howTo: null }]);
+        expect(dropped).toEqual([
+            { where: 'opportunities.O1.explanation', reason: 'number_not_in_input', figures: ['85'] },
+            { where: 'opportunities.O2.howTo', reason: 'number_not_in_input', figures: ['48'] },
+        ]);
+    });
+    it('drops a verdict, summary, win, watch-out or question with an invented number; clears unknown refs', () => {
+        const { payload } = run({
+            verdict: 'You saved 37% of your income.',
+            summary: 'Dining took €100.50.',
+            wins: [{ text: 'You saved €300.', ref: 'N7' }, { text: 'You cut €1,200 a year.', ref: 'N1' }],
+            watchouts: [{ text: 'Dining is €79 above usual.', ref: 'O2' }, { text: 'Rent rose by €45.' }],
+            questions: ['How do I save €500 a month?', 'Where did Dining go?'],
+        });
+        expect(payload.verdict).toBeNull();
+        expect(payload.summary).toBe('Dining took €100.50.');
+        expect(payload.wins).toEqual([{ text: 'You saved €300.', ref: null }]);
+        expect(payload.watchouts).toEqual([{ text: 'Dining is €79 above usual.', ref: 'O2' }]);
+        expect(payload.questions).toEqual(['How do I save €500 a month?', 'Where did Dining go?']); // 500 is the spent figure
+    });
+    it('rounded amounts, other notations and small counts are fine', () => {
+        const { dropped } = run({ verdict: 'Dining: €101 so far against €22, 3 periods in a row under €260; 12,99 → 15,99.' });
+        expect(dropped).toEqual([]);
     });
 });
 
@@ -56,19 +117,22 @@ describe('POST /api/insights', () => {
     it('generates, returns the documented shape and writes the cache', async () => {
         const res = await post({ aggregates: AGG, language: 'it', inputHash: 'abcdef0123456789' });
         expect(res.statusCode).toBe(200);
-        expect(res.body).toMatchObject({ ...NARRATIVE, model: 'deepseek-chat', cached: false });
+        expect(res.body).toMatchObject({ ...NARRATIVE, v: 2, headline: NARRATIVE.verdict, model: 'deepseek-chat', cached: false });
         expect(typeof res.body.generatedAt).toBe('string');
-        expect(Object.keys(res.body).sort()).toEqual(['actions', 'cached', 'concerns', 'generatedAt', 'headline', 'model', 'questions', 'summary', 'wins']);
+        expect(Object.keys(res.body).sort()).toEqual(['cached', 'generatedAt', 'headline', 'model', 'opportunities', 'questions', 'summary', 'v', 'verdict', 'watchouts', 'wins']);
 
         expect(consume).toHaveBeenCalledWith(client, 'u1', 'insights');
         const args = chat.mock.calls[0][0];
         expect(args.json).toBe(true);
+        expect(args.maxTokens).toBe(MAX_TOKENS);
+        expect(MAX_TOKENS).toBeGreaterThanOrEqual(2000);
+        expect(args.messages[1].content).toContain('"opportunities"');
         expect(args.messages[0].content).toContain('language: it');
         expect(args.messages[1].content).toContain('"summary"');
 
         expect(client.tables.insights_cache).toHaveLength(1);
         expect(client.tables.insights_cache[0]).toMatchObject({ user_id: 'u1', period: '2026-11', input_hash: 'abcdef0123456789:it', model: 'deepseek-chat' });
-        expect(client.tables.insights_cache[0].payload.headline).toBe(NARRATIVE.headline);
+        expect(client.tables.insights_cache[0].payload).toMatchObject({ v: 2, verdict: NARRATIVE.verdict });
     });
 
     it('serves the cache when the hash matches: no rate-limit use, no model call', async () => {
@@ -78,7 +142,8 @@ describe('POST /api/insights', () => {
         const res = await post({ aggregates: AGG, inputHash: 'abcdef0123456789' });
         expect(res.statusCode).toBe(200);
         expect(res.body.cached).toBe(true);
-        expect(res.body.headline).toBe(NARRATIVE.headline);
+        expect(res.body.verdict).toBe(NARRATIVE.verdict);
+        expect(res.body.opportunities).toEqual(NARRATIVE.opportunities);
         expect(chat).not.toHaveBeenCalled();
         expect(consume).not.toHaveBeenCalled();
     });
@@ -116,9 +181,32 @@ describe('POST /api/insights', () => {
     });
 
     it('does not read other users cache rows', async () => {
-        client.tables.insights_cache = [{ user_id: 'other', period: '2026-11', input_hash: 'aaaaaaaa:en', payload: { ...NARRATIVE, generatedAt: 'x' }, model: 'm', created_at: 'x' }];
+        client.tables.insights_cache = [{ user_id: 'other', period: '2026-11', input_hash: 'aaaaaaaa:en', payload: { v: 2, ...NARRATIVE, generatedAt: 'x' }, model: 'm', created_at: 'x' }];
         const res = await post({ aggregates: AGG, inputHash: 'aaaaaaaa' });
         expect(res.body.cached).toBe(false);
+    });
+
+    it('what the model invents never reaches the client or the cache', async () => {
+        chat.mockResolvedValueOnce({ data: { ...NARRATIVE, opportunities: [{ id: 'O1', explanation: 'Dining is €79 above your usual.' }, { id: 'O7', explanation: 'Cancel the gym to save €40.' }, { id: 'O2', explanation: 'Netflix costs €240 a year.' }] }, usage, model: 'm', durationMs: 1 });
+        const res = await post({ aggregates: AGG, inputHash: 'cccccccc' });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.opportunities).toEqual([{ id: 'O1', explanation: 'Dining is €79 above your usual.', howTo: null }]);
+        expect(JSON.stringify(client.tables.insights_cache[0].payload)).not.toContain('gym');
+        expect(JSON.stringify(client.tables.insights_cache[0].payload)).not.toContain('240');
+    });
+
+    it('a summary cached before v2 is not served as current', async () => {
+        client.tables.insights_cache = [{ user_id: 'u1', period: '2026-11', input_hash: 'aaaaaaaa:en', payload: { headline: 'old', summary: 'old', generatedAt: 'x' }, model: 'm', created_at: 'x' }];
+        const res = await post({ aggregates: AGG, inputHash: 'aaaaaaaa' });
+        expect(res.body.cached).toBe(false);
+        expect(res.body.verdict).toBe(NARRATIVE.verdict);
+    });
+
+    it('accepts aggregates from before v2 and rejects malformed v2 fields', () => {
+        expect(inputSchema.safeParse({ aggregates: { month: '2026-11' } }).success).toBe(true);
+        expect(inputSchema.safeParse({ aggregates: AGG }).success).toBe(true);
+        expect(inputSchema.safeParse({ aggregates: { ...AGG, opportunities: [{ id: 'drop table', oppKind: 'x' }] } }).success).toBe(false);
+        expect(inputSchema.safeParse({ aggregates: { ...AGG, opportunities: Array.from({ length: 9 }, (_, i) => ({ id: `O${i + 1}`, oppKind: 'x' })) } }).success).toBe(false);
     });
 
     it('validates input', async () => {
@@ -142,6 +230,9 @@ describe('POST /api/insights', () => {
         chat.mockRejectedValueOnce(new LlmError('x', { code: 'upstream' }));
         expect((await post({ aggregates: AGG })).statusCode).toBe(502);
         chat.mockResolvedValueOnce({ data: { headline: '', summary: '' }, usage, model: 'm', durationMs: 1 });
+        expect((await post({ aggregates: AGG })).statusCode).toBe(502);
+        // everything it said was invented: nothing usable is left
+        chat.mockResolvedValueOnce({ data: { verdict: 'You saved €9,999.', opportunities: [{ id: 'O4', explanation: 'x' }] }, usage, model: 'm', durationMs: 1 });
         expect((await post({ aggregates: AGG })).statusCode).toBe(502);
         expect(client.tables.insights_cache || []).toHaveLength(0);
     });

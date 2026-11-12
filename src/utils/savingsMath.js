@@ -56,3 +56,19 @@ export function goalStatus({ goal, saved = 0, pace = 0, month: periodOrMonth }) 
         targetMonth,
     };
 }
+
+/**
+ * Goal progress: startingAmount + transfers carrying the goal's id; when no transfer uses the goal
+ * and the goal points at an account, the account balance is used instead (plan section 4).
+ */
+export function goalProgress(goal, transactions = [], balances = []) {
+    const tagged = (transactions || []).filter((tx) => tx && !isPlanned(tx) && typeOf(tx) === 'transfer' && tx.goalId === goal.id);
+    const start = Number(goal.startingAmount) || 0;
+    let saved;
+    if (tagged.length > 0 || !goal.accountId) {
+        saved = start + tagged.reduce((s, tx) => s + fullAmount(tx), 0);
+    } else {
+        saved = balances.find((b) => b.id === goal.accountId)?.balance ?? start;
+    }
+    return round2(saved);
+}

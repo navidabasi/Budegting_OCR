@@ -4,32 +4,23 @@
 // receipt images or transaction ids.
 import { displayName, merchantKey } from '../utils/merchant';
 import { dateKey, monthKey } from '../utils/monthMath';
-import { anchorMonth, inPeriod, periodKey, periodProgress, previousPeriods, toRange } from '../utils/period';
+import { anchorMonth, inPeriod, periodEnd, periodKey, periodProgress, previousPeriods, toRange } from '../utils/period';
+import { addDays, safeToSpendPerDay } from '../utils/monthMath';
 import { accountBalances, isPlanned, monthTotals, round2, shareAmount, spentByCategory, typeOf, fullAmount } from '../utils/money';
-import { categoryBudgets } from '../utils/budgetMath';
+import { WHOLE_MONTH, categoryBudgets } from '../utils/budgetMath';
 import { hashObject } from '../utils/stableHash';
 import { computeInsights, detectSubscriptions } from './insightsEngine';
 
-export const AGGREGATE_VERSION = 1;
+import { toModelDismissed, toModelOpportunities } from './savingsOpportunities';
+import { goalProgress } from '../utils/savingsMath';
+
+export const AGGREGATE_VERSION = 2; // v2 (pass 3): findings with ids, opportunities, dismissed suggestions, verdict figures
+export const MAX_FINDINGS_SENT = 12;
 export { hashObject };
 
 const MONTHS_OF_HISTORY = 12; // chat gets 12 months; the insights prompt uses the last 6
 
-/**
- * Goal progress: startingAmount + transfers carrying the goal's id; when no transfer uses the goal
- * and the goal points at an account, the account balance is used instead (plan section 4).
- */
-export function goalProgress(goal, transactions = [], balances = []) {
-    const tagged = (transactions || []).filter((tx) => tx && !isPlanned(tx) && typeOf(tx) === 'transfer' && tx.goalId === goal.id);
-    const start = Number(goal.startingAmount) || 0;
-    let saved;
-    if (tagged.length > 0 || !goal.accountId) {
-        saved = start + tagged.reduce((s, tx) => s + fullAmount(tx), 0);
-    } else {
-        saved = balances.find((b) => b.id === goal.accountId)?.balance ?? start;
-    }
-    return round2(saved);
-}
+export { goalProgress }; // lives in utils/savingsMath.js; re-exported for the screens that import it from here
 
 function goalsSummary(goals, transactions, balances, periodOrMonth, today) {
     const progress = periodProgress(periodOrMonth, today);
@@ -59,10 +50,71 @@ function goalsSummary(goals, transactions, balances, periodOrMonth, today) {
 }
 
 /**
- * buildAggregates({ transactions, budgets, goals, accounts, trips, month, today, currency })
+ * The three figures of the verdict strip, computed here so the model never has to:
+ *   spent / spentBefore  this period against the same point of the previous one (the same elapsed days while the period runs,
+ *                        the whole period once it is over); `spentBefore` is null when there is no earlier period on record
+ *   saved                moved into savings minus moved out
+ *   safePerDay           what can still be spent per day: from the whole-period budget when there is one, else from the income
+ *                        logged for the period, after what is spent and still to pay; null for a closed period or without either
+ */
+export function verdictFigures({ transactions = [], budgets = [], accounts = [], trips = [], period, today = new Date() } = {}) {
+    const txs = (transactions || []).filter(Boolean);
+    const range = toRange(period);
+    const progress = periodProgress(period, today);
+    if (!range) return null;
+    const running = progress.state === 'current';
+    const cut = (r) => (running ? { start: r.start, end: addDays(r.start, progress.day - 1) < r.end ? addDays(r.start, progress.day - 1) : r.end } : r);
+    const totals = monthTotals(txs, period, { trips, accounts });
+    const prev = toRange(previousPeriods(period, 1)[0]);
+    const first = txs.map((t) => dateKey(t.date)).filter(Boolean).sort()[0];
+    const comparable = prev && first && first <= prev.end && txs.some((t) => inPeriod(t.date, prev));
+    const spent = monthTotals(txs, cut(range), { trips, accounts }).spent;
+    const spentBefore = comparable ? monthTotals(txs, cut(prev), { trips, accounts }).spent : null;
+    const whole = categoryBudgets(budgets, txs, period, trips, { today, accounts }).find((r) => r.category === WHOLE_MONTH);
+    let safePerDay = null;
+    let safeBasis = null;
+    if (running && whole) {
+        safePerDay = safeToSpendPerDay({ budget: whole.amount, spent: totals.spent, upcoming: totals.upcoming, progress });
+        safeBasis = 'budget';
+    } else if (running && totals.income > 0) {
+        safePerDay = Math.max(0, totals.income - totals.spent - totals.upcoming - Math.max(0, totals.saved)) / progress.daysLeft;
+        safeBasis = 'income';
+    }
+    return {
+        basis: running ? 'elapsed' : 'completed',
+        elapsedDays: running ? progress.day : progress.days,
+        totalDays: progress.days,
+        daysLeft: progress.daysLeft,
+        spent,
+        spentBefore,
+        change: spentBefore === null ? null : round2(spent - spentBefore),
+        changePct: spentBefore ? Math.round(((spent - spentBefore) / spentBefore) * 100) : null,
+        saved: totals.saved,
+        income: totals.income,
+        upcoming: totals.upcoming,
+        safePerDay: safePerDay === null ? null : round2(safePerDay),
+        safeBasis,
+        periodEnd: periodEnd(period),
+    };
+}
+
+const numbersOnly = (params = {}) => Object.fromEntries(Object.entries(params).filter(([, v]) => typeof v === 'number'));
+
+/** N1.. -> finding id and O1.. -> opportunity key, for the same lists the aggregates were built from (stays on the device). */
+export function buildRefMap(findings = [], opportunities = []) {
+    const out = {};
+    findings.slice(0, MAX_FINDINGS_SENT).forEach((f, i) => (out[`N${i + 1}`] = f.id));
+    opportunities.forEach((o, i) => (out[`O${i + 1}`] = o.key));
+    return out;
+}
+
+/**
+ * buildAggregates({ transactions, budgets, goals, accounts, trips, groups, month, today, currency, opportunities, dismissed })
+ *   opportunities  the cards shown (computeOpportunities().top); sent as numbers and names only (toModelOpportunities)
+ *   dismissed      suggestions the owner marked "Not useful" (computeOpportunities().dismissed): kind and subject only
  * -> plain JSON-safe object; stable for the same inputs (see hashAggregates).
  */
-export function buildAggregates({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], month, today = new Date(), currency = 'EUR' } = {}) {
+export function buildAggregates({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], groups = [], month, today = new Date(), currency = 'EUR', opportunities = [], dismissed = [] } = {}) {
     // `month` is a calendar-month key or a period object (pay cycle, custom range); series are per period of the same kind
     const P = month || monthKey(today);
     const m = typeof P !== 'string' && P.kind === 'range' ? P.start.slice(0, 7) : periodKey(P); // the API wants a YYYY-MM; the exact dates are in `period`
@@ -110,15 +162,19 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
         .slice(0, 10)
         .map((s) => ({ key: s.key, name: s.name, amount: s.amount, months: s.count }));
 
-    const findings = computeInsights({ transactions: txs, budgets, goals, accounts, trips, month: P, today, currency }).map((f) => ({
-        type: f.type,
-        severity: f.severity,
-        title: f.title,
-        body: f.body,
-        amount: f.amount,
-        category: f.category,
-        merchant: f.merchant,
-    }));
+    const findings = computeInsights({ transactions: txs, budgets, goals, accounts, trips, groups, month: P, today, currency })
+        .slice(0, MAX_FINDINGS_SENT)
+        .map((f, i) => ({
+            id: `N${i + 1}`,
+            type: f.type,
+            severity: f.severity,
+            title: f.title,
+            body: f.body,
+            amount: f.amount,
+            category: f.category,
+            merchant: f.merchant,
+            figures: numbersOnly(f.params),
+        }));
 
     return {
         version: AGGREGATE_VERSION,
@@ -141,6 +197,9 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
             .map((t) => ({ name: t.name, startsOn: t.startsOn || null, endsOn: t.endsOn || null, budget: t.budgetAmount ?? null })),
         recurring,
         findings,
+        verdict: verdictFigures({ transactions: txs, budgets, accounts, trips, period: P, today }),
+        opportunities: toModelOpportunities(opportunities),
+        dismissed: toModelDismissed(dismissed),
     };
 }
 
@@ -150,11 +209,14 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
  * so the cache is invalidated by new data, not by the passage of a day.
  */
 export function hashAggregates(aggregates, extra = {}) {
-    const { dayOfMonth, findings, ...core } = aggregates || {};
+    const { dayOfMonth, findings, verdict, opportunities, ...core } = aggregates || {};
     void dayOfMonth;
-    void findings;
+    void verdict;
     const stripped = {
         ...core,
+        // which findings and suggestions there are decides whether a summary is still current; their day-to-day figures do not
+        findings: (findings || []).map((f) => [f.type, f.category || null, f.merchant || null]),
+        opportunities: (opportunities || []).map((o) => [o.oppKind, o.category || null, o.merchant || null]),
         budgets: (core.budgets || []).map(({ category, budget, spent }) => ({ category, budget, spent })),
         goals: (core.goals || []).map(({ asOfDay, ...g }) => {
             void asOfDay;

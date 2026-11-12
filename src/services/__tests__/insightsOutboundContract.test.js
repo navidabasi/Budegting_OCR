@@ -74,3 +74,74 @@ describe('chat and categorise requests survive the outbound filter', () => {
         expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
     });
 });
+
+// ---- pass 3: insights v2 (opportunities, findings with ids, dismissed) and the new chat intents ------------------------------
+import { buildAggregates, buildRefMap } from '../insightsAggregates';
+import { computeOpportunities } from '../savingsOpportunities';
+import { ownerLike, TODAY } from '../__fixtures__/ownerLike';
+import { currentCyclePeriod } from '../../utils/payCycle';
+import { finalizeNarrative, narrativeSchema, MAX_AGGREGATE_BYTES } from '../../../api/insights.js';
+
+describe('insights v2 request survives the outbound filter (owner-like data)', () => {
+    const d = ownerLike();
+    const period = currentCyclePeriod(normalizeConfig(d.config), new Date(`${TODAY}T12:00:00Z`));
+    const opp = computeOpportunities({ ...d, period, dismissed: { 'subscription_review:spotify': '2026-11-01' } });
+    const aggregates = buildAggregates({ ...d, month: period, opportunities: opp.top, dismissed: opp.dismissed });
+    const body = buildInsightsRequest({ aggregates, language: 'it' });
+    const sent = sanitizeBody('insights', body);
+
+    it('passes the server schema and stays inside the size limit', () => {
+        const parsed = inputSchema.safeParse(sent);
+        expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+        expect(JSON.stringify(sent.aggregates).length).toBeLessThan(MAX_AGGREGATE_BYTES);
+        expect(sent.inputHash).toBe(body.inputHash);
+    });
+    it('every opportunity arrives intact: ids, kinds, names, figures and dates', () => {
+        expect(opp.top.length).toBeGreaterThanOrEqual(4);
+        expect(sent.aggregates.opportunities).toEqual(aggregates.opportunities);
+        expect(sent.aggregates.opportunities.map((o) => o.id)).toEqual(opp.top.map((_, i) => `O${i + 1}`));
+        expect(sent.aggregates.opportunities.map((o) => o.oppKind)).toEqual(opp.top.map((o) => o.kind));
+        expect(sent.aggregates.dismissed).toEqual([{ oppKind: 'subscription_review', category: 'Subscriptions', merchant: 'Spotify' }]);
+        expect(sent.aggregates.verdict).toEqual(aggregates.verdict);
+        expect(sent.aggregates.findings.map((f) => [f.id, f.type, f.figures])).toEqual(aggregates.findings.map((f) => [f.id, f.type, f.figures]));
+    });
+    it('no record id, note or account name leaves the device', () => {
+        const text = JSON.stringify(sent);
+        for (const t of d.transactions) expect(text.includes(`"${t.id}"`)).toBe(false);
+        expect(text).not.toMatch(/"(notes|txId|evidence|accountId|userId|goalId)"/);
+        expect(text).not.toContain('synthetic-user');
+    });
+    it('every kind of opportunity keeps its figures through the filter', () => {
+        const all = computeOpportunities({ ...d, period, limit: 50 });
+        const kinds = new Set(all.all.map((o) => o.kind));
+        for (const k of ['category_above_baseline', 'merchant_frequency', 'subscription_review', 'price_creep', 'cheaper_store', 'budget_gap', 'debt_cost', 'goal_boost', 'uncategorised_blind_spot', 'fixed_cost']) expect(kinds.has(k), k).toBe(true);
+        // send them in batches of 8 (the server's limit) and compare with what was built
+        for (let i = 0; i < all.all.length; i += 8) {
+            const batch = all.all.slice(i, i + 8);
+            const agg = buildAggregates({ ...d, month: period, opportunities: batch });
+            const out = sanitizeBody('insights', buildInsightsRequest({ aggregates: agg, language: 'en' }));
+            expect(inputSchema.safeParse(out).success).toBe(true);
+            expect(out.aggregates.opportunities).toEqual(agg.opportunities);
+        }
+    });
+    it('the answer is checked against exactly what was sent: unknown ids and invented numbers are removed', () => {
+        const top = sent.aggregates.opportunities[0];
+        const raw = {
+            verdict: `Dining is ${top.excess} above your usual ${top.baseline} so far.`,
+            opportunities: [
+                { id: 'O1', explanation: `Dining is at ${top.current} against a usual ${top.baseline}.`, howTo: `A budget of ${top.suggestedBudget} would hold it.` },
+                { id: 'O2', explanation: 'Putting 9999 aside would finish the goal next month.' },
+                { id: 'O42', explanation: 'Cancel your gym membership.' },
+            ],
+            wins: [{ text: 'Groceries stayed inside the budget.', ref: 'N1' }, { text: 'Nice.', ref: 'N99' }],
+        };
+        const { payload, dropped } = finalizeNarrative(narrativeSchema.parse(raw), sent.aggregates);
+        expect(payload.verdict).toBe(raw.verdict);
+        expect(payload.opportunities.map((o) => o.id)).toEqual(['O1']);
+        expect(payload.wins).toEqual([{ text: 'Groceries stayed inside the budget.', ref: 'N1' }, { text: 'Nice.', ref: null }]);
+        expect(dropped.map((x) => x.reason).sort()).toEqual(['number_not_in_input', 'unknown_id']);
+        // ...and the ids map back to the cards on the device
+        const map = buildRefMap([], opp.top);
+        expect(map[payload.opportunities[0].id]).toBe(opp.top[0].key);
+    });
+});

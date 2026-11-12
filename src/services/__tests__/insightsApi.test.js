@@ -13,13 +13,25 @@ describe('insights request', () => {
         expect(body.inputHash).toMatch(/^[0-9a-f]{8,64}$/);
         expect(buildInsightsRequest({ aggregates, language: 'it', refresh: true }).refresh).toBe(true);
     });
-    it('the hash ignores the day of month and findings', () => {
-        expect(hashAggregates({ ...aggregates, dayOfMonth: 11, findings: [] })).toBe(hashAggregates(aggregates));
+    it('the hash ignores the clock: day of month, verdict figures and the day-to-day numbers of findings and suggestions', () => {
+        const base = { ...aggregates, findings: [{ id: 'N1', type: 'category_up', category: 'Dining', amount: 40 }], opportunities: [{ id: 'O1', oppKind: 'category_above_baseline', category: 'Dining', monthlySaving: 40 }], verdict: { daysLeft: 12 } };
+        const later = { ...base, dayOfMonth: 11, findings: [{ ...base.findings[0], amount: 38 }], opportunities: [{ ...base.opportunities[0], monthlySaving: 38 }], verdict: { daysLeft: 11 } };
+        expect(hashAggregates(later)).toBe(hashAggregates(base));
+        // a new finding or suggestion, a dismissed one, or new data does change it
+        expect(hashAggregates({ ...base, findings: [] })).not.toBe(hashAggregates(base));
+        expect(hashAggregates({ ...base, opportunities: [] })).not.toBe(hashAggregates(base));
+        expect(hashAggregates({ ...base, dismissed: [{ oppKind: 'budget_gap', category: 'Shopping' }] })).not.toBe(hashAggregates(base));
+        expect(hashAggregates({ ...base, summary: { spent: 101 } })).not.toBe(hashAggregates(base));
+    });
+    it('reads a v2 answer and a summary saved before v2 into one shape', async () => {
+        const { normalizeNarrative } = await import('../insightsApi');
+        expect(normalizeNarrative({ headline: 'h', summary: 's', wins: ['w'], concerns: ['c'], actions: ['a'] })).toMatchObject({ v: 1, verdict: 'h', wins: [{ text: 'w', ref: null }], watchouts: [{ text: 'c', ref: null }], opportunities: [], questions: [] });
+        expect(normalizeNarrative({ v: 2, verdict: 'v', opportunities: [{ id: 'O1', explanation: 'e', howTo: null }, { id: 'O2' }], watchouts: [{ text: 't', ref: 'O1' }] })).toMatchObject({ v: 2, verdict: 'v', opportunities: [{ id: 'O1', explanation: 'e' }], watchouts: [{ text: 't', ref: 'O1' }] });
     });
     it('posts with the bearer token', async () => {
         const fetchImpl = ok({ headline: 'h', summary: 's', wins: [], concerns: [], actions: [], questions: [], model: 'm', generatedAt: 'now', cached: false });
         const out = await fetchNarrative({ aggregates, language: 'en', getToken, fetchImpl });
-        expect(out.headline).toBe('h');
+        expect(out.verdict).toBe('h');
         const [url, init] = fetchImpl.mock.calls[0];
         expect(url).toBe('/api/insights');
         expect(init.headers.Authorization).toBe('Bearer tok');

@@ -146,7 +146,9 @@ const TRIP_KEYS = new Set(['tripId', 'groupId']);
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 // Fields the app itself generates (protocol values, never user data): passed through untouched. Scrubbing them broke
 // the /api/insights contract once: a hex `inputHash` looks like an identifier and was erased (400, no summary).
-const PROTOCOL_KEYS = new Set(['inputHash', 'hash', 'sourceHash', 'version', 'intent', 'kind', 'basis', 'state', 'monthState', 'type', 'screen', 'role']);
+// pass 3: `oppKind` / `sourceKind` (the kind of a savings opportunity), `action` (the name of its button) and `ref` (N1 / O2 handles
+// of findings and opportunities) are enums and handles the app makes up: no user data can be in them.
+const PROTOCOL_KEYS = new Set(['inputHash', 'hash', 'sourceHash', 'version', 'intent', 'kind', 'basis', 'state', 'monthState', 'type', 'screen', 'role', 'oppKind', 'sourceKind', 'action', 'ref']);
 
 export function sanitizeValue(value, ctx = context, key = '') {
     if (value === null || value === undefined) return value;

@@ -18,12 +18,11 @@ import { addDays, dateKey, daysBetween } from '../utils/monthMath';
 import { inPeriod, periodKey, periodProgress, previousPeriods, toRange } from '../utils/period';
 import { excludedTripIds, isPlanned, monthTotals, round2, shareAmount, typeOf, accountBalances } from '../utils/money';
 import { activeBudgets } from '../utils/budgetMath';
-import { goalMonthlyPace } from '../utils/savingsMath';
+import { goalMonthlyPace, goalProgress } from '../utils/savingsMath';
 import { isUnconverted } from '../utils/baseCurrency';
 import { normalizeItems } from '../utils/receiptItems';
 import { baseQuantityOf, productKey, unitPriceOf } from '../utils/itemAnalysis';
 import { spendClass } from '../utils/spendClass';
-import { goalProgress } from './insightsAggregates';
 
 export const OPPORTUNITY_KINDS = ['category_above_baseline', 'merchant_frequency', 'subscription_review', 'price_creep', 'cheaper_store', 'budget_gap', 'debt_cost', 'goal_boost', 'uncategorised_blind_spot', 'fixed_cost'];
 export const OPPORTUNITY_ACTIONS = ['set_budget', 'mark_recurring', 'open_filter', 'add_goal', 'categorise', 'review_subscription'];
