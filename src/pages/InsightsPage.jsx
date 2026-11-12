@@ -25,7 +25,6 @@ import { computeInsights } from '../services/insightsEngine';
 import { computeOpportunities } from '../services/savingsOpportunities';
 import { explanationsFor, topCategories, winsAndWatchouts } from '../services/insightsView';
 import { findingHref, findingText } from '../services/insightText';
-import { opportunityQuestions } from '../services/opportunityText';
 
 /**
  * Insights (pass 3, A3). Phone order: verdict strip, where the money went, ways to save (the centre of the page), wins and
@@ -79,18 +78,13 @@ export default function InsightsPage() {
         const link = (n) => ({ text: n.text, detail: n.detail, href: n.findingId && byId.has(n.findingId) ? findingHref(byId.get(n.findingId)) : n.opportunityKey && opp.top.some((o) => o.key === n.opportunityKey) ? `#opp-${n.opportunityKey}` : null });
         return { wins: raw.wins.map(link), watchouts: raw.watchouts.map(link) };
     }, [findings, narrative.data, narrative.refs, narrative.stale, opp.top, t, short, localizeCategory]);
-    const questions = useMemo(
-        () => [...new Set([...opportunityQuestions(opp.top, { t, money: (n) => short(n), localizeCategory }), ...(narrative.stale ? [] : narrative.data?.questions || [])])].slice(0, 4),
-        [opp.top, narrative.data, narrative.stale, t, short, localizeCategory]
-    );
-
     if (loading) return <LoadingSpinner className="pb-20" />;
     const title = p.label;
     const busy = narrative.status === 'loading';
     const empty = transactions.length === 0;
 
     return (
-        <main className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-5 pb-[260px] pt-[max(env(safe-area-inset-top),16px)] desk:max-w-[1120px]">
+        <main className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-5 pb-[208px] pt-[max(env(safe-area-inset-top),16px)] desk:max-w-[1120px]">
             <div className="flex items-end justify-between gap-3 pt-4">
                 <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('nav.insights')}</span>
@@ -146,7 +140,7 @@ export default function InsightsPage() {
                     </div>
                 </div>
             )}
-            <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} extraQuestions={questions} />
+            <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} />
             <ChatHistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
         </main>
     );

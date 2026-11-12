@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight } from 'lucide-react';
-import { Chip } from '../ui';
 import EvidenceAnswer from './EvidenceAnswer';
 import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
@@ -20,15 +19,13 @@ import { buildEvidencePack, routeQuestion } from '../../services/evidencePack';
 import { localProposals, resolveProposals } from '../../services/aiActions';
 import { restoreAliases } from '../../services/aiOutbound';
 
-const CHIPS = ['save_money', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals'];
-
 /**
  * "Ask about your money". Every question is answered from an evidence pack computed on the device (services/evidencePack.js); the
  * model only explains it and must cite fact ids. Each answer shows its period, currency, basis, item coverage and the receipts and
  * lines behind it. Bookkeeping suggestions are previewed in a sheet, applied only on confirm and kept in an undo history.
  * `ctx`: { transactions, trips, accounts, budgets, goals, people, period, config, today, currency, categoryNames, suggest }.
  */
-export default function ChatPanel({ ctx, month, language, extraQuestions = [], fetchImpl, getToken = getAccessToken }) {
+export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = getAccessToken }) {
     const { t } = useTranslation();
     const { short } = useMoney();
     const keyboard = useKeyboardOpen();
@@ -194,7 +191,6 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
         scrolledFor.current = null;
     };
 
-    const suggestions = useMemo(() => [...CHIPS.map((i) => ({ intent: i, label: t(`evidence.chip.${i}`) })), ...extraQuestions.slice(0, 2).map((q) => ({ intent: undefined, label: q }))], [extraQuestions, t]); // eslint-disable-line react-hooks/exhaustive-deps
     const actionLabel = (a) => {
         const p = a.payload || {};
         if (a.type === 'set_budget') return t('chat.action.setBudget', { category: /^(total|whole month)$/i.test(p.category) ? t('budgets.wholeMonth') : p.category, amount: short(p.amount) });
@@ -254,13 +250,6 @@ export default function ChatPanel({ ctx, month, language, extraQuestions = [], f
             ) : null}
             <div className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 desk:start-24 shadow-[0_-6px_16px_rgba(16,33,27,.06)]" style={keyboard.open ? { bottom: `${keyboard.inset}px`, paddingBottom: '8px' } : { bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}>
                 <div className="mx-auto flex max-w-[520px] flex-col gap-2 px-5">
-                    <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto overscroll-x-contain px-5">
-                        {suggestions.map((s) => (
-                            <Chip key={s.label} size="sm" disabled={busy || !ready} onClick={() => ask(s.label, { intent: s.intent })}>
-                                {s.label}
-                            </Chip>
-                        ))}
-                    </div>
                     <form
                         className="flex items-center gap-2"
                         onSubmit={(e) => {

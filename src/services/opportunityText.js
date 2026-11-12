@@ -92,15 +92,3 @@ export function trustedExplanation(o, entry) {
     const howTo = typeof entry.howTo === 'string' && entry.howTo.trim() && figuresNotIn(entry.howTo, known, { minInteger: 10 }).length === 0 ? entry.howTo : null;
     return { explanation: entry.explanation, howTo };
 }
-
-/** Suggested questions for the chat, made from the cards shown (most useful first, at most 3). */
-export function opportunityQuestions(list = [], { t, money, localizeCategory = (x) => x }) {
-    const out = [];
-    if (list.some((o) => o.monthlySaving > 0)) out.push(t('insights.ask.save'));
-    for (const o of list) {
-        if (o.kind === 'category_above_baseline') out.push(t('insights.ask.category', { category: localizeCategory(o.category) }));
-        else if (o.kind === 'merchant_frequency' || o.kind === 'subscription_review' || o.kind === 'price_creep') out.push(t('insights.ask.merchant', { name: o.merchantName }));
-        else if (o.kind === 'goal_boost' && o.params.saving) out.push(t('insights.ask.afford', { amount: money(o.params.saving) }));
-    }
-    return [...new Set(out)].slice(0, 3);
-}

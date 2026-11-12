@@ -101,7 +101,8 @@ const shots = {
         await page.waitForTimeout(300);
     } },
     'chat-save-money': { path: '/insights', wide: true, fn: async (page) => {
-        await page.getByRole('button', { name: 'Where can I save?' }).click();
+        await page.fill('input[aria-label="Ask about your spending"]', 'Where can I save?');
+        await page.getByRole('button', { name: 'Send' }).click();
         await page.waitForSelector('[data-testid="evidence"]');
         await page.click('[data-testid="evidence-toggle"]');
         await page.waitForTimeout(500);

@@ -46,11 +46,23 @@ beforeEach(async () => {
 });
 afterEach(cleanup);
 
+/** Questions are typed: there are no suggested-question chips above the input. */
+const askQuestion = (q) => {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask about your spending' }), { target: { value: q } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+};
+
 describe('ChatPanel with evidence', () => {
+    it('shows no suggested questions above the input: only the field and Send', () => {
+        mount(reply({ answer: 'x', citations: [], uncertain: [], proposals: [], model: 'm' }));
+        for (const label of ['Where can I save?', 'Top supermarket this cycle', 'Where did grocery money go?', 'What needs review?']) expect(screen.queryByRole('button', { name: label })).toBeNull();
+        expect(screen.getByRole('textbox', { name: 'Ask about your spending' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    });
     it('answers "what drove grocery spending" from an evidence pack and shows period, basis, coverage and receipts', async () => {
         const fetchImpl = reply({ answer: 'Groceries were 100.00 so far.', citations: ['F2'], uncertain: [], proposals: [], model: 'm' });
         mount(fetchImpl);
-        fireEvent.click(screen.getByRole('button', { name: 'Where did grocery money go?' }));
+        askQuestion('Where did grocery money go?');
         await screen.findByText('Groceries were 100.00 so far.');
         const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
         expect(body.evidence.intent).toBe('grocery_breakdown');
@@ -74,7 +86,7 @@ describe('ChatPanel with evidence', () => {
         const fetchImpl = reply({ answer: 'ok', citations: ['F1'], proposals: [] });
         mount(fetchImpl);
         expect(screen.queryByRole('radio', { name: 'Full amount paid' })).toBeNull();
-        fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
+        askQuestion('Top supermarket this cycle');
         await screen.findByText('ok');
         expect(JSON.parse(fetchImpl.mock.calls[0][1].body).evidence.basis).toBe('share');
         fireEvent.change(screen.getByLabelText('Ask about your spending'), { target: { value: 'How much did I pay at Lidl?' } });
@@ -85,7 +97,7 @@ describe('ChatPanel with evidence', () => {
 
     it('warns when the answer cites nothing or quotes figures that are not in the evidence', async () => {
         mount(reply({ answer: 'You spent 987.65 on cheese.', citations: [], proposals: [] }));
-        fireEvent.click(screen.getByRole('button', { name: 'Where did grocery money go?' }));
+        askQuestion('Where did grocery money go?');
         await screen.findByText(/987.65 on cheese/);
         expect(screen.getByTestId('evidence-ungrounded')).toBeTruthy();
         expect(screen.getByTestId('evidence-unsupported').textContent).toMatch(/987.65/);
@@ -94,7 +106,7 @@ describe('ChatPanel with evidence', () => {
     it('is honest when there is not enough data: no request is made', async () => {
         const fetchImpl = reply({ answer: 'x' });
         mount(fetchImpl, { ...ctx, transactions: [] });
-        fireEvent.click(screen.getByRole('button', { name: 'Where did grocery money go?' }));
+        askQuestion('Where did grocery money go?');
         await screen.findByText(/no grocery receipts/);
         expect(fetchImpl).not.toHaveBeenCalled();
     });
@@ -102,7 +114,7 @@ describe('ChatPanel with evidence', () => {
     it('keeps the local facts visible when the explanation fails, and retries', async () => {
         const fetchImpl = reply({}, 500);
         mount(fetchImpl);
-        fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
+        askQuestion('Top supermarket this cycle');
         await screen.findByText('Something went wrong. Try again.');
         expect(screen.getByTestId('evidence')).toBeTruthy();
         fetchImpl.mockResolvedValue({ ok: true, status: 200, json: async () => ({ answer: 'Conad leads.', citations: ['F2'], proposals: [] }) });
@@ -159,7 +171,7 @@ describe('ChatPanel history', () => {
     it('a reopened answer renders exactly as before: period, basis, coverage, evidence list and link', async () => {
         const body = { answer: 'Cap groceries at 150.', suggestedAction: { type: 'open_filter', payload: { screen: 'activity', category: 'Groceries' } }, citations: ['F2'], proposals: [] };
         const first = mount(reply(body));
-        fireEvent.click(screen.getByRole('button', { name: 'Where did grocery money go?' }));
+        askQuestion('Where did grocery money go?');
         await screen.findByText('Cap groceries at 150.');
         const meta = screen.getByTestId('evidence-meta').textContent;
         const href = screen.getByRole('link', { name: /Show these transactions/ }).getAttribute('href');
@@ -180,7 +192,7 @@ describe('ChatPanel history', () => {
     it('stores error answers, offers Retry on the last one, and sends only the current conversation to the model', async () => {
         const fetchImpl = reply({}, 500);
         mount(fetchImpl);
-        fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
+        askQuestion('Top supermarket this cycle');
         await screen.findByText('Something went wrong. Try again.');
         await waitFor(async () => expect((await db.chatMessages.toArray()).some((m) => m.meta?.error)).toBe(true));
         fetchImpl.mockResolvedValue({ ok: true, status: 200, json: async () => ({ answer: 'Conad leads.', citations: ['F2'], proposals: [] }) });
@@ -222,7 +234,7 @@ describe('ChatPanel history', () => {
     it('with "Keep chat history" off nothing is written and the thread lives in the session as before', async () => {
         localStorage.setItem('wmw.chatKeepHistory', 'off');
         mount(reply({ answer: 'session answer', citations: ['F1'], proposals: [] }));
-        fireEvent.click(screen.getByRole('button', { name: 'Where did grocery money go?' }));
+        askQuestion('Where did grocery money go?');
         await screen.findByText('session answer');
         expect(await db.chatConversations.count()).toBe(0);
         expect(await db.chatMessages.count()).toBe(0);

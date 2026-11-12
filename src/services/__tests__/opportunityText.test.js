@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { opportunityHref, opportunityQuestions, opportunityText, trustedExplanation } from '../opportunityText';
+import { opportunityHref, opportunityText, trustedExplanation } from '../opportunityText';
 import { computeOpportunities, OPPORTUNITY_KINDS } from '../savingsOpportunities';
 import { ownerLike, TODAY } from '../__fixtures__/ownerLike';
 import { currentCyclePeriod, normalizeConfig } from '../../utils/payCycle';
@@ -80,12 +80,5 @@ describe('trustedExplanation', () => {
         expect(trustedExplanation(o, { explanation: 'Dining is €79 above usual.', howTo: 'Cut €50 a week.' })).toEqual({ explanation: 'Dining is €79 above usual.', howTo: null });
         expect(trustedExplanation(o, null)).toBeNull();
         expect(trustedExplanation(o, { explanation: '  ' })).toBeNull();
-    });
-});
-
-describe('opportunityQuestions', () => {
-    it('suggests questions from the cards shown', () => {
-        expect(opportunityQuestions(top, ctx())).toEqual(['Where can I save this period?', 'Why is Dining higher than usual?', 'Can I afford €79 this period?']);
-        expect(opportunityQuestions([], ctx())).toEqual([]);
     });
 });
