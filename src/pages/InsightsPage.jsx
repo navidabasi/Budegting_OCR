@@ -21,6 +21,7 @@ import { usePeriod } from '../hooks/usePayCycle';
 import { useMoney } from '../hooks/useMoney';
 import { useInsightsNarrative } from '../hooks/useInsightsNarrative';
 import { useDismissedOpportunities } from '../hooks/useDismissedOpportunities';
+import { useAiAccess } from '../hooks/useAiAccess';
 import { useTranslation } from '../languages/useTranslation';
 import { buildAggregates, buildRefMap, verdictFigures } from '../services/insightsAggregates';
 import { computeInsights } from '../services/insightsEngine';
@@ -77,7 +78,9 @@ export default function InsightsPage() {
                   },
         [loading, transactions, trips, groups, accounts, budgets, goals, people, dismissed, p.period, p.config, p.today, currency, categoryNames, rules]
     );
-    const narrative = useInsightsNarrative({ aggregates, language: languageCode, enabled: transactions.length > 0, refMap });
+    // the AI summary only for accounts the owner approved; the page is complete without it
+    const aiAccess = useAiAccess();
+    const narrative = useInsightsNarrative({ aggregates, language: languageCode, enabled: transactions.length > 0 && aiAccess.allowed, refMap });
     const explanations = useMemo(() => explanationsFor(opp.top, narrative.data, narrative.refs), [opp.top, narrative.data, narrative.refs]);
     const lists = useMemo(() => {
         const text = (f) => findingText(f, { t, money: (n) => short(n), localizeCategory });

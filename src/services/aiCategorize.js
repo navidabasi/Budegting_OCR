@@ -16,7 +16,7 @@ export const PRESELECT_CONFIDENCE = 0.8;
 export class AiError extends Error {
     constructor(kind, status) {
         super(kind);
-        this.kind = kind; // notConfigured | rateLimit | offline | auth | server | network | invalid
+        this.kind = kind; // notApproved | notConfigured | rateLimit | offline | auth | server | network | invalid
         this.status = status;
     }
 }
@@ -67,6 +67,8 @@ async function postBatch(merchants, categories, { getToken, fetchImpl }) {
         /* non-JSON error body */
     }
     if (res.status === 503 && json?.code === 'llm_not_configured') throw new AiError('notConfigured', 503);
+    // the owner has not approved AI features for this account (api/_lib/ratelimit.js)
+    if (res.status === 403 && json?.code === 'ai_not_approved') throw new AiError('notApproved', 403);
     if (res.status === 401 || res.status === 403) throw new AiError('auth', res.status);
     if (res.status === 429) throw new AiError('rateLimit', 429);
     if (res.status === 400 || res.status === 413) throw new AiError('invalid', res.status);

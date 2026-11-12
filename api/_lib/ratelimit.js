@@ -1,8 +1,12 @@
-// Per-user daily AI call cap, stored in ai_usage (user_id, day, kind, calls, tokens_in, tokens_out).
-// Env: AI_DAILY_LIMIT_PER_USER (default 100). The cap is across all kinds for the UTC day.
+// AI access and the per-user daily AI call cap (supabase/migrations/20261112_v16_ai_access.sql).
+// Env: AI_DAILY_LIMIT_PER_USER (default 30). The cap is across all kinds for the UTC day.
+//
+// Both checks run in the database (ai_consume, security definer) as the calling user: the account must be approved by the
+// owner (ai_access) and under today's cap; the call is counted in the same transaction. Users cannot write ai_usage
+// directly, so the count cannot be reset from the browser.
 import { HttpError } from './http.js';
 
-export const DEFAULT_DAILY_LIMIT = 100;
+export const DEFAULT_DAILY_LIMIT = 30;
 
 export function getDailyLimit(env = process.env) {
     const n = Number.parseInt(env.AI_DAILY_LIMIT_PER_USER, 10);
@@ -12,54 +16,25 @@ export function getDailyLimit(env = process.env) {
 export const todayUtc = (now = new Date()) => now.toISOString().slice(0, 10);
 
 /**
- * Count one AI call for `kind`. Throws HttpError(429) when the user already used the daily limit.
- * `client` must be a Supabase client authenticated as the user.
+ * Count one AI call for `kind`. Throws HttpError 403 `ai_not_approved` when the owner has not approved the account,
+ * 429 `ai_limit` when today's cap is used up. `client` must be a Supabase client authenticated as the user.
  */
-export async function consume(client, userId, kind, { now = new Date(), limit = getDailyLimit() } = {}) {
-    const day = todayUtc(now);
-    const { data: rows, error } = await client
-        .from('ai_usage')
-        .select('kind, calls')
-        .eq('user_id', userId)
-        .eq('day', day);
-    if (error) throw new HttpError(500, 'Could not read AI usage', 'usage_read');
-
-    const list = rows || [];
-    const total = list.reduce((sum, r) => sum + (Number(r.calls) || 0), 0);
-    if (total >= limit) {
-        throw new HttpError(429, 'Daily AI limit reached. Try again tomorrow.', 'ai_limit');
+export async function consume(client, userId, kind, { limit = getDailyLimit() } = {}) {
+    void userId; // the database takes the user from the token (auth.uid())
+    const { data, error } = await client.rpc('ai_consume', { p_kind: kind, p_limit: limit });
+    if (error || !data) throw new HttpError(500, 'Could not check AI usage', 'usage_read');
+    if (!data.allowed && data.reason === 'not_approved') {
+        throw new HttpError(403, 'AI features are waiting for approval on this account.', 'ai_not_approved');
     }
-    const current = list.find((r) => r.kind === kind);
-    const calls = (Number(current?.calls) || 0) + 1;
-    const { error: upsertError } = await client
-        .from('ai_usage')
-        .upsert({ user_id: userId, day, kind, calls }, { onConflict: 'user_id,day,kind' });
-    if (upsertError) throw new HttpError(500, 'Could not record AI usage', 'usage_write');
-    return { used: total + 1, limit, remaining: limit - total - 1 };
+    if (!data.allowed) throw new HttpError(429, 'Daily AI limit reached. Try again tomorrow.', 'ai_limit');
+    return { used: data.used, limit, remaining: Math.max(0, limit - data.used) };
 }
 
 /** Best-effort token accounting after a successful call. Never throws. */
-export async function recordTokens(client, userId, kind, usage, { now = new Date() } = {}) {
+export async function recordTokens(client, userId, kind, usage) {
+    void userId;
     try {
-        const day = todayUtc(now);
-        const { data } = await client
-            .from('ai_usage')
-            .select('calls, tokens_in, tokens_out')
-            .eq('user_id', userId)
-            .eq('day', day)
-            .eq('kind', kind)
-            .maybeSingle();
-        await client.from('ai_usage').upsert(
-            {
-                user_id: userId,
-                day,
-                kind,
-                calls: Number(data?.calls) || 1,
-                tokens_in: (Number(data?.tokens_in) || 0) + (usage?.promptTokens || 0),
-                tokens_out: (Number(data?.tokens_out) || 0) + (usage?.completionTokens || 0),
-            },
-            { onConflict: 'user_id,day,kind' }
-        );
+        await client.rpc('ai_record_tokens', { p_kind: kind, p_in: usage?.promptTokens || 0, p_out: usage?.completionTokens || 0 });
     } catch {
         /* accounting only */
     }

@@ -13,7 +13,7 @@ export const LOW_CONFIDENCE = 0.7;
 const TIMEOUT_MS = 45000;
 
 /** Error kinds the UI knows plain-language messages for. */
-export const ERROR_KINDS = ['photosOff', 'offline', 'rateLimit', 'server', 'unavailable', 'auth', 'invalid', 'network'];
+export const ERROR_KINDS = ['photosOff', 'notApproved', 'offline', 'rateLimit', 'server', 'unavailable', 'auth', 'invalid', 'network'];
 
 export class ScanError extends Error {
     constructor(kind, message, status) {
@@ -140,6 +140,16 @@ export async function extractReceipt({ file, mime, hints, getToken, fetchImpl, s
         throw new ScanError('network', err?.message || 'network');
     } finally {
         clearTimeout(timer);
+    }
+    if (res.status === 403) {
+        let body = null;
+        try {
+            body = await res.json();
+        } catch {
+            /* non-JSON error body */
+        }
+        // the owner has not approved AI features for this account: not retryable, the photo can be entered by hand
+        if (body?.code === 'ai_not_approved') throw new ScanError('notApproved', 'AI features need approval', 403);
     }
     if (res.status === 401 || res.status === 403) throw new ScanError('auth', 'Unauthorized', res.status);
     if (res.status === 429) throw new ScanError('rateLimit', 'Rate limited', 429);

@@ -29,6 +29,7 @@ import ToggleRow from '../components/common/ToggleRow';
 import DeleteAllChatSheet from '../components/insights/DeleteAllChatSheet';
 import { useKeepChatHistory } from '../services/chatPrefs';
 import MotionSettings from '../components/settings/MotionSettings';
+import AiAccessSettings from '../components/settings/AiAccessSettings';
 import AiBoundarySettings from '../components/settings/AiBoundarySettings';
 import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
@@ -739,6 +740,7 @@ export default function SettingsPage() {
                 icon={Key}
                 title={t('prefs.aiScanning.title')}
             >
+                <AiAccessSettings />
                 <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">{t('prefs.aiScanning.privacy')}</p>
                 <div className="mb-3 divide-y divide-gray-100 dark:divide-gray-700">
                     <ToggleRow label={t('prefs.aiScanning.saveImages')} hint={t('prefs.aiScanning.saveImagesHint')} checked={scanPrefs.saveImages} onChange={(v) => setScanPrefsState(setScanPrefs({ saveImages: v }))} />

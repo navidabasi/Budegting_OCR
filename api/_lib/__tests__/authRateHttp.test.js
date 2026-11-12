@@ -61,49 +61,52 @@ describe('auth.requireUser', () => {
     });
 });
 
-describe('ratelimit.consume', () => {
-    const now = new Date('2026-11-10T10:00:00Z');
+describe('ratelimit.consume: approval and the daily cap, checked in the database', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const approved = (extra = {}) => fakeSupabase({ ai_access: [{ user_id: 'u1', status: 'approved' }], ...extra });
 
-    it('increments calls per kind and allows below the limit', async () => {
-        const client = fakeSupabase();
-        const a = await consume(client, 'u1', 'extract', { now, limit: 3 });
-        const b = await consume(client, 'u1', 'extract', { now, limit: 3 });
-        expect(a.used).toBe(1);
-        expect(b.used).toBe(2);
-        expect(client.tables.ai_usage).toEqual([{ user_id: 'u1', day: '2026-11-10', kind: 'extract', calls: 2 }]);
+    it('an account the owner has not approved gets 403 ai_not_approved and nothing is counted', async () => {
+        for (const access of [[], [{ user_id: 'u1', status: 'pending' }], [{ user_id: 'u1', status: 'denied' }]]) {
+            const client = fakeSupabase({ ai_access: access });
+            await expect(consume(client, 'u1', 'chat', { limit: 3 })).rejects.toMatchObject({ status: 403, code: 'ai_not_approved' });
+            expect(client.tables.ai_usage || []).toEqual([]);
+        }
+    });
+
+    it('an approved account (or the admin) is counted per kind below the limit', async () => {
+        const client = approved();
+        expect((await consume(client, 'u1', 'extract', { limit: 3 })).used).toBe(1);
+        expect((await consume(client, 'u1', 'extract', { limit: 3 })).used).toBe(2);
+        expect(client.tables.ai_usage).toEqual([{ user_id: 'u1', day: today, kind: 'extract', calls: 2 }]);
+        const admin = fakeSupabase({ ai_access: [{ user_id: 'u1', status: 'pending', is_admin: true }] });
+        await expect(consume(admin, 'u1', 'chat', { limit: 3 })).resolves.toMatchObject({ used: 1 });
     });
 
     it('throws 429 when the daily total (all kinds) reaches the limit', async () => {
-        const client = fakeSupabase({
-            ai_usage: [
-                { user_id: 'u1', day: '2026-11-10', kind: 'extract', calls: 2 },
-                { user_id: 'u1', day: '2026-11-10', kind: 'chat', calls: 1 },
-            ],
-        });
-        await expect(consume(client, 'u1', 'insights', { now, limit: 3 })).rejects.toMatchObject({ status: 429 });
-        expect(client.tables.ai_usage).toHaveLength(2);
+        const client = approved({ ai_usage: [{ user_id: 'u1', day: today, kind: 'extract', calls: 2 }, { user_id: 'u1', day: today, kind: 'chat', calls: 1 }] });
+        await expect(consume(client, 'u1', 'insights', { limit: 3 })).rejects.toMatchObject({ status: 429, code: 'ai_limit' });
     });
 
     it('ignores other users and other days', async () => {
-        const client = fakeSupabase({
-            ai_usage: [
-                { user_id: 'u2', day: '2026-11-10', kind: 'extract', calls: 99 },
-                { user_id: 'u1', day: '2026-11-09', kind: 'extract', calls: 99 },
-            ],
-        });
-        await expect(consume(client, 'u1', 'extract', { now, limit: 3 })).resolves.toMatchObject({ used: 1 });
+        const client = approved({ ai_usage: [{ user_id: 'u2', day: today, kind: 'extract', calls: 99 }, { user_id: 'u1', day: '2020-01-01', kind: 'extract', calls: 99 }] });
+        await expect(consume(client, 'u1', 'extract', { limit: 3 })).resolves.toMatchObject({ used: 1 });
     });
 
-    it('reads the limit from the environment', () => {
-        expect(getDailyLimit({})).toBe(100);
+    it('a database error is a 500, never a free pass', async () => {
+        const client = { rpc: async () => ({ data: null, error: { message: 'down' } }) };
+        await expect(consume(client, 'u1', 'chat', { limit: 3 })).rejects.toMatchObject({ status: 500 });
+    });
+
+    it('reads the limit from the environment; the default is 30', () => {
+        expect(getDailyLimit({})).toBe(30);
         expect(getDailyLimit({ AI_DAILY_LIMIT_PER_USER: '7' })).toBe(7);
-        expect(getDailyLimit({ AI_DAILY_LIMIT_PER_USER: 'zzz' })).toBe(100);
+        expect(getDailyLimit({ AI_DAILY_LIMIT_PER_USER: 'zzz' })).toBe(30);
     });
 
     it('records tokens', async () => {
-        const client = fakeSupabase();
-        await consume(client, 'u1', 'chat', { now });
-        await recordTokens(client, 'u1', 'chat', { promptTokens: 10, completionTokens: 4 }, { now });
+        const client = approved();
+        await consume(client, 'u1', 'chat');
+        await recordTokens(client, 'u1', 'chat', { promptTokens: 10, completionTokens: 4 });
         expect(client.tables.ai_usage[0]).toMatchObject({ calls: 1, tokens_in: 10, tokens_out: 4 });
     });
 });

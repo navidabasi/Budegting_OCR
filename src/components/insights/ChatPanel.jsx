@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight, Loader2, Plus, Sparkles } from 'lucide-react';
 import EvidenceAnswer from './EvidenceAnswer';
 import GeneralTips from './GeneralTips';
+import AiLockedNotice from '../common/AiLockedNotice';
+import { useAiAccess } from '../../hooks/useAiAccess';
 import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
 import { useTranslation } from '../../languages/useTranslation';
@@ -56,7 +58,9 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
     const [armed, setArmed] = useState(false);
     const guard = useRef(false); // synchronous: two taps in one frame send one question
     const migrated = useRef(false);
-    const ready = !!ctx && ctx.transactions;
+    const access = useAiAccess();
+    const locked = access.known && !access.allowed; // the owner has not approved AI for this account
+    const ready = !!ctx && ctx.transactions && !locked;
 
     // Session-only mode keeps the thread in sessionStorage like before
     useEffect(() => {
@@ -136,7 +140,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
     }, [armed, stored.hasOlder, loadOlder]);
 
 
-    const errorKey = (err) => (['offline', 'rateLimit', 'notConfigured', 'auth'].includes(err?.kind) ? err.kind : 'server');
+    const errorKey = (err) => (['offline', 'rateLimit', 'notConfigured', 'auth', 'notApproved'].includes(err?.kind) ? err.kind : 'server');
 
     // Write one message: into the open conversation (created on the first question) or, in session mode, into memory
     const post = async (convRef, m) => {
@@ -270,8 +274,9 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
                         <li ref={endRef} aria-hidden="true" />
                     </ol>
                 ) : null}
+                {locked ? <AiLockedNotice status={access.status} className="desk:mt-auto" /> : null}
                 {/* Starter questions: only before the first question of a conversation, then the space belongs to the answers */}
-                {empty ? (
+                {empty && !locked ? (
                     <div className="flex flex-col gap-1.5 desk:mt-auto" data-testid="chat-starters">
                         <span className="text-[13px] text-ink-muted">{t('chat.tryAsking')}</span>
                         <ul className="flex flex-col rounded-[18px] bg-surface px-1 shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none dark:desk:ring-0">

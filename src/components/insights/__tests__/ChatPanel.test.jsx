@@ -18,6 +18,8 @@ vi.mock('../../../data/api', () => ({
     fetchPage: vi.fn(async () => ({ rows: [], next: null })),
     PULL_PAGE: 50,
 }));
+const aiAccessState = { value: null };
+vi.mock('../../../hooks/useAiAccess', async (orig) => ({ ...(await orig()), useAiAccess: () => aiAccessState.value || { status: 'unknown', isAdmin: false, allowed: true, known: false, loading: false } }));
 import ChatPanel from '../ChatPanel';
 import { db, openDb } from '../../../data/db';
 import { queryClient } from '../../../data/queryClient';
@@ -313,5 +315,19 @@ describe('ChatPanel, assistant v2 (A-T5): grounded data answer, explain answer w
         askQuestion('Where do I find my subscriptions?');
         await screen.findByText('Go there.');
         expect(screen.queryByRole('link', { name: /Open/ })).toBeNull();
+    });
+});
+
+describe('ChatPanel: AI access', () => {
+    afterEach(() => (aiAccessState.value = null));
+    it('an account waiting for approval sees the notice instead of the starters and cannot send', () => {
+        aiAccessState.value = { status: 'pending', isAdmin: false, allowed: false, known: true, loading: false };
+        const fetchImpl = vi.fn();
+        mount(fetchImpl);
+        expect(screen.getByTestId('ai-locked').dataset.status).toBe('pending');
+        expect(screen.queryByTestId('chat-starters')).toBeNull();
+        fireEvent.change(screen.getByRole('textbox', { name: 'Ask about your spending' }), { target: { value: 'What is budgeting?' } });
+        expect(screen.getByRole('button', { name: 'Send' }).disabled).toBe(true);
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 });

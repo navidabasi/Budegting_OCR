@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Camera, CloudOff, FileText, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Camera, CloudOff, FileText, Loader2, X, Lock } from 'lucide-react';
 import ReviewScreen from '../components/scan/ReviewScreen';
 import { useAppStore } from '../store/appStore';
 import { useMerchantRules, useAccounts, useCreateGroup, useCreateTransaction, useDeleteTransaction, useGroupsData, useTrips, useSettings, useTransactions } from '../data/hooks';
@@ -27,6 +27,7 @@ import { findManualMatches } from '../utils/scanMatch';
 import { attachScanToTransaction } from '../services/scanAttach';
 import { applyItemRules } from '../utils/itemRules';
 import { itemsFromExtraction, serializeItems } from '../utils/receiptItems';
+import { useAiAccess } from '../hooks/useAiAccess';
 import { useUserPrefs } from '../hooks/useUserPrefs';
 
 async function getAccessToken() {
@@ -90,6 +91,8 @@ export default function ScanPage() {
     const scanDraft = useDraft('scan');
     const { prefs, setPrefs } = useUserPrefs();
     const userId = currentUser?.userId;
+    const aiAccess = useAiAccess();
+    const aiLocked = aiAccess.known && !aiAccess.allowed; // scanning reads the photo with AI: the owner must approve the account
 
     const categoryNames = useMemo(() => categoryList.map((c) => (typeof c === 'string' ? c : c.name)).filter((n) => n !== 'Income' && n !== 'Transfer'), [categoryList]);
     const locale = localeFor(languageCode, defaultCurrency);
@@ -184,15 +187,16 @@ export default function ScanPage() {
 
     // Entry points: ?source=camera|gallery open the picker; ?shared=1 picks up a file shared into the app
     useEffect(() => {
-        if (startedRef.current) return;
+        if (startedRef.current || aiAccess.loading) return;
         startedRef.current = true;
+        if (aiLocked) return; // no picker: the locked screen offers manual entry
         if (params.get('resume')) {
             resumeScan();
         } else if (params.get('shared')) {
             takeSharedFiles().then((files) => files[0] && handlePick(files[0]));
         } else if (params.get('source') === 'camera') cameraRef.current?.click();
         else if (params.get('source') === 'gallery') galleryRef.current?.click();
-    }, [params, handlePick, resumeScan]);
+    }, [params, handlePick, resumeScan, aiAccess.loading, aiLocked]);
 
     const onInput = (e) => {
         const file = e.target.files?.[0];
@@ -393,6 +397,18 @@ export default function ScanPage() {
                 {state.file && kind !== 'invalid' && kind !== 'photosOff' ? primary(t('scan.tryAgain'), () => dispatch({ type: 'RETRY' })) : null}
                 {primary(t('scan.enterManuallyPhoto'), () => openManual(false), <FileText size={18} aria-hidden="true" />)}
                 {secondary(t('scan.chooseAnother'), () => dispatch({ type: 'RESCAN' }))}
+            </>
+        );
+    }
+
+    if (aiLocked && state.phase !== 'review') {
+        return shell(
+            <Lock size={26} aria-hidden="true" />,
+            t(aiAccess.status === 'denied' ? 'aiAccess.deniedTitle' : 'aiAccess.pendingTitle'),
+            t(aiAccess.status === 'denied' ? 'aiAccess.deniedBody' : 'aiAccess.pendingBody'),
+            <>
+                {primary(t('aiAccess.addManually'), () => openManual(false), <FileText size={18} aria-hidden="true" />)}
+                {secondary(t('common.actions.cancel'), () => navigate(-1))}
             </>
         );
     }
