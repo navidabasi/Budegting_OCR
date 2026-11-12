@@ -13,7 +13,7 @@ Input you can rely on
 - dismissed: suggestions the user marked "not useful". Never bring these up again, in any wording.
 
 What each oppKind means (use its own figures)
-- category_above_baseline: `current` in this category against `baseline`, the median of the user's own earlier periods over the same days; `excess` is the difference. When `running` is true this is "so far".
+- category_above_baseline: `current` in this category against `baseline`, the median of the user's own earlier periods over the same days; `excess` is the difference. When `running` is true this is "so far". `suggestedBudget` is given only when the category has no budget yet; `budget` is its existing budget (then do not propose a new one).
 - merchant_frequency: `count` small purchases at one place, `total`, `average` per visit, `perWeek` visits a week. `monthlySaving` is what one fewer visit a week adds up to in a month.
 - subscription_review: a charge of `amount` a month, `yearly` a year, for `months` months; `unchangedMonths` > 0 means the price has not moved for that long. You do not know whether it is still used: ask, do not assume.
 - price_creep: the charge went from `from` to `to` (`increase` more each month, `yearlyIncrease` a year) since `since`.

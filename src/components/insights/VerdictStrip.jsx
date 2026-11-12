@@ -35,9 +35,9 @@ export default function VerdictStrip({ figures, narrative, onRetry, onUpdate, ca
     const up = change !== null && change >= 1;
     const down = change !== null && change <= -1;
     const savedPct = figures.income > 0 ? Math.round((figures.saved / figures.income) * 100) : null;
-    const label = 'text-[11px] font-semibold uppercase tracking-[.06em] opacity-75';
+    const label = 'flex min-h-[28px] items-end text-[11px] font-semibold uppercase leading-[14px] tracking-[.04em] opacity-75';
     const sub = 'text-[11px] leading-tight opacity-80';
-    const big = 'text-[21px] font-semibold leading-none tracking-tight';
+    const big = 'text-[19px] font-semibold leading-none tracking-tighter md:text-[22px]';
     const problem = status === 'offline' ? t('insights.ai.offline') : status === 'notConfigured' || status === 'rateLimit' || status === 'error' ? (status === 'rateLimit' ? t('insights.rateLimit') : t('insights.ai.unavailable')) : null;
 
     return (
@@ -47,10 +47,10 @@ export default function VerdictStrip({ figures, narrative, onRetry, onUpdate, ca
                 <span className="shrink-0 text-xs opacity-80">{running ? t('insights.verdict.daysLeft', { count: figures.daysLeft }) : t('insights.verdict.closed')}</span>
             </div>
             <div className="flex flex-col gap-1.5">
-                <h2 className="font-display text-[21px] font-bold leading-snug" data-testid="verdict-headline">{headline}</h2>
+                <h2 className="font-display text-[20px] font-bold leading-snug md:text-[22px]" data-testid="verdict-headline">{headline}</h2>
                 {data?.summary ? <p className="text-sm leading-relaxed opacity-90">{data.summary}</p> : null}
             </div>
-            <dl className="grid grid-cols-3 gap-3 border-t border-white/20 pt-3">
+            <dl className="grid grid-cols-[1.25fr_1fr_1fr] gap-2.5 border-t border-white/20 pt-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <dt className={label}>{t('insights.verdict.spent')}</dt>
                     <dd className="flex min-w-0 flex-col gap-1">

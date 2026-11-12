@@ -1806,6 +1806,8 @@ export const fr = {
             body: "Une charge fixe, payée {{months}} mois de suite. Marquez-la comme récurrente pour la voir dans vos prochaines échéances.",
             why: "Loyer, factures et assurances sont des charges fixes : rien à réduire, seulement à prévoir.",
         },
+        savingMonth: "Économie par mois",
+        savingYear: "Économie par an",
     },
     // @i18n:end opp
     // @i18n:begin insights

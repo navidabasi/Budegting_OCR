@@ -18,7 +18,22 @@ export const queryClient = new QueryClient({
     },
 });
 
-/** Replacement for the old window 'refresh*' events: refetch every data query. */
+/**
+ * Replacement for the old window 'refresh*' events: refetch every data query.
+ *
+ * A query that is still on its FIRST fetch (no data yet) ignores an invalidation: TanStack Query hands back the fetch already in
+ * flight, which may have read the mirror before this change was written. A chat answer saved a few milliseconds after its question
+ * (an answer computed on the device) then never appeared until the page was reloaded. Those queries are fetched once more as soon
+ * as their first fetch has settled.
+ */
 export function notifyDataChanged() {
-    return queryClient.invalidateQueries({ queryKey: ['data'] });
+    const firstFetches = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['data'], fetchStatus: 'fetching' })
+        .filter((q) => q.state.data === undefined)
+        .map((q) => q.queryKey);
+    const done = queryClient.invalidateQueries({ queryKey: ['data'] });
+    // not awaited by the caller: a write must not wait for this second read (it only repairs what the screen shows)
+    if (firstFetches.length) done.then(() => firstFetches.forEach((queryKey) => queryClient.refetchQueries({ queryKey, exact: true, type: 'active' }, { cancelRefetch: false }))).catch(() => {});
+    return done;
 }

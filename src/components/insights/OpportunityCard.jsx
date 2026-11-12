@@ -61,7 +61,7 @@ export default function OpportunityCard({ opportunity: o, ai, records = [], acti
                 {saves ? (
                     <dl className="flex flex-col gap-1 rounded-[14px] bg-tint px-3.5 py-2.5 text-sm text-ink">
                         <div className="flex items-baseline">
-                            <dt className="shrink-0 font-medium">{t('opp.saving')}</dt>
+                            <dt className="shrink-0 font-medium">{t('opp.savingMonth')}</dt>
                             <span className="lead" aria-hidden="true" />
                             <dd className="shrink-0 font-semibold text-forest-ink" data-testid="opportunity-monthly">
                                 <span className="sr-only">{t('opp.perMonth', { amount: money(o.monthlySaving) })}</span>
@@ -69,7 +69,7 @@ export default function OpportunityCard({ opportunity: o, ai, records = [], acti
                             </dd>
                         </div>
                         <div className="flex items-baseline text-ink-muted">
-                            <dt className="shrink-0">{t('opp.perYear', { amount: '' }).trim()}</dt>
+                            <dt className="shrink-0">{t('opp.savingYear')}</dt>
                             <span className="lead" aria-hidden="true" />
                             <dd className="shrink-0"><Amount value={o.yearlySaving} currency={currency} symbol /></dd>
                         </div>

@@ -1806,6 +1806,8 @@ export const es = {
             body: "Un gasto fijo, pagado {{months}} meses seguidos. Márcalo como recurrente para verlo en tus próximos pagos.",
             why: "Alquiler, facturas y seguros son gastos fijos: nada que recortar, solo que planificar.",
         },
+        savingMonth: "Ahorro al mes",
+        savingYear: "Ahorro al año",
     },
     // @i18n:end opp
     // @i18n:begin insights

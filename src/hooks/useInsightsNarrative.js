@@ -18,6 +18,7 @@ const useOnline = () => {
     return online;
 };
 
+export const SETTLE_MS = 600;
 const storeKey = (aggregates, language) => `wmw.narrative:${aggregates?.period?.start || ''}..${aggregates?.period?.end || ''}:${language}`;
 const readStored = (key) => {
     try {
@@ -76,14 +77,14 @@ export function useInsightsNarrative({ aggregates, language, enabled = true, fet
     );
 
     useEffect(() => {
-        if (!enabled || !hash) return;
+        if (!enabled || !hash) return undefined;
         const stored = readStored(key);
         if (stored) {
             // a summary for this period exists: show it (older ones are labelled stale) and make no request
             lastKey.current = key;
             shownKey.current = key;
             setState({ status: 'ready', data: stored.data, sourceHash: stored.hash, refs: stored.refs });
-            return;
+            return undefined;
         }
         // another period (or language) with no saved summary: the previous period's text must not stay on screen
         if (shownKey.current !== key) {
@@ -92,11 +93,16 @@ export function useInsightsNarrative({ aggregates, language, enabled = true, fet
         }
         if (!online) {
             setState((s) => (s.status === 'ready' ? s : { ...s, status: 'offline' }));
-            return;
+            return undefined;
         }
-        if (lastKey.current === key) return;
-        lastKey.current = key;
-        run(false);
+        if (lastKey.current === key) return undefined;
+        // Wait until the data has settled: budgets, groups and prefs arrive a moment after the transactions, and a summary written
+        // from the half-loaded picture would be out of date (and paid for) the instant the rest lands.
+        const timer = setTimeout(() => {
+            lastKey.current = key;
+            run(false);
+        }, SETTLE_MS);
+        return () => clearTimeout(timer);
     }, [enabled, hash, key, online, run]);
 
     const stale = state.status === 'ready' && !!hash && !!state.sourceHash && state.sourceHash !== hash;

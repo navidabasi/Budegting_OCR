@@ -1919,6 +1919,8 @@ export const it = {
             body: "Un costo fisso, pagato per {{months}} mesi di fila. Segnalo come ricorrente per vederlo tra le prossime scadenze.",
             why: "Affitto, bollette e assicurazioni sono costi fissi: niente da tagliare, solo da pianificare.",
         },
+        savingMonth: "Risparmio al mese",
+        savingYear: "Risparmio all’anno",
     },
     // @i18n:end opp
     // @i18n:begin insights

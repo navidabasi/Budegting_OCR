@@ -2075,6 +2075,8 @@ export const en = {
             body: "A fixed cost, paid {{months}} months in a row. Mark it recurring so it shows in your upcoming bills.",
             why: "Rent, bills and insurance are fixed costs: nothing to cut here, only something to plan for.",
         },
+        savingMonth: "Saving a month",
+        savingYear: "Saving a year",
     },
     // @i18n:end opp
     // @i18n:begin insights

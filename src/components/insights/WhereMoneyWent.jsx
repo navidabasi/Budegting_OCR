@@ -22,6 +22,7 @@ export default function WhereMoneyWent({ view, periodSpec }) {
         <section className="flex flex-col gap-2" aria-labelledby="where-title" data-testid="where">
             <div className="flex items-end justify-between gap-2">
                 <h2 id="where-title" className="text-xs font-semibold uppercase tracking-[.06em] text-ink-muted">{t('insights.where.title')}</h2>
+                {view.comparable ? <span className="min-w-0 truncate text-xs text-ink-muted">{t(view.running ? 'insights.verdict.vsElapsed' : 'insights.verdict.vsCompleted', { delta: '' }).trim()}</span> : null}
             </div>
             <Link to={href} className="flex flex-col rounded-[20px] bg-surface px-4 pb-1 pt-2 shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line" data-testid="where-link">
                 <ul className="flex flex-col">
@@ -43,11 +44,12 @@ export default function WhereMoneyWent({ view, periodSpec }) {
                                         <span className="block h-full rounded-full" style={{ width: `${Math.max(3, (r.amount / max) * 100)}%`, backgroundColor: categoryColor(r.category, dark) }} />
                                     </span>
                                     <span className="flex items-center justify-between gap-2 text-xs text-ink-muted">
-                                        <span>{t('insights.where.share', { pct: r.pct })}</span>
+                                        <span className="min-w-0 truncate">{t('insights.where.share', { pct: r.pct })}</span>
                                         {change ? (
-                                            <span className={`flex min-w-0 items-center gap-1 ${change === 'up' ? 'text-warn-ink' : change === 'down' ? 'text-income' : ''}`}>
+                                            <span className={`flex shrink-0 items-center gap-1 ${change === 'up' ? 'text-warn-ink' : change === 'down' ? 'text-income' : ''}`}>
+                                                <span className="sr-only">{changeText}</span>
                                                 {change === 'up' ? <ArrowUp size={12} className="shrink-0" aria-hidden="true" /> : change === 'down' ? <ArrowDown size={12} className="shrink-0" aria-hidden="true" /> : <Minus size={12} className="shrink-0" aria-hidden="true" />}
-                                                <span className="truncate">{changeText}</span>
+                                                <span aria-hidden="true" className="font-mono" dir="ltr">{change === 'same' ? '' : r.previous === 0 ? t('insights.where.new') : money(Math.abs(r.delta))}</span>
                                             </span>
                                         ) : null}
                                     </span>

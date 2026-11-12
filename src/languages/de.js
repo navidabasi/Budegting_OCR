@@ -1919,6 +1919,8 @@ export const de = {
             body: "Fixkosten, {{months}} Monate in Folge bezahlt. Als wiederkehrend markieren, damit es bei den anstehenden Rechnungen erscheint.",
             why: "Miete, Rechnungen und Versicherungen sind Fixkosten: nichts zu kürzen, nur einzuplanen.",
         },
+        savingMonth: "Ersparnis pro Monat",
+        savingYear: "Ersparnis pro Jahr",
     },
     // @i18n:end opp
     // @i18n:begin insights

@@ -290,7 +290,8 @@ function categoryAboveBaseline(ctx) {
     if (!ctx.current || ctx.history.length === 0 || tooEarly(ctx)) return [];
     const { flexible, categories, series } = categorySeries(ctx, { cutToElapsed: true });
     const full = categorySeries(ctx, { cutToElapsed: false }).series;
-    const budgeted = new Set(activeBudgets(ctx.budgets, ctx.period).map((b) => b.category));
+    const budgets = new Map(activeBudgets(ctx.budgets, ctx.period).map((b) => [b.category, Number(b.amount)]));
+    const budgeted = budgets;
     const out = [];
     for (const category of categories) {
         const past = series.get(category);
@@ -302,7 +303,7 @@ function categoryAboveBaseline(ctx) {
         const suggested = roundTo5(median(full.get(category)));
         out.push(make(ctx, 'category_above_baseline', category, {
             category,
-            params: { category, current, baseline, excess, pct: Math.round((excess / baseline) * 100), periods: past.length, elapsedDays: ctx.elapsed, totalDays: ctx.progress.days, running: ctx.running, suggestedBudget: suggested, count: mine.length },
+            params: { category, current, baseline, excess, pct: Math.round((excess / baseline) * 100), periods: past.length, elapsedDays: ctx.elapsed, totalDays: ctx.progress.days, running: ctx.running, ...(budgeted.has(category) ? { budget: budgets.get(category) } : { suggestedBudget: suggested }), count: mine.length },
             monthlySaving: excess,
             confidence: past.length >= 3 ? 0.8 : past.length === 2 ? 0.6 : 0.4,
             evidence: top(mine),

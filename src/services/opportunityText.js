@@ -2,7 +2,7 @@
 // The same wording is the fallback when the AI explanation is missing, offline, out of date or was rejected by the number check.
 import { collectNumbers, figuresNotIn } from '../utils/numberGuard';
 
-const MONEY = ['excess', 'current', 'baseline', 'total', 'average', 'amount', 'yearly', 'from', 'to', 'increase', 'yearlyIncrease', 'difference', 'cheaperAverage', 'pricierAverage', 'median', 'suggestedBudget', 'lowest', 'highest', 'averageOver', 'saving', 'remaining', 'pace', 'monthly'];
+const MONEY = ['excess', 'current', 'baseline', 'total', 'average', 'amount', 'yearly', 'from', 'to', 'increase', 'yearlyIncrease', 'difference', 'cheaperAverage', 'pricierAverage', 'median', 'suggestedBudget', 'lowest', 'highest', 'averageOver', 'saving', 'remaining', 'pace', 'monthly', 'budget'];
 
 /**
  * opportunityText(o, { t, money, localizeCategory, date }) -> { title, body, why, action, badge, examples[] }

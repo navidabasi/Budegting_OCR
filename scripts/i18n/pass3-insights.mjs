@@ -43,6 +43,8 @@ export default {
     // ---- savings opportunities (cards on Insights, facts in the chat) ----
     'opp.perMonth': ['{{amount}} a month', '{{amount}} al mese', '{{amount}} pro Monat', '{{amount}} al mes', '{{amount}} par mois', 'ماهی {{amount}}', '{{amount}} شهريًا'],
     'opp.perYear': ['{{amount}} a year', '{{amount}} all’anno', '{{amount}} pro Jahr', '{{amount}} al año', '{{amount}} par an', 'سالی {{amount}}', '{{amount}} سنويًا'],
+    'opp.savingMonth': ['Saving a month', 'Risparmio al mese', 'Ersparnis pro Monat', 'Ahorro al mes', 'Économie par mois', 'صرفه‌جویی در ماه', 'التوفير شهريًا'],
+    'opp.savingYear': ['Saving a year', 'Risparmio all’anno', 'Ersparnis pro Jahr', 'Ahorro al año', 'Économie par an', 'صرفه‌جویی در سال', 'التوفير سنويًا'],
     'opp.saving': ['Possible saving', 'Risparmio possibile', 'Mögliche Ersparnis', 'Ahorro posible', 'Économie possible', 'صرفه‌جویی ممکن', 'التوفير الممكن'],
     'opp.badge.debt_cost': ['Commitment', 'Impegno', 'Verpflichtung', 'Compromiso', 'Engagement', 'تعهد', 'التزام'],
     'opp.badge.goal_boost': ['Goal', 'Obiettivo', 'Ziel', 'Objetivo', 'Objectif', 'هدف', 'هدف'],
