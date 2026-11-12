@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 
-const WIDE = ['/activity']; // lay out their own panes from tablet width
+const WIDE = ['/activity', '/insights']; // lay out their own panes (Activity from tablet width, Insights two columns on a PC)
 const NO_RAIL = ['/scan', '/welcome'];
 
 /**

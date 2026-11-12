@@ -6,6 +6,7 @@ import { IconButton, PeriodSwitcher } from '../components/ui';
 import MonthReceipt from '../components/home/MonthReceipt';
 import TripBanner from '../components/home/TripBanner';
 import InsightCard from '../components/home/InsightCard';
+import SaveTeaser from '../components/home/SaveTeaser';
 import BudgetStrip from '../components/home/BudgetStrip';
 import UpcomingBills from '../components/home/UpcomingBills';
 import EmptyHome from '../components/home/EmptyHome';
@@ -23,6 +24,8 @@ import { usePeriod } from '../hooks/usePayCycle';
 import { periodSpecOf } from '../utils/period';
 import { useTranslation } from '../languages/useTranslation';
 import { computeInsights } from '../services/insightsEngine';
+import { computeOpportunities } from '../services/savingsOpportunities';
+import { useDismissedOpportunities } from '../hooks/useDismissedOpportunities';
 import { categoryBudgets, WHOLE_MONTH } from '../utils/budgetMath';
 import { monthTotals } from '../utils/money';
 import { tripTotals } from '../utils/tripMath';
@@ -43,7 +46,9 @@ export default function HomePage() {
 
     const totals = useMemo(() => monthTotals(transactions, month, { trips, accounts }), [transactions, month, trips, accounts]);
     const rows = useMemo(() => categoryBudgets(budgets, transactions, month, trips, { today, accounts }), [budgets, transactions, month, trips, accounts, today]);
-    const finding = useMemo(() => computeInsights({ transactions, budgets, goals, accounts, trips, month, today, currency })[0] || null, [transactions, budgets, goals, accounts, trips, month, today, currency]);
+    const finding = useMemo(() => computeInsights({ transactions, budgets, goals, accounts, trips, groups, month, today, currency })[0] || null, [transactions, budgets, goals, accounts, trips, groups, month, today, currency]);
+    const { dismissed } = useDismissedOpportunities(p.today);
+    const ways = useMemo(() => computeOpportunities({ transactions, budgets, goals, accounts, trips, groups, period: month, today: p.today, dismissed }).top, [transactions, budgets, goals, accounts, trips, groups, month, p.today, dismissed]);
     const unpaid = useMemo(
         () => transactions.filter((tx) => (tx.transactionType || 'expense') === 'expense' && getTrackingStatus(tx) === 'open').sort((a, b) => String(a.date).localeCompare(String(b.date))),
         [transactions]
@@ -82,7 +87,8 @@ export default function HomePage() {
                 <>
                     <MonthReceipt month={month} totals={totals} wholeBudget={rows.find((r) => r.category === WHOLE_MONTH) || null} today={today} />
                     <ConversionNote transactions={transactions} period={month} hint className="px-1" />
-                    <InsightCard finding={finding} />
+                    {/* the ways to save are the more useful entry to Insights; the top finding shows when there are none */}
+                    {ways.length > 0 ? <SaveTeaser opportunities={ways} periodSpec={periodSpecOf(month)} /> : <InsightCard finding={finding} />}
                     <BudgetStrip rows={rows} month={periodSpecOf(month)} />
                     <BreakdownLink month={periodSpecOf(month)} />
                     <SharedLink />
