@@ -9,6 +9,7 @@ vi.mock('../../services/supabaseService', () => ({
                 upload: async (path, blob, opts) => {
                     if (storage.failUpload) return { error: storage.failUpload };
                     storage.uploads.push({ bucket, path, type: opts.contentType });
+                    storage.bodies = [...(storage.bodies || []), blob];
                     return { error: null };
                 },
                 remove: async (paths) => {
@@ -42,6 +43,31 @@ beforeEach(async () => {
 });
 
 describe('receipt images', () => {
+    // Safari sent the multipart form built from an IndexedDB Blob with no file part: Storage answered 400 "No content provided".
+    it('stores the photo bytes and uploads them as a raw body, not a Blob in a multipart form', async () => {
+        storage.bodies = [];
+        await queueImage({ userId: 'u1', transactionId: 'raw', blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }) });
+        const row = await db.images.get('raw');
+        expect(row.bytes.byteLength).toBe(3);
+        expect((await flushImages('u1')).uploaded).toBe(1);
+        const body = storage.bodies[0];
+        expect(body instanceof Blob).toBe(false);
+        expect(Array.from(new Uint8Array(body))).toEqual([1, 2, 3]);
+    });
+
+    it('an empty photo is not sent and fails with a clear reason', async () => {
+        await queueImage({ userId: 'u1', transactionId: 'empty', blob: new Blob([], { type: 'image/jpeg' }) }).catch((e) => e);
+        expect(await db.images.get('empty')).toBeUndefined();
+        expect(storage.uploads).toEqual([]);
+    });
+
+    it('a photo that failed with "No content provided" before the fix is retried', async () => {
+        await openDb();
+        await db.images.put({ id: 'old', transactionId: 'old', userId: 'u1', kind: 'upload', path: 'u1/old.jpg', bytes: new Uint8Array([9]).buffer, mime: 'image/jpeg', status: 'failed', tries: 1, lastError: 'No content provided', createdAt: 1 });
+        expect((await flushImages('u1')).uploaded).toBe(1);
+        expect(await db.images.get('old')).toBeUndefined();
+    });
+
     it('uses ${userId}/${transactionId}.jpg in bucket receipts', async () => {
         const path = await queueImage({ userId: 'u1', transactionId: 't1', blob: blob() });
         expect(path).toBe('u1/t1.jpg');

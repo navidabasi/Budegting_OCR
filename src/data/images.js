@@ -8,8 +8,11 @@
  *    (valid 1 hour, cached in memory for 55 minutes).
  *  - `removeImage()` deletes the object together with its transaction (queued when offline).
  *
- * Queue rows: { id, transactionId, userId, kind: 'upload' | 'delete', path, blob?, mime?, status, tries, lastError }
- * (`id` is the transactionId for uploads and `del:<path>` for deletes).
+ * Queue rows: { id, transactionId, userId, kind: 'upload' | 'delete', path, bytes?, blob? (rows queued before bytes), mime?,
+ * status, tries, lastError } (`id` is the transactionId for uploads and `del:<path>` for deletes).
+ *
+ * The photo is kept as an ArrayBuffer (`bytes`) and uploaded as a raw body. A Blob read back from IndexedDB on iOS Safari
+ * went out as a multipart part with no file in it, and Storage answered 400 "No content provided" for every photo.
  */
 import { db, openDb } from './db';
 import { supabase } from '../services/supabaseService';
@@ -28,17 +31,50 @@ const isTransient = (err) => {
     return /failed to fetch|network|load failed|timed out|timeout|fetch failed/i.test(String(err?.message || '')) || err?.name === 'TypeError';
 };
 
+const readBlob = (blob) =>
+    typeof blob.arrayBuffer === 'function'
+        ? blob.arrayBuffer()
+        : new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(reader.error || new Error('Could not read the photo'));
+              reader.readAsArrayBuffer(blob);
+          });
+
+/** The bytes of a photo (Blob, File, ArrayBuffer or typed array) as an ArrayBuffer. */
+export async function toBytes(data) {
+    if (!data) return null;
+    if (data instanceof ArrayBuffer || Object.prototype.toString.call(data) === '[object ArrayBuffer]') return data; // (may come from another realm)
+    if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    return readBlob(data);
+}
+
+/** The queued photo of a row as a Blob (for previews, backups and re-reading), or null. */
+export function queuedImageBlob(row) {
+    if (!row || row.kind === 'delete') return null;
+    const data = row.bytes || row.blob;
+    if (!data) return null;
+    return data instanceof Blob ? data : new Blob([new Uint8Array(data)], { type: row.mime || 'image/jpeg' });
+}
+
+const EMPTY_PHOTO = 'The photo is empty';
+
 /** Queue an image for upload. Returns the storage path to store as `imagePath`. */
 export async function queueImage({ userId, transactionId, blob, mime }) {
     if (!userId || !transactionId || !blob) throw new Error('userId, transactionId and blob are required');
+    const bytes = await toBytes(blob);
+    if (!bytes || bytes.byteLength === 0) throw new Error(EMPTY_PHOTO);
     const path = imagePathFor(userId, transactionId);
     await openDb();
-    await db.images.put({ id: transactionId, transactionId, userId, kind: 'upload', path, blob, mime: mime || blob.type || 'image/jpeg', status: 'pending', tries: 0, lastError: null, createdAt: Date.now() });
+    await db.images.put({ id: transactionId, transactionId, userId, kind: 'upload', path, bytes, mime: mime || blob.type || 'image/jpeg', status: 'pending', tries: 0, lastError: null, createdAt: Date.now() });
     return path;
 }
 
 async function uploadRow(row) {
-    const { error } = await supabase.storage.from(BUCKET).upload(row.path, row.blob, { contentType: row.mime || 'image/jpeg', upsert: true });
+    const bytes = await toBytes(row.bytes || row.blob);
+    if (!bytes || bytes.byteLength === 0) throw new Error(EMPTY_PHOTO);
+    // Raw body (not a Blob): storage-js then sends the bytes with Content-Type instead of a multipart form
+    const { error } = await supabase.storage.from(BUCKET).upload(row.path, new Uint8Array(bytes), { contentType: row.mime || 'image/jpeg', upsert: true });
     if (error) throw Object.assign(new Error(error.message || 'Upload failed'), { status: error.statusCode || error.status });
 }
 
@@ -57,6 +93,9 @@ export function flushImages(userId = null) {
         const out = { uploaded: 0, deleted: 0, failed: 0 };
         try {
             await openDb();
+            // Photos rejected as empty before the raw-body fix get one more try
+            const legacy = await db.images.filter((r) => r.status === 'failed' && /no content provided/i.test(r.lastError || '')).toArray();
+            for (const r of legacy) await db.images.put({ ...r, status: 'pending', lastError: null });
             let rows = await db.images.filter((r) => r.status === 'pending').toArray();
             if (userId) rows = rows.filter((r) => !r.userId || r.userId === userId);
             rows.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -73,11 +112,11 @@ export function flushImages(userId = null) {
                     await db.images.delete(row.id);
                 } catch (err) {
                     if (isTransient(err)) {
-                        await db.images.update(row.id, { tries: (row.tries || 0) + 1, lastError: err.message });
+                        await db.images.put({ ...row, tries: (row.tries || 0) + 1, lastError: err.message }); // whole row: keeps the bytes intact
                         break; // try again later, keep order
                     }
                     out.failed++;
-                    await db.images.update(row.id, { status: 'failed', tries: (row.tries || 0) + 1, lastError: err.message });
+                    await db.images.put({ ...row, status: 'failed', tries: (row.tries || 0) + 1, lastError: err.message });
                 }
             }
         } finally {
@@ -132,9 +171,9 @@ export async function getSignedUrl(path) {
 export async function getImageUrl({ transactionId, imagePath }) {
     try {
         await openDb();
-        const queued = transactionId ? await db.images.get(transactionId) : null;
-        if (queued?.blob && queued.kind === 'upload') {
-            const url = URL.createObjectURL(queued.blob);
+        const local = queuedImageBlob(transactionId ? await db.images.get(transactionId) : null);
+        if (local) {
+            const url = URL.createObjectURL(local);
             return { url, local: true, revoke: () => URL.revokeObjectURL(url) };
         }
     } catch {
@@ -157,7 +196,8 @@ export async function listImageQueue() {
 
 /** Failed upload back to pending (and flush). */
 export async function retryImage(id, userId = null) {
-    await db.images.update(id, { status: 'pending', tries: 0, lastError: null });
+    const row = await db.images.get(id);
+    if (row) await db.images.put({ ...row, status: 'pending', tries: 0, lastError: null });
     return flushImages(userId);
 }
 

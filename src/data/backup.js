@@ -10,7 +10,7 @@
  */
 import { db, openDb, STORES } from './db';
 import { enqueue, requestFlush } from './sync';
-import { getSignedUrl, queueImage } from './images';
+import { getSignedUrl, queueImage, queuedImageBlob } from './images';
 import { notifyDataChanged } from './queryClient';
 
 export const BACKUP_APP = 'wmw-backup';
@@ -41,7 +41,8 @@ const base64ToBlob = (b64, mime) => {
 /** Photo of a transaction: the queued local file, else downloaded through a signed URL (needs a connection). null when unavailable. */
 async function photoBlob(tx) {
     const queued = await db.images.get(tx.id);
-    if (queued?.kind === 'upload' && queued.blob) return queued.blob;
+    const local = queuedImageBlob(queued);
+    if (local) return local;
     if (!tx.imagePath || (typeof navigator !== 'undefined' && navigator.onLine === false)) return null;
     try {
         const url = await getSignedUrl(tx.imagePath);
