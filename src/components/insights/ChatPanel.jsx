@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUp, ArrowUpRight } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, Loader2, Plus, Sparkles } from 'lucide-react';
 import EvidenceAnswer from './EvidenceAnswer';
 import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
@@ -25,6 +25,9 @@ import { restoreAliases } from '../../services/aiOutbound';
  * lines behind it. Bookkeeping suggestions are previewed in a sheet, applied only on confirm and kept in an undo history.
  * `ctx`: { transactions, trips, accounts, budgets, goals, people, period, config, today, currency, categoryNames, suggest }.
  */
+// Shown once, before the first question of a conversation
+const STARTERS = ['save_money', 'change', 'grocery_breakdown', 'top_merchant'];
+
 export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = getAccessToken }) {
     const { t } = useTranslation();
     const { short } = useMoney();
@@ -198,60 +201,98 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
         return t('chat.action.openFilter');
     };
 
+    const bar = keyboard.open ? { '--bar-bottom': `${keyboard.inset}px`, '--bar-pb': '8px' } : { '--bar-bottom': 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', '--bar-pb': '40px' };
+    const empty = thread.length === 0 && !busy;
+
     return (
-        <section className="flex flex-col gap-2.5 pt-2" aria-label={t('chat.title')} data-testid="chat">
-            <h2 className="text-xs font-semibold uppercase tracking-[.06em] text-ink-muted">{t('chat.title')}</h2>
-            {thread.length > 0 ? (
-                <ol className="flex flex-col gap-2" aria-live="polite">
-                    {persist && stored.hasOlder ? (
-                        <li ref={topRef} className="flex justify-center">
-                            <button type="button" onClick={loadOlder} disabled={stored.loadingOlder} className="h-11 rounded-xl px-3 text-[13px] font-semibold text-forest-ink disabled:opacity-60" data-testid="chat-earlier">
-                                {stored.loadingOlder ? t('chat.loadingEarlier') : t('chat.earlier')}
-                            </button>
-                        </li>
-                    ) : null}
-                    {thread.map((m, i) => (
-                        <li
-                            key={m.id ?? i}
-                            ref={(el) => {
-                                if (m.id == null) return;
-                                if (el) itemRefs.current.set(m.id, el);
-                                else itemRefs.current.delete(m.id);
-                            }}
-                            className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                            <p className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-snug ${m.role === 'user' ? 'bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'bg-warn-soft text-warn-ink' : 'bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line'}`}>{m.content}</p>
-                            {m.role === 'assistant' && m.ev ? <EvidenceAnswer ev={m.ev} onProposal={setProposal} /> : null}
-                            {m.error && m.retry && i === thread.length - 1 && !busy && m.content !== t('chat.error.rateLimit') ? (
-                                <button type="button" onClick={() => retry(m)} className="h-11 rounded-xl px-3 text-sm font-semibold text-forest-ink">
-                                    {t('insights.retry')}
+        // Phone and tablet: the conversation sits under the insights and the input is a fixed bar above the navigation.
+        // PC (>= 1100 px): a sticky assistant pane beside the insights, with its own scroll and the input at its foot.
+        <section
+            className="flex flex-col gap-3 pt-2 desk:sticky desk:top-6 desk:h-[calc(100dvh-48px)] desk:gap-0 desk:overflow-hidden desk:rounded-[20px] desk:bg-surface desk:pt-0 desk:shadow-[0_1px_2px_rgba(16,33,27,.06)] desk:ring-1 desk:ring-line dark:desk:shadow-none"
+            aria-label={t('chat.title')}
+            data-testid="chat"
+        >
+            <header className="flex min-h-[44px] items-center justify-between gap-2 desk:border-b desk:border-line desk:px-4 desk:py-2">
+                <h2 className="text-xs font-semibold uppercase tracking-[.06em] text-ink-muted">{t('chat.title')}</h2>
+                {thread.length > 0 ? (
+                    <button type="button" onClick={newChat} className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-semibold text-forest-ink" data-testid="chat-new">
+                        <Plus size={15} aria-hidden="true" />
+                        {t('chat.newChat')}
+                    </button>
+                ) : null}
+            </header>
+            <div className="flex flex-col gap-3 desk:min-h-0 desk:flex-1 desk:overflow-y-auto desk:overscroll-contain desk:px-4 desk:py-4" data-testid="chat-scroll">
+                {thread.length > 0 ? (
+                    <ol className="flex flex-col gap-2.5" aria-live="polite">
+                        {persist && stored.hasOlder ? (
+                            <li ref={topRef} className="flex justify-center">
+                                <button type="button" onClick={loadOlder} disabled={stored.loadingOlder} className="h-11 rounded-xl px-3 text-[13px] font-semibold text-forest-ink disabled:opacity-60" data-testid="chat-earlier">
+                                    {stored.loadingOlder ? t('chat.loadingEarlier') : t('chat.earlier')}
                                 </button>
-                            ) : null}
-                            {m.action && actionHref(m.action, month, m.ev?.pack?.period) ? (
-                                <Link to={actionHref(m.action, month, m.ev?.pack?.period)} className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-forest-ink bg-surface px-3.5 text-sm font-semibold text-forest-ink">
-                                    {actionLabel(m.action)}
-                                    <ArrowUpRight size={15} aria-hidden="true" className="rtl:-scale-x-100" />
-                                </Link>
-                            ) : null}
-                        </li>
-                    ))}
-                    {busy ? (
-                        <li className="flex">
-                            <p className="rounded-2xl bg-surface px-3.5 py-2.5 text-sm text-ink-muted dark:ring-1 dark:ring-line" role="status">{t('chat.thinking')}</p>
-                        </li>
-                    ) : null}
-                    <li ref={endRef} aria-hidden="true" />
-                </ol>
-            ) : null}
-            <AiHistory refreshKey={historyKey} />
-            {thread.length > 0 ? (
-                <button type="button" onClick={newChat} className="h-11 self-start rounded-xl px-2 text-[13px] font-semibold text-ink-muted" data-testid="chat-new">
-                    {t('chat.newChat')}
-                </button>
-            ) : null}
-            <div className="fixed inset-x-0 z-30 border-t border-line bg-ground pt-2.5 desk:start-24 shadow-[0_-6px_16px_rgba(16,33,27,.06)]" style={keyboard.open ? { bottom: `${keyboard.inset}px`, paddingBottom: '8px' } : { bottom: 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', paddingBottom: '40px' }}>
-                <div className="mx-auto flex max-w-[520px] flex-col gap-2 px-5">
+                            </li>
+                        ) : null}
+                        {thread.map((m, i) => (
+                            <li
+                                key={m.id ?? i}
+                                ref={(el) => {
+                                    if (m.id == null) return;
+                                    if (el) itemRefs.current.set(m.id, el);
+                                    else itemRefs.current.delete(m.id);
+                                }}
+                                className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                <p className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-ee-md bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'rounded-es-md bg-warn-soft text-warn-ink' : 'rounded-es-md bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none'}`}>{m.content}</p>
+                                {m.role === 'assistant' && m.ev ? <EvidenceAnswer ev={m.ev} onProposal={setProposal} /> : null}
+                                {m.error && m.retry && i === thread.length - 1 && !busy && m.content !== t('chat.error.rateLimit') ? (
+                                    <button type="button" onClick={() => retry(m)} className="h-11 rounded-xl px-3 text-sm font-semibold text-forest-ink">
+                                        {t('insights.retry')}
+                                    </button>
+                                ) : null}
+                                {m.action && actionHref(m.action, month, m.ev?.pack?.period) ? (
+                                    <Link to={actionHref(m.action, month, m.ev?.pack?.period)} className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-forest-ink bg-surface px-3.5 text-sm font-semibold text-forest-ink">
+                                        {actionLabel(m.action)}
+                                        <ArrowUpRight size={15} aria-hidden="true" className="rtl:-scale-x-100" />
+                                    </Link>
+                                ) : null}
+                            </li>
+                        ))}
+                        {busy ? (
+                            <li className="flex">
+                                <p className="flex items-center gap-2 rounded-2xl rounded-es-md bg-surface px-3.5 py-2.5 text-sm text-ink-muted dark:ring-1 dark:ring-line desk:bg-ground" role="status">
+                                    <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                                    {t('chat.thinking')}
+                                </p>
+                            </li>
+                        ) : null}
+                        <li ref={endRef} aria-hidden="true" />
+                    </ol>
+                ) : null}
+                {/* Starter questions: only before the first question of a conversation, then the space belongs to the answers */}
+                {empty ? (
+                    <div className="flex flex-col gap-1.5 desk:mt-auto" data-testid="chat-starters">
+                        <span className="text-[13px] text-ink-muted">{t('chat.tryAsking')}</span>
+                        <ul className="flex flex-col rounded-[18px] bg-surface px-1 shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none dark:desk:ring-0">
+                            {STARTERS.map((intent) => (
+                                <li key={intent} className="border-b border-line last:border-0">
+                                    <button type="button" disabled={!ready} onClick={() => ask(t(`evidence.chip.${intent}`), { intent })} className="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-start text-[15px] text-ink disabled:opacity-50" data-testid="chat-starter">
+                                        <Sparkles size={15} className="shrink-0 text-forest-ink" aria-hidden="true" />
+                                        <span className="min-w-0 flex-1">{t(`evidence.chip.${intent}`)}</span>
+                                        <ArrowUpRight size={15} className="shrink-0 text-ink-faint rtl:-scale-x-100" aria-hidden="true" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : null}
+                <AiHistory refreshKey={historyKey} />
+            </div>
+            <div
+                className="fixed inset-x-0 bottom-[var(--bar-bottom)] z-30 border-t border-line bg-ground pb-[var(--bar-pb)] pt-2.5 shadow-[0_-6px_16px_rgba(16,33,27,.06)] desk:static desk:z-auto desk:bg-surface desk:px-0 desk:pb-3 desk:pt-3 desk:shadow-none"
+                style={bar}
+                data-testid="chat-bar"
+            >
+                <div className="mx-auto flex max-w-[560px] px-5 md:max-w-[720px] desk:max-w-none desk:px-4">
                     <form
-                        className="flex items-center gap-2"
+                        className="flex w-full items-center gap-2"
                         onSubmit={(e) => {
                             e.preventDefault();
                             ask(text);
@@ -264,7 +305,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
                             onChange={(e) => setText(e.target.value)}
                             placeholder={t('chat.placeholder')}
                             aria-label={t('chat.inputLabel')}
-                            className="h-12 min-w-0 flex-1 rounded-2xl border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink"
+                            className="h-12 min-w-0 flex-1 rounded-2xl border border-line-strong bg-surface px-3.5 text-base text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-forest-ink desk:bg-ground"
                         />
                         <button type="submit" aria-label={t('chat.send')} disabled={busy || !text.trim() || !ready} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-forest text-white disabled:opacity-40">
                             <ArrowUp size={20} aria-hidden="true" />

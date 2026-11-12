@@ -53,12 +53,21 @@ const askQuestion = (q) => {
 };
 
 describe('ChatPanel with evidence', () => {
-    it('shows no suggested questions above the input: only the field and Send', () => {
-        mount(reply({ answer: 'x', citations: [], uncertain: [], proposals: [], model: 'm' }));
-        for (const label of ['Where can I save?', 'Top supermarket this cycle', 'Where did grocery money go?', 'What needs review?']) expect(screen.queryByRole('button', { name: label })).toBeNull();
-        expect(screen.getByRole('textbox', { name: 'Ask about your spending' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    it('offers starter questions only before the first question, never in the input bar', async () => {
+        const fetchImpl = reply({ answer: 'Conad leads.', citations: ['F2'], uncertain: [], proposals: [], model: 'm' });
+        mount(fetchImpl);
+        const starters = screen.getByTestId('chat-starters');
+        expect(within(starters).getAllByTestId('chat-starter').map((b) => b.textContent)).toEqual(['Where can I save?', 'What changed vs last period?', 'Where did grocery money go?', 'Top supermarket this cycle']);
+        expect(within(screen.getByTestId('chat-bar')).queryAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Send']);
+        fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
+        await screen.findByText('Conad leads.');
+        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).evidence.intent).toBe('top_merchant');
+        expect(screen.queryByTestId('chat-starters')).toBeNull();
+        // a new conversation brings them back
+        fireEvent.click(screen.getByTestId('chat-new'));
+        expect(await screen.findByTestId('chat-starters')).toBeTruthy();
     });
+
     it('answers "what drove grocery spending" from an evidence pack and shows period, basis, coverage and receipts', async () => {
         const fetchImpl = reply({ answer: 'Groceries were 100.00 so far.', citations: ['F2'], uncertain: [], proposals: [], model: 'm' });
         mount(fetchImpl);

@@ -84,7 +84,11 @@ export default function InsightsPage() {
     const empty = transactions.length === 0;
 
     return (
-        <main className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-5 pb-[208px] pt-[max(env(safe-area-inset-top),16px)] desk:max-w-[1120px]">
+        // Phone: one column. Tablet: one wider column, cards and lists two by two. PC: the insights on the left and the assistant as a
+        // sticky pane on the right, so no width is left empty and the conversation is always in reach.
+        <main className="mx-auto w-full max-w-[1000px] px-5 pb-[192px] pt-[max(env(safe-area-inset-top),16px)] md:px-8 desk:max-w-[1480px] desk:pb-6">
+            <div className="flex flex-col gap-5 desk:grid desk:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] desk:items-start desk:gap-6">
+                <div className="flex min-w-0 flex-col gap-5">
             <div className="flex items-end justify-between gap-3 pt-4">
                 <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-xs font-semibold uppercase tracking-[.08em] text-ink-muted">{t('nav.insights')}</span>
@@ -111,36 +115,30 @@ export default function InsightsPage() {
             {empty ? (
                 <p className="rounded-[14px] bg-tint px-3.5 py-3 text-sm text-ink-muted">{t('insights.noFindings')}</p>
             ) : (
-                // one column on phone and tablet (order: verdict, where, ways to save, wins); two columns on a PC
-                <div className="flex flex-col gap-5 desk:grid desk:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] desk:items-start desk:gap-6">
-                    <div className="contents desk:flex desk:min-w-0 desk:flex-col desk:gap-5">
-                        <div className="order-1 min-w-0">
-                            <VerdictStrip figures={figures} narrative={narrative} onRetry={narrative.retry} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} />
-                        </div>
-                        <div className="order-3 min-w-0">
-                            <WaysToSave opportunities={opp.top} explanations={explanations} transactions={transactions} accounts={accounts} goals={goals} periodSpec={p.spec} hiddenCount={opp.dismissed.length} onDismiss={dismiss} onRestore={() => restore(opp.dismissed.map((o) => o.key))} />
-                        </div>
-                    </div>
-                    <div className="contents desk:flex desk:min-w-0 desk:flex-col desk:gap-5">
-                        <div className="order-2 min-w-0">
-                            <WhereMoneyWent view={where} periodSpec={p.spec} />
-                        </div>
-                        <div className="order-4 min-w-0">
+                <>
+                    <VerdictStrip figures={figures} narrative={narrative} onRetry={narrative.retry} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} />
+                    <WaysToSave opportunities={opp.top} explanations={explanations} transactions={transactions} accounts={accounts} goals={goals} periodSpec={p.spec} hiddenCount={opp.dismissed.length} onDismiss={dismiss} onRestore={() => restore(opp.dismissed.map((o) => o.key))} />
+                    {/* side by side from tablet width: where the money went | wins, watch-outs and every finding */}
+                    <div className="grid gap-5 md:grid-cols-2 md:items-start">
+                        <WhereMoneyWent view={where} periodSpec={p.spec} />
+                        <div className="flex min-w-0 flex-col gap-4">
                             <WinsWatchouts wins={lists.wins} watchouts={lists.watchouts} />
+                            {findings.length > 0 ? (
+                                <section className="flex min-w-0 flex-col gap-2" data-testid="all-findings">
+                                    <button type="button" onClick={() => setAllOpen((v) => !v)} aria-expanded={allOpen} className="flex min-h-[44px] items-center justify-between gap-2 text-start text-sm font-semibold text-forest-ink">
+                                        {t('insights.more.title', { count: findings.length })}
+                                        <ChevronDown size={16} className={`shrink-0 transition-transform duration-inline ease-out ${allOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                                    </button>
+                                    {allOpen ? <FindingsList findings={findings} /> : null}
+                                </section>
+                            ) : null}
                         </div>
-                        {findings.length > 0 ? (
-                            <section className="order-5 flex min-w-0 flex-col gap-2" data-testid="all-findings">
-                                <button type="button" onClick={() => setAllOpen((v) => !v)} aria-expanded={allOpen} className="flex min-h-[44px] items-center justify-between gap-2 text-start text-sm font-semibold text-forest-ink">
-                                    {t('insights.more.title', { count: findings.length })}
-                                    <ChevronDown size={16} className={`shrink-0 transition-transform duration-inline ease-out ${allOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-                                </button>
-                                {allOpen ? <FindingsList findings={findings} /> : null}
-                            </section>
-                        ) : null}
                     </div>
-                </div>
+                </>
             )}
-            <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} />
+                </div>
+                <ChatPanel ctx={ctx} month={aggregates?.month || p.key} language={languageCode} />
+            </div>
             <ChatHistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
         </main>
     );

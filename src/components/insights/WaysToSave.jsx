@@ -66,7 +66,8 @@ export default function WaysToSave({ opportunities, explanations, transactions, 
             {opportunities.length === 0 ? (
                 <p className="rounded-[14px] bg-tint px-3.5 py-3 text-sm leading-relaxed text-ink-muted" data-testid="save-empty">{t('insights.save.empty')}</p>
             ) : (
-                <div className="flex flex-col gap-3">
+                // two cards a row from tablet width; each keeps its own height so an opened "Why?" never stretches its neighbour
+                <div className="grid gap-3 md:grid-cols-2 md:items-start">
                     {opportunities.map((o) => (
                         <OpportunityCard
                             key={o.id}

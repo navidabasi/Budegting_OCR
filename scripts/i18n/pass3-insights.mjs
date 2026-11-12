@@ -172,4 +172,5 @@ export default {
     'evidence.fact.history_month': ['{{month}}: {{amount}} ({{count}} payments).', '{{month}}: {{amount}} ({{count}} pagamenti).', '{{month}}: {{amount}} ({{count}} Zahlungen).', '{{month}}: {{amount}} ({{count}} pagos).', '{{month}} : {{amount}} ({{count}} paiements).', '{{month}}: {{amount}} ({{count}} پرداخت).', '{{month}}: {{amount}} ({{count}} دفعات).'],
     'evidence.fact.history_category': ['{{category}}: {{average}} a month on average.', '{{category}}: in media {{average}} al mese.', '{{category}}: im Schnitt {{average}} pro Monat.', '{{category}}: {{average}} al mes de media.', '{{category}} : {{average}} par mois en moyenne.', '{{category}}: به‌طور میانگین ماهی {{average}}.', '{{category}}: {{average}} شهريًا في المتوسط.'],
     'evidence.fact.allSpending': ['All spending', 'Tutta la spesa', 'Alle Ausgaben', 'Todo el gasto', 'Toutes les dépenses', 'همه خرج‌ها', 'كل الإنفاق'],
+    'chat.tryAsking': ['Try asking', 'Prova a chiedere', 'Frag zum Beispiel', 'Prueba a preguntar', 'Essayez de demander', 'مثلاً بپرسید', 'جرّب أن تسأل'],
 };

@@ -95,19 +95,29 @@ const shots = {
     } },
     // the whole page in one image (the fixed chat bar is hidden so nothing is covered)
     'insights-full': { path: '/insights', wide: true, full: true, fn: async (page) => { await hideChat(page); } },
+    // the conversation before the first question: the starter questions, then they make room for the answers
+    'chat-starters': { path: '/insights', wide: true, fn: async (page, { width }) => {
+        if (width < 1100) await page.evaluate(() => { document.querySelector('[data-testid="chat"]').scrollIntoView({ block: 'start' }); window.scrollBy(0, -16); });
+        await page.waitForTimeout(300);
+    } },
     'insights-offline-fallback': { path: '/insights', noAi: true, fn: async () => {} },
     'home-save-teaser': { path: '/', fn: async (page) => {
         await page.evaluate(() => document.querySelector('[data-testid="save-teaser"]').scrollIntoView({ block: 'center' }));
         await page.waitForTimeout(300);
     } },
     'chat-save-money': { path: '/insights', wide: true, fn: async (page) => {
-        await page.fill('input[aria-label="Ask about your spending"]', 'Where can I save?');
-        await page.getByRole('button', { name: 'Send' }).click();
+        await page.getByRole('button', { name: 'Where can I save?' }).click();
         await page.waitForSelector('[data-testid="evidence"]');
         await page.click('[data-testid="evidence-toggle"]');
         await page.waitForTimeout(500);
         await page.evaluate(() => document.querySelector('[data-testid="chat"] ol li:last-of-type')?.scrollIntoView({ block: 'end' }));
-        await page.evaluate(() => { const ev = document.querySelector('[data-testid="evidence"]'); const top = ev.previousElementSibling || ev; window.scrollTo(0, top.getBoundingClientRect().top + window.scrollY - 150); });
+        await page.evaluate(() => {
+            const ev = document.querySelector('[data-testid="evidence"]');
+            const bubble = ev.previousElementSibling || ev;
+            const pane = document.querySelector('[data-testid="chat-scroll"]');
+            if (getComputedStyle(pane).overflowY === 'auto') pane.scrollTop += bubble.getBoundingClientRect().top - pane.getBoundingClientRect().top - 12;
+            else window.scrollTo(0, bubble.getBoundingClientRect().top + window.scrollY - 150);
+        });
         await page.waitForTimeout(400);
     } },
 };
@@ -117,8 +127,8 @@ for (const name of only.length ? only : Object.keys(shots)) {
     const s = shots[name];
     if (!s) throw new Error(`unknown shot ${name}`);
     for (const scheme of ['light', 'dark']) {
-        for (const width of s.wide ? [390, 1280] : [390]) {
-            const { ctx, page } = await openApp(browser, { scheme, data: pass3, path: s.path, width, height: width === 390 ? 844 : 900 });
+        for (const width of s.wide ? [390, 820, 1280] : [390]) {
+            const { ctx, page } = await openApp(browser, { scheme, data: pass3, path: s.path, width, height: width === 390 ? 844 : width === 820 ? 1180 : 900 });
             if (s.noAi) {
                 await ctx.addInitScript(TOKEN);
                 await page.route('**/api/insights', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'llm_not_configured' }) }));
