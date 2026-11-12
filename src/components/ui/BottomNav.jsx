@@ -9,7 +9,7 @@ const itemClass = (active) =>
         active ? 'text-forest-ink' : 'text-ink-muted'
     }`;
 
-/** Five slots: Home, Activity, + FAB, Budgets, Insights. */
+/** Five slots in one line: Home, Activity, + (add), Budgets, Insights. */
 export default function BottomNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
@@ -38,14 +38,18 @@ export default function BottomNav() {
             <div className="mx-auto flex max-w-[520px] items-center justify-between">
                 {link('/', Home, t('navigation.home'), isHome)}
                 {link('/activity', ListFilter, t('nav.activity'), pathname.startsWith('/activity') || pathname.startsWith('/activity'))}
-                <button
-                    type="button"
-                    onClick={() => setAddReceiptModalOpen(true)}
-                    aria-label={t('navigation.addReceipt')}
-                    className="-mt-[72px] flex h-[60px] w-[60px] items-center justify-center rounded-full bg-forest text-white shadow-[0_6px_16px_rgba(0,87,63,.35)] transition-transform duration-press ease-out active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink"
-                >
-                    <Plus size={28} strokeWidth={2.4} aria-hidden="true" />
-                </button>
+                {/* + sits in line with the other items (no raised button): bars above the navigation can sit right on it */}
+                <span className="flex h-14 w-16 items-center justify-center">
+                    <button
+                        type="button"
+                        onClick={() => setAddReceiptModalOpen(true)}
+                        aria-label={t('navigation.addReceipt')}
+                        className="flex h-11 w-14 items-center justify-center rounded-2xl bg-forest text-white shadow-[0_3px_10px_rgba(0,87,63,.28)] transition-transform duration-press ease-out active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest-ink"
+                        data-testid="nav-add"
+                    >
+                        <Plus size={26} strokeWidth={2.4} aria-hidden="true" />
+                    </button>
+                </span>
                 {link('/plan', PieChart, t('nav.budgets'), pathname.startsWith('/plan'))}
                 {link('/insights', Sparkles, t('nav.insights'), pathname.startsWith('/insights'))}
             </div>

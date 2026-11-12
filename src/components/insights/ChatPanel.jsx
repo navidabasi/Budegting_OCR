@@ -201,7 +201,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
         return t('chat.action.openFilter');
     };
 
-    const bar = keyboard.open ? { '--bar-bottom': `${keyboard.inset}px`, '--bar-pb': '8px' } : { '--bar-bottom': 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', '--bar-pb': '40px' };
+    const bar = keyboard.open ? { '--bar-bottom': `${keyboard.inset}px`, '--bar-pb': '8px' } : { '--bar-bottom': 'calc(max(env(safe-area-inset-bottom), 12px) + 64px)', '--bar-pb': '10px' };
     const empty = thread.length === 0 && !busy;
 
     return (

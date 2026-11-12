@@ -86,7 +86,7 @@ export default function InsightsPage() {
     return (
         // Phone: one column. Tablet: one wider column, cards and lists two by two. PC: the insights on the left and the assistant as a
         // sticky pane on the right, so no width is left empty and the conversation is always in reach.
-        <main className="mx-auto w-full max-w-[1000px] px-5 pb-[192px] pt-[max(env(safe-area-inset-top),16px)] md:px-8 desk:max-w-[1480px] desk:pb-6">
+        <main className="mx-auto w-full max-w-[1000px] px-5 pb-[160px] pt-[max(env(safe-area-inset-top),16px)] md:px-8 desk:max-w-[1480px] desk:pb-6">
             <div className="flex flex-col gap-5 desk:grid desk:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] desk:items-start desk:gap-6">
                 <div className="flex min-w-0 flex-col gap-5">
             <div className="flex items-end justify-between gap-3 pt-4">
