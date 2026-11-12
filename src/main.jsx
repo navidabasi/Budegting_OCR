@@ -7,9 +7,13 @@ import { queryClient } from './data/queryClient'
 import './index.css'
 import { loadLanguage } from './languages'
 import { useAppStore } from './store/appStore'
+import { registerServiceWorker } from './services/swUpdate'
 
 // Wait for the persisted language pack (small, loaded in parallel with the app) so the first paint is already translated
 const ready = Promise.race([loadLanguage(useAppStore.getState().languageCode), new Promise((r) => setTimeout(r, 1500))]);
+
+// The installed app follows every deploy (production only: the dev server has no service worker)
+if (import.meta.env.PROD) registerServiceWorker()
 
 function start() {
 try {

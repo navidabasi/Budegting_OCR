@@ -7,6 +7,8 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
+            // registered by src/services/swUpdate.js, which also checks for updates on resume and reloads into them
+            injectRegister: null,
             strategies: 'injectManifest',
             srcDir: 'src',
             filename: 'sw.js',
