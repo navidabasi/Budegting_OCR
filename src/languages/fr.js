@@ -878,54 +878,6 @@ export const fr = {
         },
     },
     // @i18n:end trips
-    // @i18n:begin insight
-    insight: {
-        category_up: {
-            title: "{{category}} est en hausse de {{pct}}%",
-            body: "{{category}} est à {{current}} ce mois-ci contre une moyenne de {{average}} sur 3 mois (+{{amount}}).",
-        },
-        category_down: {
-            title: "{{category}} est en baisse de {{pct}}%",
-            body: "{{category}} est à {{current}} ce mois-ci contre une moyenne de {{average}} sur 3 mois (−{{amount}}).",
-        },
-        budget_over: {
-            title: "{{label}} dépassé",
-            body: "Tu as dépensé {{spent}} sur {{budget}}, soit {{over}} de trop.",
-        },
-        budget_pace: {
-            title: "{{label}} va être dépassé à ce rythme",
-            body: "À ce rythme tu dépenseras environ {{projected}} sur {{budget}}. Pour rester dans le budget, vise {{perDay}} par jour.",
-        },
-        unusual_transaction: {
-            title: "Paiement inhabituellement élevé en {{category}}",
-            body: "{{name}} le {{date}} : {{amount}}, contre {{typical}} d’habitude pour {{category}}.",
-        },
-        subscription: {
-            title: "{{name}} ressemble à un abonnement",
-            body: "{{name}} a prélevé environ {{amount}} {{count}} mois de suite sans être marqué comme récurrent. Cela fait {{yearly}} par an.",
-        },
-        savings_rate_up: {
-            title: "Tu épargnes plus que d’habitude",
-            body: "Le taux d’épargne est de {{rate}}% ce mois-ci contre {{averageRate}}% en moyenne ({{saved}} épargnés sur {{income}} de revenu).",
-        },
-        savings_rate_down: {
-            title: "Tu épargnes moins que d’habitude",
-            body: "Le taux d’épargne est de {{rate}}% ce mois-ci contre {{averageRate}}% en moyenne ({{saved}} épargnés sur {{income}} de revenu).",
-        },
-        top_merchant: {
-            title: "{{name}} représente {{pct}}% de tes dépenses",
-            body: "{{amount}} sur {{total}} ce mois-ci sont allés chez {{name}} ({{count}} paiements).",
-        },
-        no_income: {
-            title: "Aucun revenu saisi ce mois-ci",
-            body: "Tu as saisi {{spent}} de dépenses mais aucun revenu : le taux d’épargne et le montant dépensable peuvent être faussés.",
-        },
-        uncategorised: {
-            title: "{{count}} transactions sans catégorie",
-            body: "{{count}} paiements ({{amount}}) n’ont pas de catégorie, ce qui rend les analyses par catégorie moins fiables.",
-        },
-    },
-    // @i18n:end insight
     // @i18n:begin home
     home: {
         eyebrow: "Où est passé mon argent",
@@ -1891,4 +1843,84 @@ export const fr = {
         emptyShowAllTime: "Voir toute la période · {{count}}",
     },
     // @i18n:end filters
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{amount}} de plus que d’habitude en {{category}}",
+            body: "{{current}} sur cette période contre {{average}} d’habitude (moyenne des 3 dernières périodes), soit {{pct}} % de plus.",
+        },
+        category_down: {
+            title: "{{amount}} de moins que d’habitude en {{category}}",
+            body: "{{current}} sur cette période contre {{average}} d’habitude, soit {{pct}} % de moins.",
+        },
+        budget_over: {
+            title: "{{over}} au-dessus du budget : {{label}}",
+            body: "{{spent}} dépensés sur {{budget}}.",
+        },
+        budget_pace: {
+            title: "{{label}} : en route vers {{projected}} sur {{budget}}",
+            body: "{{spent}} dépensés jusqu’ici. Avec {{perDay}} par jour, vous restez dans le budget.",
+        },
+        unusual_transaction: {
+            title: "{{amount}} chez {{name}} : plus que d’habitude",
+            body: "Un paiement habituel en {{category}} est de {{typical}}. Celui-ci date du {{date}}.",
+        },
+        subscription: {
+            title: "{{amount}} par mois à {{name}}",
+            body: "Prélevé {{count}} mois de suite, soit {{yearly}} par an. À vérifier si vous l’utilisez encore.",
+        },
+        savings_rate_up: {
+            title: "{{rate}} % des revenus épargnés, au-dessus de vos {{averageRate}} % habituels",
+            body: "{{saved}} épargnés sur {{income}} de revenus sur cette période.",
+        },
+        savings_rate_down: {
+            title: "{{rate}} % des revenus épargnés, en dessous de vos {{averageRate}} % habituels",
+            body: "{{saved}} épargnés sur {{income}} de revenus sur cette période.",
+        },
+        top_merchant: {
+            title: "{{pct}} % des dépenses sont allés à {{name}}",
+            body: "{{amount}} sur {{total}} en {{count}} paiements.",
+        },
+        no_income: {
+            title: "Aucun revenu saisi pour l’instant",
+            body: "{{spent}} de dépenses sont saisis mais aucun revenu : l’épargne et le reste ne peuvent pas être évalués.",
+        },
+        uncategorised: {
+            title: "{{count}} paiements sans catégorie",
+            body: "{{amount}} ne sont pas classés. Leur donner une catégorie rend toutes les autres analyses plus justes.",
+        },
+        fixed_cost: {
+            title: "{{amount}} par mois pour {{name}}",
+            body: "Une charge fixe, payée {{count}} mois de suite. Marquez-la comme récurrente pour la voir dans vos prochaines échéances.",
+        },
+        fixed_vs_flexible: {
+            title: "{{pct}} % des dépenses sont des charges fixes",
+            body: "{{fixed}} sur {{total}} sont partis en loyer, factures et assurances. {{flexible}} est la part sur laquelle vous pouvez vraiment agir.",
+        },
+        income_vs_spend: {
+            title: "{{left}} restants pour {{days}} jours",
+            body: "{{income}} sont entrés, {{spent}} sont dépensés et {{upcoming}} restent à payer. Cela fait {{perDay}} par jour.",
+        },
+        income_vs_spend_over: {
+            title: "{{left}} dépensés de plus que les revenus",
+            body: "{{income}} sont entrés ; {{spent}} sont sortis et {{upcoming}} restent à payer.",
+        },
+        income_vs_spend_done: {
+            title: "{{left}} restants à la fin",
+            body: "{{income}} sont entrés et {{spent}} sont sortis.",
+        },
+        streak: {
+            title: "{{label}} : sous le budget {{count}} périodes de suite",
+            body: "Chacune des {{count}} dernières périodes s’est terminée sous le budget de {{budget}}.",
+        },
+        weekend_spike: {
+            title: "{{weekend}} par jour le week-end, {{weekday}} en semaine",
+            body: "{{pct}} % des dépenses variables de cette période sont tombés un samedi ou un dimanche.",
+        },
+        end_of_cycle_squeeze: {
+            title: "La dernière semaine tourne à {{lastWeek}} par jour",
+            body: "Sur {{count}} de vos {{periods}} dernières périodes, la dépense quotidienne de la dernière semaine est tombée à moins de la moitié des {{earlier}} par jour d’avant. Mieux la répartir évite la fin de période serrée.",
+        },
+    },
+    // @i18n:end insight
 };

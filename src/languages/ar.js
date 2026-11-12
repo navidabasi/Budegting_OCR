@@ -1023,54 +1023,6 @@ export const ar = {
         },
     },
     // @i18n:end trips
-    // @i18n:begin insight
-    insight: {
-        category_up: {
-            title: "{{category}} ارتفعت بنسبة {{pct}}٪",
-            body: "{{category}} بلغت {{current}} هذا الشهر مقابل متوسط 3 أشهر قدره {{average}} (+{{amount}}).",
-        },
-        category_down: {
-            title: "{{category}} انخفضت بنسبة {{pct}}٪",
-            body: "{{category}} بلغت {{current}} هذا الشهر مقابل متوسط 3 أشهر قدره {{average}} (−{{amount}}).",
-        },
-        budget_over: {
-            title: "تم تجاوز {{label}}",
-            body: "أنفقت {{spent}} من {{budget}}، بزيادة {{over}}.",
-        },
-        budget_pace: {
-            title: "{{label}} في طريقه للتجاوز",
-            body: "بهذا المعدل ستنفق نحو {{projected}} من {{budget}}. للبقاء ضمن الميزانية التزم بـ {{perDay}} يوميًا.",
-        },
-        unusual_transaction: {
-            title: "دفعة {{category}} كبيرة بشكل غير معتاد",
-            body: "{{name}} في {{date}}: {{amount}}، مقابل المعتاد {{typical}} في {{category}}.",
-        },
-        subscription: {
-            title: "{{name}} يبدو كاشتراك",
-            body: "{{name}} خصم نحو {{amount}} لمدة {{count}} أشهر متتالية وغير مُعلَّم كمتكرر. أي {{yearly}} في السنة.",
-        },
-        savings_rate_up: {
-            title: "تدّخر أكثر من المعتاد",
-            body: "معدل الادخار {{rate}}٪ هذا الشهر مقابل {{averageRate}}٪ في المتوسط ({{saved}} من دخل {{income}}).",
-        },
-        savings_rate_down: {
-            title: "تدّخر أقل من المعتاد",
-            body: "معدل الادخار {{rate}}٪ هذا الشهر مقابل {{averageRate}}٪ في المتوسط ({{saved}} من دخل {{income}}).",
-        },
-        top_merchant: {
-            title: "{{name}} يمثل {{pct}}٪ من إنفاقك",
-            body: "{{amount}} من {{total}} هذا الشهر ذهبت إلى {{name}} ({{count}} دفعات).",
-        },
-        no_income: {
-            title: "لم يُسجَّل دخل هذا الشهر",
-            body: "سجّلت إنفاقًا بقيمة {{spent}} دون دخل، لذا قد يكون معدل الادخار والمبلغ الآمن غير دقيقين.",
-        },
-        uncategorised: {
-            title: "{{count}} معاملات بلا فئة",
-            body: "{{count}} دفعات ({{amount}}) بلا فئة مما يقلل موثوقية تحليل الفئات.",
-        },
-    },
-    // @i18n:end insight
     // @i18n:begin home
     home: {
         eyebrow: "أين ذهب مالي",
@@ -2036,4 +1988,84 @@ export const ar = {
         emptyShowAllTime: "عرض كل الوقت · {{count}}",
     },
     // @i18n:end filters
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{amount}} أكثر من المعتاد على {{category}}",
+            body: "{{current}} في هذه الفترة مقابل {{average}} المعتادة (متوسط آخر 3 فترات)، بزيادة {{pct}}%.",
+        },
+        category_down: {
+            title: "{{amount}} أقل من المعتاد على {{category}}",
+            body: "{{current}} في هذه الفترة مقابل {{average}} المعتادة، بانخفاض {{pct}}%.",
+        },
+        budget_over: {
+            title: "{{over}} فوق الميزانية: {{label}}",
+            body: "أُنفق {{spent}} من {{budget}}.",
+        },
+        budget_pace: {
+            title: "{{label}}: في الطريق إلى {{projected}} من {{budget}}",
+            body: "أُنفق {{spent}} حتى الآن. بمعدل {{perDay}} يوميًا تبقى ضمن الميزانية.",
+        },
+        unusual_transaction: {
+            title: "{{amount}} لدى {{name}}: أكبر من المعتاد",
+            body: "الدفعة المعتادة في {{category}} هي {{typical}}. هذه كانت بتاريخ {{date}}.",
+        },
+        subscription: {
+            title: "{{amount}} شهريًا إلى {{name}}",
+            body: "خُصم {{count}} أشهر متتالية، أي {{yearly}} سنويًا. يستحق نظرة إن كنت ما زلت تستخدمه.",
+        },
+        savings_rate_up: {
+            title: "ادُّخر {{rate}}% من الدخل، أعلى من {{averageRate}}% المعتادة",
+            body: "ادُّخر {{saved}} من دخل {{income}} في هذه الفترة.",
+        },
+        savings_rate_down: {
+            title: "ادُّخر {{rate}}% من الدخل، أقل من {{averageRate}}% المعتادة",
+            body: "ادُّخر {{saved}} من دخل {{income}} في هذه الفترة.",
+        },
+        top_merchant: {
+            title: "{{pct}}% من الإنفاق ذهب إلى {{name}}",
+            body: "{{amount}} من {{total}} في {{count}} دفعات.",
+        },
+        no_income: {
+            title: "لم يُسجَّل أي دخل بعد",
+            body: "سُجّل إنفاق بقيمة {{spent}} دون أي دخل، فلا يمكن تقدير الادخار أو المتبقي.",
+        },
+        uncategorised: {
+            title: "{{count}} دفعات بلا فئة",
+            body: "{{amount}} غير مصنّفة. تصنيفها يجعل كل التحليلات الأخرى أدق.",
+        },
+        fixed_cost: {
+            title: "{{amount}} شهريًا مقابل {{name}}",
+            body: "تكلفة ثابتة، دُفعت {{count}} أشهر متتالية. علّمها كمتكررة لتظهر ضمن فواتيرك القادمة.",
+        },
+        fixed_vs_flexible: {
+            title: "{{pct}}% من الإنفاق تكاليف ثابتة",
+            body: "{{fixed}} من {{total}} ذهبت للإيجار والفواتير والتأمين. {{flexible}} هو ما يمكنك التحكم به فعلًا.",
+        },
+        income_vs_spend: {
+            title: "تبقّى {{left}} لمدة {{days}} يومًا",
+            body: "دخل {{income}}، أُنفق {{spent}} وما زال {{upcoming}} مستحقًا. أي {{perDay}} يوميًا.",
+        },
+        income_vs_spend_over: {
+            title: "أُنفق {{left}} أكثر مما دخل",
+            body: "دخل {{income}}؛ خرج {{spent}} وما زال {{upcoming}} مستحقًا.",
+        },
+        income_vs_spend_done: {
+            title: "تبقّى {{left}} في النهاية",
+            body: "دخل {{income}} وخرج {{spent}}.",
+        },
+        streak: {
+            title: "{{label}}: تحت الميزانية {{count}} فترات متتالية",
+            body: "كل واحدة من آخر {{count}} فترات انتهت تحت ميزانية {{budget}}.",
+        },
+        weekend_spike: {
+            title: "{{weekend}} يوميًا في عطلة نهاية الأسبوع، {{weekday}} في أيام الأسبوع",
+            body: "{{pct}}% من الإنفاق المتغير في هذه الفترة وقع يومي السبت والأحد.",
+        },
+        end_of_cycle_squeeze: {
+            title: "الأسبوع الأخير يمضي بـ{{lastWeek}} يوميًا",
+            body: "في {{count}} من آخر {{periods}} فترات، انخفض الإنفاق اليومي في الأسبوع الأخير إلى أقل من نصف {{earlier}} يوميًا قبله. توزيعه بشكل أكثر توازنًا يجنّبك الضيق.",
+        },
+    },
+    // @i18n:end insight
 };

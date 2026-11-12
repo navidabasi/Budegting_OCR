@@ -8,11 +8,11 @@ const ctx = { t: (k, p) => tForLanguage('en', k, p), money: (n) => `€${n}`, lo
 describe('findingText', () => {
     it('translates with formatted money and localised category', () => {
         const f = { i18nKey: 'insight.category_up', params: { category: 'Dining', pct: 38, current: 212, average: 154, amount: 58 }, title: 'x', body: 'y' };
-        expect(findingText(f, ctx)).toEqual({ title: 'Dining is up 38%', body: 'Dining is €212 this month against a 3-month average of €154 (+€58).' });
+        expect(findingText(f, ctx)).toEqual({ title: '€58 more on Dining than usual', body: '€212 this period against your usual €154 (the average of your last 3 periods), 38% more.' });
     });
     it('whole-month budget label', () => {
         const f = { i18nKey: 'insight.budget_over', params: { label: 'Total', category: undefined, spent: 2100, budget: 2000, over: 100 } };
-        expect(findingText(f, ctx).title).toBe('Whole month exceeded');
+        expect(findingText(f, ctx).title).toBe('€100 over budget: Whole month');
     });
     it('falls back to the English text for unknown keys', () => {
         expect(findingText({ i18nKey: 'insight.nope', title: 'T', body: 'B' }, ctx)).toEqual({ title: 'T', body: 'B' });

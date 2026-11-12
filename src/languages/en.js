@@ -1147,54 +1147,6 @@ export const en = {
         },
     },
     // @i18n:end trips
-    // @i18n:begin insight
-    insight: {
-        category_up: {
-            title: "{{category}} is up {{pct}}%",
-            body: "{{category}} is {{current}} this month against a 3-month average of {{average}} (+{{amount}}).",
-        },
-        category_down: {
-            title: "{{category}} is down {{pct}}%",
-            body: "{{category}} is {{current}} this month against a 3-month average of {{average}} (−{{amount}}).",
-        },
-        budget_over: {
-            title: "{{label}} exceeded",
-            body: "You spent {{spent}} of {{budget}}, {{over}} over.",
-        },
-        budget_pace: {
-            title: "{{label}} on track to be exceeded",
-            body: "At this pace you will spend about {{projected}} of {{budget}}. To stay on budget, keep to {{perDay}} a day.",
-        },
-        unusual_transaction: {
-            title: "Unusually large {{category}} payment",
-            body: "{{name}} on {{date}}: {{amount}}, against a typical {{typical}} for {{category}}.",
-        },
-        subscription: {
-            title: "{{name}} looks like a subscription",
-            body: "{{name}} charged about {{amount}} {{count}} months in a row and is not marked as recurring. That is {{yearly}} a year.",
-        },
-        savings_rate_up: {
-            title: "You are saving more than usual",
-            body: "Savings rate is {{rate}}% this month against {{averageRate}}% on average ({{saved}} saved of {{income}} income).",
-        },
-        savings_rate_down: {
-            title: "You are saving less than usual",
-            body: "Savings rate is {{rate}}% this month against {{averageRate}}% on average ({{saved}} saved of {{income}} income).",
-        },
-        top_merchant: {
-            title: "{{name}} is {{pct}}% of your spending",
-            body: "{{amount}} of {{total}} this month went to {{name}} ({{count}} payments).",
-        },
-        no_income: {
-            title: "No income logged this month",
-            body: "You logged {{spent}} of spending but no income, so savings rate and safe-to-spend may be off.",
-        },
-        uncategorised: {
-            title: "{{count}} transactions have no category",
-            body: "{{count}} payments ({{amount}}) are uncategorised, which makes the category insights less reliable.",
-        },
-    },
-    // @i18n:end insight
     // @i18n:begin home
     home: {
         eyebrow: "Where my money went",
@@ -2160,4 +2112,84 @@ export const en = {
         emptyShowAllTime: "Show all time · {{count}}",
     },
     // @i18n:end filters
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{amount}} more on {{category}} than usual",
+            body: "{{current}} this period against your usual {{average}} (the average of your last 3 periods), {{pct}}% more.",
+        },
+        category_down: {
+            title: "{{amount}} less on {{category}} than usual",
+            body: "{{current}} this period against your usual {{average}}, {{pct}}% less.",
+        },
+        budget_over: {
+            title: "{{over}} over budget: {{label}}",
+            body: "{{spent}} spent of {{budget}}.",
+        },
+        budget_pace: {
+            title: "{{label}}: heading for {{projected}} of {{budget}}",
+            body: "{{spent}} spent so far. Keeping to {{perDay}} a day keeps you inside the budget.",
+        },
+        unusual_transaction: {
+            title: "{{amount}} at {{name}}: larger than usual",
+            body: "A typical {{category}} payment is {{typical}}. This one was on {{date}}.",
+        },
+        subscription: {
+            title: "{{amount}} a month to {{name}}",
+            body: "Charged {{count}} months in a row, {{yearly}} a year. Worth a look if you still use it.",
+        },
+        savings_rate_up: {
+            title: "{{rate}}% of income saved, above your usual {{averageRate}}%",
+            body: "{{saved}} saved of {{income}} income this period.",
+        },
+        savings_rate_down: {
+            title: "{{rate}}% of income saved, below your usual {{averageRate}}%",
+            body: "{{saved}} saved of {{income}} income this period.",
+        },
+        top_merchant: {
+            title: "{{pct}}% of spending went to {{name}}",
+            body: "{{amount}} of {{total}} in {{count}} payments.",
+        },
+        no_income: {
+            title: "No income logged yet",
+            body: "{{spent}} of spending is logged but no income, so savings and what is left cannot be judged.",
+        },
+        uncategorised: {
+            title: "{{count}} payments have no category",
+            body: "{{amount}} is uncategorised. Giving them a category makes every other insight more accurate.",
+        },
+        fixed_cost: {
+            title: "{{amount}} a month for {{name}}",
+            body: "A fixed cost, paid {{count}} months in a row. Mark it as recurring and it shows up in your upcoming bills.",
+        },
+        fixed_vs_flexible: {
+            title: "{{pct}}% of spending is fixed costs",
+            body: "{{fixed}} of {{total}} went to rent, bills and insurance. {{flexible}} is what you can actually steer.",
+        },
+        income_vs_spend: {
+            title: "{{left}} left for {{days}} days",
+            body: "{{income}} came in, {{spent}} is spent and {{upcoming}} is still to pay. That is {{perDay}} a day.",
+        },
+        income_vs_spend_over: {
+            title: "{{left}} more spent than came in",
+            body: "{{income}} came in; {{spent}} went out and {{upcoming}} is still to pay.",
+        },
+        income_vs_spend_done: {
+            title: "{{left}} left at the end",
+            body: "{{income}} came in and {{spent}} went out.",
+        },
+        streak: {
+            title: "{{label}}: under budget {{count}} periods in a row",
+            body: "Each of the last {{count}} periods ended below the {{budget}} budget.",
+        },
+        weekend_spike: {
+            title: "{{weekend}} a day at weekends, {{weekday}} on weekdays",
+            body: "{{pct}}% of this period’s flexible spending fell on Saturdays and Sundays.",
+        },
+        end_of_cycle_squeeze: {
+            title: "The last week runs on {{lastWeek}} a day",
+            body: "In {{count}} of your last {{periods}} periods, daily spending in the final week fell to less than half of the {{earlier}} a day before it. Spreading it more evenly avoids the squeeze.",
+        },
+    },
+    // @i18n:end insight
 };

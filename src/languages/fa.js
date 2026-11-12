@@ -1041,54 +1041,6 @@ export const fa = {
         },
     },
     // @i18n:end trips
-    // @i18n:begin insight
-    insight: {
-        category_up: {
-            title: "{{category}} {{pct}}٪ افزایش یافته",
-            body: "{{category}} این ماه {{current}} است، در برابر میانگین ۳ ماه {{average}} (+{{amount}}).",
-        },
-        category_down: {
-            title: "{{category}} {{pct}}٪ کاهش یافته",
-            body: "{{category}} این ماه {{current}} است، در برابر میانگین ۳ ماه {{average}} (−{{amount}}).",
-        },
-        budget_over: {
-            title: "{{label}} از بودجه گذشت",
-            body: "{{spent}} از {{budget}} خرج کرده‌ای، {{over}} بیشتر.",
-        },
-        budget_pace: {
-            title: "{{label}} با این روند از بودجه می‌گذرد",
-            body: "با این سرعت حدود {{projected}} از {{budget}} خرج می‌کنی. برای ماندن در بودجه، روزی حداکثر {{perDay}}.",
-        },
-        unusual_transaction: {
-            title: "پرداخت غیرعادی بزرگ در {{category}}",
-            body: "{{name}} در {{date}}: {{amount}}، در حالی که معمول {{category}} حدود {{typical}} است.",
-        },
-        subscription: {
-            title: "{{name}} شبیه یک اشتراک است",
-            body: "{{name}} {{count}} ماه پشت‌سرهم حدود {{amount}} کسر کرده و تکرارشونده علامت نخورده است. سالانه {{yearly}}.",
-        },
-        savings_rate_up: {
-            title: "بیشتر از معمول پس‌انداز می‌کنی",
-            body: "نرخ پس‌انداز این ماه {{rate}}٪ است، در برابر میانگین {{averageRate}}٪ ({{saved}} از {{income}} درآمد).",
-        },
-        savings_rate_down: {
-            title: "کمتر از معمول پس‌انداز می‌کنی",
-            body: "نرخ پس‌انداز این ماه {{rate}}٪ است، در برابر میانگین {{averageRate}}٪ ({{saved}} از {{income}} درآمد).",
-        },
-        top_merchant: {
-            title: "{{name}} {{pct}}٪ از هزینه‌هایت است",
-            body: "{{amount}} از {{total}} این ماه به {{name}} رفت ({{count}} پرداخت).",
-        },
-        no_income: {
-            title: "این ماه درآمدی ثبت نشده",
-            body: "{{spent}} هزینه ثبت کرده‌ای ولی درآمدی نه؛ پس نرخ پس‌انداز و مبلغ قابل خرج ممکن است دقیق نباشد.",
-        },
-        uncategorised: {
-            title: "{{count}} تراکنش بدون دسته",
-            body: "{{count}} پرداخت ({{amount}}) دسته ندارد و تحلیل دسته‌ها کم‌دقت می‌شود.",
-        },
-    },
-    // @i18n:end insight
     // @i18n:begin home
     home: {
         eyebrow: "پولم کجا رفت",
@@ -2054,4 +2006,84 @@ export const fa = {
         emptyShowAllTime: "نمایش کل زمان · {{count}}",
     },
     // @i18n:end filters
+    // @i18n:begin insight
+    insight: {
+        category_up: {
+            title: "{{amount}} بیشتر از معمول برای {{category}}",
+            body: "{{current}} در این دوره در برابر {{average}} همیشگی (میانگین ۳ دوره قبل)، {{pct}}٪ بیشتر.",
+        },
+        category_down: {
+            title: "{{amount}} کمتر از معمول برای {{category}}",
+            body: "{{current}} در این دوره در برابر {{average}} همیشگی، {{pct}}٪ کمتر.",
+        },
+        budget_over: {
+            title: "{{over}} بیشتر از بودجه: {{label}}",
+            body: "{{spent}} از {{budget}} خرج شده.",
+        },
+        budget_pace: {
+            title: "{{label}}: در مسیر {{projected}} از {{budget}}",
+            body: "تا اینجا {{spent}} خرج شده. با روزی {{perDay}} در بودجه می‌مانید.",
+        },
+        unusual_transaction: {
+            title: "{{amount}} در {{name}}: بیشتر از معمول",
+            body: "پرداخت معمول {{category}} حدود {{typical}} است. این یکی در {{date}} بود.",
+        },
+        subscription: {
+            title: "ماهی {{amount}} به {{name}}",
+            body: "{{count}} ماه پیاپی کسر شده، سالی {{yearly}}. اگر هنوز استفاده می‌کنید نگاهی بیندازید.",
+        },
+        savings_rate_up: {
+            title: "{{rate}}٪ از درآمد پس‌انداز شده، بالاتر از {{averageRate}}٪ همیشگی",
+            body: "{{saved}} از {{income}} درآمد این دوره پس‌انداز شده.",
+        },
+        savings_rate_down: {
+            title: "{{rate}}٪ از درآمد پس‌انداز شده، پایین‌تر از {{averageRate}}٪ همیشگی",
+            body: "{{saved}} از {{income}} درآمد این دوره پس‌انداز شده.",
+        },
+        top_merchant: {
+            title: "{{pct}}٪ از خرج‌ها به {{name}} رفته",
+            body: "{{amount}} از {{total}} در {{count}} پرداخت.",
+        },
+        no_income: {
+            title: "هنوز درآمدی ثبت نشده",
+            body: "{{spent}} خرج ثبت شده اما درآمدی نه؛ پس‌انداز و باقی‌مانده قابل ارزیابی نیست.",
+        },
+        uncategorised: {
+            title: "{{count}} پرداخت بدون دسته",
+            body: "{{amount}} دسته‌بندی نشده. با دسته‌دادن به آن‌ها بقیه تحلیل‌ها دقیق‌تر می‌شود.",
+        },
+        fixed_cost: {
+            title: "ماهی {{amount}} برای {{name}}",
+            body: "هزینه ثابت، {{count}} ماه پیاپی پرداخت شده. آن را تکرارشونده علامت بزنید تا در قبض‌های پیش رو دیده شود.",
+        },
+        fixed_vs_flexible: {
+            title: "{{pct}}٪ از خرج‌ها هزینه ثابت است",
+            body: "{{fixed}} از {{total}} صرف اجاره، قبض‌ها و بیمه شده. {{flexible}} بخشی است که واقعاً می‌توانید تغییرش دهید.",
+        },
+        income_vs_spend: {
+            title: "{{left}} برای {{days}} روز مانده",
+            body: "{{income}} وارد شده، {{spent}} خرج شده و {{upcoming}} هنوز باید پرداخت شود. یعنی روزی {{perDay}}.",
+        },
+        income_vs_spend_over: {
+            title: "{{left}} بیشتر از درآمد خرج شده",
+            body: "{{income}} وارد شده؛ {{spent}} خارج شده و {{upcoming}} هنوز باید پرداخت شود.",
+        },
+        income_vs_spend_done: {
+            title: "{{left}} در پایان مانده",
+            body: "{{income}} وارد و {{spent}} خارج شده.",
+        },
+        streak: {
+            title: "{{label}}: {{count}} دوره پیاپی زیر بودجه",
+            body: "هر کدام از {{count}} دوره اخیر زیر بودجه {{budget}} تمام شده.",
+        },
+        weekend_spike: {
+            title: "روزی {{weekend}} در آخر هفته، {{weekday}} در روزهای کاری",
+            body: "{{pct}}٪ از خرج‌های متغیر این دوره در شنبه و یکشنبه بوده.",
+        },
+        end_of_cycle_squeeze: {
+            title: "هفته آخر با روزی {{lastWeek}} می‌گذرد",
+            body: "در {{count}} دوره از {{periods}} دوره اخیر، خرج روزانه هفته آخر به کمتر از نصف روزی {{earlier}} قبل از آن رسیده. پخش یکنواخت‌تر جلوی این فشار را می‌گیرد.",
+        },
+    },
+    // @i18n:end insight
 };

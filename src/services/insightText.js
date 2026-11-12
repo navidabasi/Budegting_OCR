@@ -1,5 +1,5 @@
 // Turns an insightsEngine finding into translated text and a route (plan P6-T3). Pure.
-const MONEY_PARAMS = ['amount', 'current', 'average', 'spent', 'budget', 'over', 'projected', 'perDay', 'typical', 'yearly', 'saved', 'income', 'total'];
+const MONEY_PARAMS = ['amount', 'current', 'average', 'spent', 'budget', 'over', 'projected', 'perDay', 'typical', 'yearly', 'saved', 'income', 'total', 'fixed', 'flexible', 'left', 'upcoming', 'weekend', 'weekday', 'lastWeek', 'earlier'];
 
 /**
  * findingText(finding, { t, money, localizeCategory }) -> { title, body }
@@ -35,6 +35,7 @@ export function findingHref(f) {
         if (params.merchant) p.set('merchant', params.merchant);
         return `/activity?${p.toString()}`;
     }
+    if (link.screen === 'breakdown') return params.m ? `/breakdown?m=${encodeURIComponent(params.m)}` : '/breakdown';
     if (link.screen === 'budgets' || link.screen === 'savings') {
         if (params.m) p.set('m', params.m);
         if (link.screen === 'savings') p.set('tab', 'savings');

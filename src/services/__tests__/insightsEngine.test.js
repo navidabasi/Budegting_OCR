@@ -65,7 +65,7 @@ describe('budget pace', () => {
         expect(of(run([tx({ total: 30 })], { budgets }), 'budget_pace')).toHaveLength(0)
         const w = [{ id: 'w', category: '*', amount: 100, startsOn: '2026-11-01' }]
         const f = of(run([tx({ total: 150 })], { budgets: w }), 'budget_over')
-        expect(f[0].title).toBe('Monthly budget exceeded')
+        expect(f[0].title).toBe('€50 over budget: Whole month')
         expect(f[0].category).toBeNull()
     })
     it('no pace warning for a closed month, but over is still reported', () => {
@@ -167,7 +167,7 @@ describe('top merchant share > 30 %', () => {
         const f = of(run([tx({ merchant: 'Esselunga S.p.A.', total: 200 }), tx({ merchant: 'Bar', total: 100 }), tx({ merchant: 'Edison', total: 100 })]), 'top_merchant')
         expect(f).toHaveLength(1)
         expect(f[0]).toMatchObject({ merchant: 'esselunga', amount: 200 })
-        expect(f[0].title).toBe('Esselunga is 50% of your spending')
+        expect(f[0].title).toBe('50% of spending went to Esselunga')
     })
     it('is exclusive at exactly 30 % and ignores tiny months', () => {
         expect(of(run([tx({ merchant: 'Lidl', total: 30 }), tx({ merchant: 'Coop', total: 25 }), tx({ merchant: 'Edison', total: 25 }), tx({ merchant: 'Conad', total: 20 })]), 'top_merchant')).toHaveLength(0) // total 100, top 30 %
@@ -238,5 +238,100 @@ describe('ordering and determinism', () => {
         expect(run([])).toEqual([])
         expect(THRESHOLDS.categoryChangePct).toBe(0.25)
         expect(THRESHOLDS.topMerchantShare).toBe(0.3)
+    })
+})
+
+// ---- pass 3 (A2) -----------------------------------------------------------------------
+describe('fixed costs are not subscriptions', () => {
+    const monthly = (merchant, category, total, o = {}) => ['2026-09-02', '2026-10-02', '2026-11-01'].map((date) => tx({ merchant, category, total, date, ...o }))
+    it('rent is reported as a fixed cost with a link to all its payments', () => {
+        const f = run(monthly('Rent', 'Housing', 380))
+        expect(of(f, 'subscription')).toHaveLength(0)
+        const [fixed] = of(f, 'fixed_cost')
+        expect(fixed).toMatchObject({ severity: 'low', amount: 380, merchant: 'rent', i18nKey: 'insight.fixed_cost', title: '€380 a month for Rent' })
+        expect(fixed.link).toEqual({ screen: 'activity', params: { m: 'all', merchant: 'rent' } })
+    })
+    it('utilities, insurance and rent filed under Other are fixed costs; Klarna and friend debts are not reported at all', () => {
+        expect(of(run(monthly('Allianz', 'Insurance', 32)), 'fixed_cost')).toHaveLength(1)
+        expect(of(run(monthly('Affitto', 'Other', 380)), 'fixed_cost')).toHaveLength(1)
+        const debt = run([...monthly('Klarna', 'Shopping', 39.9), ...monthly('Marco', 'Debt', 50), ...monthly('Luca', 'Other', 20, { groupName: 'Debts' })])
+        expect(of(debt, 'subscription')).toHaveLength(0)
+        expect(of(debt, 'fixed_cost')).toHaveLength(0)
+    })
+    it('a real subscription still reads as one, number first', () => {
+        const [s] = of(run(monthly('Spotify', 'Subscriptions', 11.99)), 'subscription')
+        expect(s.title).toBe('€12 a month to Spotify')
+        expect(s.params).toMatchObject({ count: 3, yearly: 143.88 })
+    })
+})
+
+describe('fixed vs flexible', () => {
+    it('reports the share of spending that is fixed', () => {
+        const [f] = of(run([tx({ merchant: 'Rent', category: 'Housing', total: 380 }), tx({ merchant: 'Enel Energia', category: 'Utilities', total: 20 }), tx({ merchant: 'Klarna', category: 'Debt', total: 100 }), tx({ category: 'Dining', total: 300 })]), 'fixed_vs_flexible')
+        expect(f.params).toEqual({ pct: 50, fixed: 400, flexible: 300, total: 800 })
+        expect(f.link).toEqual({ screen: 'breakdown', params: { m: '2026-11' } })
+    })
+    it('nothing without fixed costs or for a tiny period', () => {
+        expect(of(run([tx({ total: 500 })]), 'fixed_vs_flexible')).toHaveLength(0)
+        expect(of(run([tx({ merchant: 'Rent', category: 'Housing', total: 50 })]), 'fixed_vs_flexible')).toHaveLength(0)
+    })
+})
+
+describe('income vs spend', () => {
+    const income = tx({ transactionType: 'income', category: 'Income', merchant: 'Salary', total: 1400, date: '2026-11-01' })
+    it('running period: what is left and per day, counting unpaid bills', () => {
+        const [f] = of(run([income, tx({ total: 600 }), tx({ total: 140, trackingData: { isTracked: true, status: 'open' } })]), 'income_vs_spend')
+        expect(f.params).toEqual({ income: 1400, spent: 600, upcoming: 140, left: 660, days: 11, perDay: 60 })
+        expect(f).toMatchObject({ severity: 'low', title: '€660 left for 11 days' })
+    })
+    it('more spent than came in: medium while running, high once the period is over', () => {
+        expect(of(run([income, tx({ total: 1500 })]), 'income_vs_spend_over')[0]).toMatchObject({ severity: 'medium', amount: 100 })
+        const closed = computeInsights({ transactions: [income, tx({ total: 1500 })], month: '2026-11', today: '2026-12-03' })
+        expect(of(closed, 'income_vs_spend_over')[0].severity).toBe('high')
+    })
+    it('a finished period with money left is a win; no income, no finding', () => {
+        const closed = computeInsights({ transactions: [income, tx({ total: 900 })], month: '2026-11', today: '2026-12-03' })
+        expect(of(closed, 'income_vs_spend_done')[0]).toMatchObject({ severity: 'positive', amount: 500 })
+        expect(run([tx({ total: 900 })]).filter((f) => f.type.startsWith('income_vs_spend'))).toHaveLength(0)
+    })
+})
+
+describe('budget streak', () => {
+    const budgets = [{ id: 'b', category: 'Dining', amount: 100, currency: 'EUR', startsOn: '2026-01-01' }]
+    const months = (amounts) => amounts.map((total, i) => tx({ total, date: `2026-${String(11 - amounts.length + i).padStart(2, '0')}-10` }))
+    it('a category under budget several periods in a row is a win', () => {
+        const [f] = of(run([...months([150, 80, 90, 70]), tx({ total: 20 })], { budgets }), 'streak')
+        expect(f).toMatchObject({ severity: 'positive', category: 'Dining', amount: 3 })
+        expect(f.params).toMatchObject({ count: 3, budget: 100 })
+    })
+    it('one period is not a streak, and an overspent period breaks it', () => {
+        expect(of(run([...months([150, 80])], { budgets }), 'streak')).toHaveLength(0)
+        expect(of(run([...months([80, 90, 150])], { budgets }), 'streak')).toHaveLength(0)
+    })
+})
+
+describe('weekend spike', () => {
+    it('flags weekends that cost clearly more per day than weekdays', () => {
+        // November 2026: 1, 7, 8, 14, 15 are weekend days up to the 20th
+        const weekend = ['2026-11-07', '2026-11-08', '2026-11-14', '2026-11-15'].map((date) => tx({ total: 40, date }))
+        const week = ['2026-11-03', '2026-11-10', '2026-11-17'].map((date) => tx({ total: 15, date }))
+        const [f] = of(run([...weekend, ...week]), 'weekend_spike')
+        expect(f.params).toEqual({ weekend: 32, weekday: 3, pct: 78, weekendDays: 5 })
+    })
+    it('not early in the period, not when rent falls on a Saturday', () => {
+        expect(of(computeInsights({ transactions: [tx({ total: 200, date: '2026-11-07' })], month: '2026-11', today: '2026-11-09' }), 'weekend_spike')).toHaveLength(0)
+        expect(of(run([tx({ merchant: 'Rent', category: 'Housing', total: 380, date: '2026-11-07' }), tx({ total: 30, date: '2026-11-10' })]), 'weekend_spike')).toHaveLength(0)
+    })
+})
+
+describe('end of cycle squeeze', () => {
+    const period = (m, late) => [...['03', '08', '13', '18', '22'].map((d) => tx({ total: 50, date: `2026-${m}-${d}` })), tx({ total: late, date: `2026-${m}-27` })]
+    it('flags periods whose last week runs on less than half of the days before', () => {
+        const [f] = of(run([...period('08', 10), ...period('09', 14), ...period('10', 200)]), 'end_of_cycle_squeeze')
+        expect(f.params).toMatchObject({ count: 2, periods: 3 })
+        expect(f.params.lastWeek).toBeLessThan(f.params.earlier / 2)
+    })
+    it('needs two such periods', () => {
+        expect(of(run([...period('08', 10), ...period('09', 200), ...period('10', 200)]), 'end_of_cycle_squeeze')).toHaveLength(0)
     })
 })

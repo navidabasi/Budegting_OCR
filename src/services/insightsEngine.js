@@ -5,10 +5,11 @@
 //
 // severity: 'high' | 'medium' | 'low' | 'positive'. Ordering: severity, then amount (desc), then id.
 import { displayName, merchantKey } from '../utils/merchant';
-import { daysBetween, dateKey, monthKey } from '../utils/monthMath';
-import { inPeriod, periodEnd, periodKey, periodProgress, periodSpecOf, previousPeriods } from '../utils/period';
-import { isPlanned, monthTotals, round2, shareAmount, spentByCategory, typeOf } from '../utils/money';
-import { WHOLE_MONTH, categoryBudgets } from '../utils/budgetMath';
+import { addDays, daysBetween, dateKey, monthKey } from '../utils/monthMath';
+import { inPeriod, periodEnd, periodKey, periodProgress, periodSpecOf, previousPeriods, toRange } from '../utils/period';
+import { excludedTripIds, isPlanned, monthTotals, round2, shareAmount, spentByCategory, typeOf } from '../utils/money';
+import { WHOLE_MONTH, activeBudgets, categoryBudgets } from '../utils/budgetMath';
+import { spendClass } from '../utils/spendClass';
 
 export const THRESHOLDS = {
     categoryChangePct: 0.25,
@@ -29,6 +30,15 @@ export const THRESHOLDS = {
     noIncomeMinSpent: 100,
     noIncomeMinDay: 5,
     uncategorisedMin: 5,
+    fixedShareMinSpent: 100,
+    streakMinPeriods: 2,
+    streakLookback: 6,
+    weekendMinDays: 14,
+    weekendRatio: 1.5,
+    weekendMinExtra: 20,
+    squeezeMinSpent: 100,
+    squeezeRatio: 0.5,
+    squeezeMinPeriods: 2,
 };
 
 export const INSIGHT_KEYS = [
@@ -38,6 +48,14 @@ export const INSIGHT_KEYS = [
     'insight.budget_pace',
     'insight.unusual_transaction',
     'insight.subscription',
+    'insight.fixed_cost',
+    'insight.fixed_vs_flexible',
+    'insight.income_vs_spend',
+    'insight.income_vs_spend_over',
+    'insight.income_vs_spend_done',
+    'insight.streak',
+    'insight.weekend_spike',
+    'insight.end_of_cycle_squeeze',
     'insight.savings_rate_down',
     'insight.savings_rate_up',
     'insight.top_merchant',
@@ -88,8 +106,8 @@ function categoryChanges(ctx) {
             id: `category_${up ? 'up' : 'down'}:${category}:${periodKey(month)}`,
             type: up ? 'category_up' : 'category_down',
             severity: up ? (pct >= t.categoryChangeHighPct && diff >= t.categoryChangeHighAmount ? 'high' : 'medium') : 'positive',
-            title: up ? `${category} is up ${params.pct}%` : `${category} is down ${params.pct}%`,
-            body: `${category} is ${fmt(value)} this month against a 3-month average of ${fmt(avg)} (${up ? '+' : '-'}${fmt(diff)}).`,
+            title: up ? `${fmt(diff)} more on ${category} than usual` : `${fmt(diff)} less on ${category} than usual`,
+            body: `${fmt(value)} this period against your usual ${fmt(avg)} (the average of your last 3 periods), ${params.pct}% ${up ? 'more' : 'less'}.`,
             amount: params.amount,
             category,
             merchant: null,
@@ -106,7 +124,7 @@ function budgetFindings(ctx) {
     const { transactions, budgets, trips, accounts, month, today, progress, fmt } = ctx;
     const out = [];
     for (const row of categoryBudgets(budgets, transactions, month, trips, { today, accounts })) {
-        const label = row.category === WHOLE_MONTH ? 'Monthly budget' : `${row.category} budget`;
+        const label = row.category === WHOLE_MONTH ? 'Whole month' : row.category;
         const category = row.category === WHOLE_MONTH ? null : row.category;
         if (row.status === 'over') {
             const over = row.spent - row.amount;
@@ -114,8 +132,8 @@ function budgetFindings(ctx) {
                 id: `budget_over:${row.category}:${periodKey(month)}`,
                 type: 'budget_over',
                 severity: 'high',
-                title: `${label} exceeded`,
-                body: `You spent ${fmt(row.spent)} of ${fmt(row.amount)}, ${fmt(over)} over.`,
+                title: `${fmt(over)} over budget: ${label}`,
+                body: `${fmt(row.spent)} spent of ${fmt(row.amount)}.`,
                 amount: round2(over),
                 category,
                 merchant: null,
@@ -129,8 +147,8 @@ function budgetFindings(ctx) {
                 id: `budget_pace:${row.category}:${periodKey(month)}`,
                 type: 'budget_pace',
                 severity: 'medium',
-                title: `${label} on track to be exceeded`,
-                body: `At this pace you will spend about ${fmt(row.projected)} of ${fmt(row.amount)}. To stay on budget, keep to ${fmt(row.perDayToStay)} a day.`,
+                title: `${label}: heading for ${fmt(row.projected)} of ${fmt(row.amount)}`,
+                body: `${fmt(row.spent)} spent so far. Keeping to ${fmt(row.perDayToStay)} a day keeps you inside the budget.`,
                 amount: round2(over),
                 category,
                 merchant: null,
@@ -177,8 +195,8 @@ function unusualTransactions(ctx) {
             id: `unusual_transaction:${tx.id}`,
             type: 'unusual_transaction',
             severity: 'medium',
-            title: `Unusually large ${cat} payment`,
-            body: `${name} on ${dateKey(tx.date)}: ${fmt(amount)}, against a typical ${fmt(m)} for ${cat}.`,
+            title: `${fmt(amount)} at ${name}: larger than usual`,
+            body: `A typical ${cat} payment is ${fmt(m)}. This one was on ${dateKey(tx.date)}.`,
             amount: round2(amount),
             category: cat,
             merchant: key || null,
@@ -225,24 +243,36 @@ export function detectSubscriptions(transactions, { until, thresholds = THRESHOL
     return chains.sort((a, b) => b.amount - a.amount || a.key.localeCompare(b.key));
 }
 
+/**
+ * Rent, housing, utilities and insurance repeat too, but they are fixed costs, never "subscriptions": the finding only suggests
+ * marking them recurring. Instalments and repayments (Klarna, loans, friends) are debt and are not reported here at all.
+ */
 function subscriptionFindings(ctx) {
     const { transactions, month, fmt, t } = ctx;
     const prevPeriod = previousPeriods(month, 1)[0];
+    const classOf = new Map();
+    for (const tx of transactions) if (isExpense(tx)) classOf.set(keyOf(tx), spendClass(tx, ctx.lookups));
     return detectSubscriptions(transactions, { until: periodEnd(month), thresholds: t })
         .filter((s) => inPeriod(s.lastDate, month) || inPeriod(s.lastDate, prevPeriod))
-        .map((s) => ({
-            id: `subscription:${s.key}:${periodKey(month)}`,
-            type: 'subscription',
-            severity: 'low',
-            title: `${s.name} looks like a subscription`,
-            body: `${s.name} charged about ${fmt(s.amount)} ${s.count} months in a row and is not marked as recurring. That is ${fmt(s.amount * 12)} a year.`,
-            amount: s.amount,
-            category: null,
-            merchant: s.key,
-            link: activityLink(month, { merchant: s.key }),
-            i18nKey: 'insight.subscription',
-            params: { name: s.name, amount: s.amount, count: s.count, yearly: round2(s.amount * 12) },
-        }));
+        .filter((s) => classOf.get(s.key) === 'flexible' || classOf.get(s.key) === 'fixed')
+        .map((s) => {
+            const fixed = classOf.get(s.key) === 'fixed';
+            return {
+                id: `${fixed ? 'fixed_cost' : 'subscription'}:${s.key}:${periodKey(month)}`,
+                type: fixed ? 'fixed_cost' : 'subscription',
+                severity: 'low',
+                title: fixed ? `${fmt(s.amount)} a month for ${s.name}` : `${fmt(s.amount)} a month to ${s.name}`,
+                body: fixed
+                    ? `A fixed cost, paid ${s.count} months in a row. Mark it as recurring and it shows up in your upcoming bills.`
+                    : `Charged ${s.count} months in a row, ${fmt(s.amount * 12)} a year. Worth a look if you still use it.`,
+                amount: s.amount,
+                category: null,
+                merchant: s.key,
+                link: { screen: 'activity', params: { m: 'all', merchant: s.key } },
+                i18nKey: fixed ? 'insight.fixed_cost' : 'insight.subscription',
+                params: { name: s.name, amount: s.amount, count: s.count, yearly: round2(s.amount * 12) },
+            };
+        });
 }
 
 // ---- rule 5: savings rate vs average ---------------------------------------------------
@@ -265,8 +295,8 @@ function savingsRate(ctx) {
             id: `savings_rate_${up ? 'up' : 'down'}:${periodKey(month)}`,
             type: up ? 'savings_rate_up' : 'savings_rate_down',
             severity: up ? 'positive' : cur.savingsRate < 0 ? 'high' : 'medium',
-            title: up ? 'You are saving more than usual' : cur.savingsRate < 0 ? 'You took money out of savings' : 'You are saving less than usual',
-            body: `Savings rate is ${pct(cur.savingsRate)}% this month against ${pct(avgRate)}% on average (${fmt(cur.saved)} saved of ${fmt(cur.income)} income).`,
+            title: `${pct(cur.savingsRate)}% of income saved, ${up ? 'above' : 'below'} your usual ${pct(avgRate)}%`,
+            body: `${fmt(cur.saved)} saved of ${fmt(cur.income)} income this period.`,
             amount: round2(Math.abs(cur.saved - avgSaved)),
             category: null,
             merchant: null,
@@ -302,8 +332,8 @@ function topMerchant(ctx) {
             id: `top_merchant:${top[0]}:${periodKey(month)}`,
             type: 'top_merchant',
             severity: 'low',
-            title: `${top[1].name} is ${pct}% of your spending`,
-            body: `${fmt(top[1].total)} of ${fmt(total)} this month went to ${top[1].name} (${top[1].count} payment${top[1].count === 1 ? '' : 's'}).`,
+            title: `${pct}% of spending went to ${top[1].name}`,
+            body: `${fmt(top[1].total)} of ${fmt(total)} in ${top[1].count} payment${top[1].count === 1 ? '' : 's'}.`,
             amount: round2(top[1].total),
             category: null,
             merchant: top[0],
@@ -326,8 +356,8 @@ function noIncome(ctx) {
             id: `no_income:${periodKey(month)}`,
             type: 'no_income',
             severity: 'low',
-            title: 'No income logged this month',
-            body: `You logged ${fmt(totals.spent)} of spending but no income, so savings rate and safe-to-spend may be off.`,
+            title: 'No income logged yet',
+            body: `${fmt(totals.spent)} of spending is logged but no income, so savings and what is left cannot be judged.`,
             amount: totals.spent,
             category: null,
             merchant: null,
@@ -349,8 +379,8 @@ function uncategorised(ctx) {
             id: `uncategorised:${periodKey(month)}`,
             type: 'uncategorised',
             severity: 'low',
-            title: `${list.length} transactions have no category`,
-            body: `${list.length} payments (${fmt(amount)}) are uncategorised, which makes the category insights less reliable.`,
+            title: `${list.length} payments have no category`,
+            body: `${fmt(amount)} is uncategorised. Giving them a category makes every other insight more accurate.`,
             amount,
             category: null,
             merchant: null,
@@ -361,11 +391,185 @@ function uncategorised(ctx) {
     ];
 }
 
+// ---- shared by the pass 3 rules ------------------------------------------------------------
+/** Paid expenses of a date range with their class (fixed / debt / savings / flexible); trip spending is flagged. */
+function classRows(ctx, range) {
+    const tripIds = excludedTripIds(ctx.trips);
+    const out = [];
+    for (const tx of ctx.transactions) {
+        if (!isExpense(tx) || !inPeriod(tx.date, range)) continue;
+        out.push({ date: dateKey(tx.date), amount: shareAmount(tx), cls: spendClass(tx, ctx.lookups), trip: !!(tx.groupId && tripIds.has(tx.groupId)) });
+    }
+    return out;
+}
+/** Earlier periods in which the owner was already recording (a period before the first transaction is not "zero spending"). */
+function recordedHistory(ctx, n) {
+    const first = ctx.transactions.map((tx) => dateKey(tx.date)).filter(Boolean).sort()[0];
+    return previousPeriods(ctx.month, n).filter((p) => first && periodEnd(p) >= first && ctx.transactions.some((tx) => inPeriod(tx.date, p)));
+}
+const total = (rows) => rows.reduce((s, r) => s + r.amount, 0);
+const isWeekend = (date) => {
+    const [y, m, d] = date.split('-').map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    return dow === 0 || dow === 6;
+};
+
+// ---- rule 9: how much of the spending is fixed ----------------------------------------------
+function fixedVsFlexible(ctx) {
+    const { month, fmt, t } = ctx;
+    const rows = classRows(ctx, month);
+    const all = round2(total(rows));
+    const fixed = round2(total(rows.filter((r) => r.cls === 'fixed')));
+    if (all < t.fixedShareMinSpent || fixed <= 0) return [];
+    const flexible = round2(total(rows.filter((r) => r.cls === 'flexible')));
+    const pct = Math.round((fixed / all) * 100);
+    return [
+        {
+            id: `fixed_vs_flexible:${periodKey(month)}`,
+            type: 'fixed_vs_flexible',
+            severity: 'low',
+            title: `${pct}% of spending is fixed costs`,
+            body: `${fmt(fixed)} of ${fmt(all)} went to rent, bills and insurance. ${fmt(flexible)} is what you can actually steer.`,
+            amount: fixed,
+            category: null,
+            merchant: null,
+            link: { screen: 'breakdown', params: { m: periodSpecOf(month) } },
+            i18nKey: 'insight.fixed_vs_flexible',
+            params: { pct, fixed, flexible, total: all },
+        },
+    ];
+}
+
+// ---- rule 10: income against spending: what is left for the rest of the period ------------------
+function incomeVsSpend(ctx) {
+    const { transactions, trips, accounts, month, progress, fmt } = ctx;
+    if (progress.state === 'future') return [];
+    const totals = monthTotals(transactions, month, { trips, accounts });
+    if (!(totals.income > 0)) return [];
+    const left = round2(totals.income - totals.spent - totals.upcoming);
+    const running = progress.state === 'current';
+    const params = { income: totals.income, spent: totals.spent, upcoming: totals.upcoming, left: Math.abs(left), days: progress.daysLeft, perDay: running && left > 0 ? round2(left / progress.daysLeft) : 0 };
+    const base = { amount: Math.abs(left), category: null, merchant: null, link: activityLink(month), params };
+    if (left < 0) {
+        return [{ ...base, id: `income_vs_spend_over:${periodKey(month)}`, type: 'income_vs_spend_over', severity: running ? 'medium' : 'high', title: `${fmt(left)} more spent than came in`, body: `${fmt(totals.income)} came in; ${fmt(totals.spent)} went out and ${fmt(totals.upcoming)} is still to pay.`, i18nKey: 'insight.income_vs_spend_over' }];
+    }
+    if (!running) {
+        return [{ ...base, id: `income_vs_spend_done:${periodKey(month)}`, type: 'income_vs_spend_done', severity: 'positive', title: `${fmt(left)} left at the end`, body: `${fmt(totals.income)} came in and ${fmt(totals.spent)} went out.`, i18nKey: 'insight.income_vs_spend_done' }];
+    }
+    return [{ ...base, id: `income_vs_spend:${periodKey(month)}`, type: 'income_vs_spend', severity: 'low', title: `${fmt(left)} left for ${progress.daysLeft} days`, body: `${fmt(totals.income)} came in, ${fmt(totals.spent)} is spent and ${fmt(totals.upcoming)} is still to pay. That is ${fmt(params.perDay)} a day.`, i18nKey: 'insight.income_vs_spend' }];
+}
+
+// ---- rule 11: budgets kept several periods in a row (a win) ---------------------------------------
+function streaks(ctx) {
+    const { transactions, budgets, trips, accounts, month, progress, fmt, t } = ctx;
+    const periods = [...recordedHistory(ctx, t.streakLookback), ...(progress.state === 'past' ? [month] : [])];
+    if (periods.length < t.streakMinPeriods) return [];
+    const out = [];
+    for (const b of activeBudgets(budgets, month)) {
+        let count = 0;
+        for (let i = periods.length - 1; i >= 0; i--) {
+            const p = periods[i];
+            const row = activeBudgets(budgets, p).find((x) => x.category === b.category);
+            if (!row) break;
+            const spent = b.category === WHOLE_MONTH ? monthTotals(transactions, p, { trips, accounts }).spent : spentByCategory(transactions, p, { trips, includeTrips: false })[b.category] || 0;
+            if (spent > Number(row.amount)) break;
+            count += 1;
+        }
+        if (count < t.streakMinPeriods) continue;
+        const category = b.category === WHOLE_MONTH ? null : b.category;
+        const label = category || 'Whole month';
+        out.push({
+            id: `streak:${b.category}:${periodKey(month)}`,
+            type: 'streak',
+            severity: 'positive',
+            title: `${label}: under budget ${count} periods in a row`,
+            body: `Each of the last ${count} periods ended below the ${fmt(b.amount)} budget.`,
+            amount: count,
+            category,
+            merchant: null,
+            link: budgetsLink(month, category ? { category } : {}),
+            i18nKey: 'insight.streak',
+            params: { label, category, count, budget: Number(b.amount) },
+        });
+    }
+    return out;
+}
+
+// ---- rule 12: weekends cost more per day than weekdays ---------------------------------------------
+function weekendSpike(ctx) {
+    const { month, progress, today, fmt, t } = ctx;
+    const range = toRange(month);
+    if (!range || progress.state === 'future' || progress.day < t.weekendMinDays) return [];
+    const end = progress.state === 'current' ? dateKey(today) : range.end;
+    const rows = classRows(ctx, { start: range.start, end }).filter((r) => r.cls === 'flexible' && !r.trip);
+    let weekendDays = 0;
+    let weekDays = 0;
+    for (let d = range.start; d <= end; d = addDays(d, 1)) (isWeekend(d) ? (weekendDays += 1) : (weekDays += 1));
+    if (!weekendDays || !weekDays) return [];
+    const weekendTotal = total(rows.filter((r) => isWeekend(r.date)));
+    const all = total(rows);
+    const weekend = round2(weekendTotal / weekendDays);
+    const weekday = round2((all - weekendTotal) / weekDays);
+    if (weekend < weekday * t.weekendRatio || (weekend - weekday) * weekendDays < t.weekendMinExtra) return [];
+    const pct = Math.round((weekendTotal / all) * 100);
+    return [
+        {
+            id: `weekend_spike:${periodKey(month)}`,
+            type: 'weekend_spike',
+            severity: 'low',
+            title: `${fmt(weekend)} a day at weekends, ${fmt(weekday)} on weekdays`,
+            body: `${pct}% of this period's flexible spending fell on Saturdays and Sundays.`,
+            amount: round2((weekend - weekday) * weekendDays),
+            category: null,
+            merchant: null,
+            link: activityLink(month),
+            i18nKey: 'insight.weekend_spike',
+            params: { weekend, weekday, pct, weekendDays },
+        },
+    ];
+}
+
+// ---- rule 13: money gets tight in the last week of the period ----------------------------------------
+function endOfCycleSqueeze(ctx) {
+    const { month, fmt, t } = ctx;
+    const periods = recordedHistory(ctx, 3);
+    const squeezed = [];
+    for (const p of periods) {
+        const r = toRange(p);
+        const cutoff = addDays(r.end, -6);
+        if (cutoff <= r.start) continue;
+        const rows = classRows(ctx, r).filter((x) => x.cls === 'flexible' && !x.trip);
+        if (total(rows) < t.squeezeMinSpent) continue;
+        const lastDaily = total(rows.filter((x) => x.date >= cutoff)) / 7;
+        const earlierDaily = total(rows.filter((x) => x.date < cutoff)) / (daysBetween(r.start, cutoff) || 1);
+        if (earlierDaily > 0 && lastDaily <= earlierDaily * t.squeezeRatio) squeezed.push({ lastDaily, earlierDaily });
+    }
+    if (squeezed.length < t.squeezeMinPeriods) return [];
+    const mid = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const lastWeek = round2(mid(squeezed.map((x) => x.lastDaily)));
+    const earlier = round2(mid(squeezed.map((x) => x.earlierDaily)));
+    return [
+        {
+            id: `end_of_cycle_squeeze:${periodKey(month)}`,
+            type: 'end_of_cycle_squeeze',
+            severity: 'low',
+            title: `The last week runs on ${fmt(lastWeek)} a day`,
+            body: `In ${squeezed.length} of your last ${periods.length} periods, daily spending in the final week fell to less than half of the ${fmt(earlier)} a day before it. Spreading it more evenly avoids the squeeze.`,
+            amount: round2((earlier - lastWeek) * 7),
+            category: null,
+            merchant: null,
+            link: activityLink(month),
+            i18nKey: 'insight.end_of_cycle_squeeze',
+            params: { lastWeek, earlier, count: squeezed.length, periods: periods.length },
+        },
+    ];
+}
+
 /**
- * computeInsights({ transactions, budgets, goals, accounts, trips, month, today, currency, thresholds })
+ * computeInsights({ transactions, budgets, goals, accounts, trips, groups, month, today, currency, thresholds })
  * -> findings sorted by severity (high first), then amount (desc), then id.
  */
-export function computeInsights({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], month, today = new Date(), currency = 'EUR', thresholds = {} } = {}) {
+export function computeInsights({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], groups = [], month, today = new Date(), currency = 'EUR', thresholds = {} } = {}) {
     const m = month || monthKey(today);
     const ctx = {
         transactions: (transactions || []).filter(Boolean),
@@ -373,6 +577,7 @@ export function computeInsights({ transactions = [], budgets = [], goals = [], a
         goals,
         accounts,
         trips,
+        lookups: { groups: [...(groups || []), ...(trips || [])], accounts },
         month: m,
         today,
         progress: periodProgress(m, today),
@@ -388,6 +593,11 @@ export function computeInsights({ transactions = [], budgets = [], goals = [], a
         ...topMerchant(ctx),
         ...noIncome(ctx),
         ...uncategorised(ctx),
+        ...fixedVsFlexible(ctx),
+        ...incomeVsSpend(ctx),
+        ...streaks(ctx),
+        ...weekendSpike(ctx),
+        ...endOfCycleSqueeze(ctx),
     ];
     return findings.sort(
         (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || (b.amount ?? 0) - (a.amount ?? 0) || a.id.localeCompare(b.id)
