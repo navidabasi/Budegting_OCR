@@ -28,7 +28,7 @@ describe('buildAggregates', () => {
     const agg = buildAggregates(input)
 
     it('has the documented sections', () => {
-        expect(Object.keys(agg).sort()).toEqual(['budgets', 'categoriesByMonth', 'currency', 'dayOfMonth', 'daysInMonth', 'dismissed', 'findings', 'goals', 'month', 'monthState', 'opportunities', 'period', 'recurring', 'savingsSeries', 'summary', 'topMerchants', 'trips', 'verdict', 'version'])
+        expect(Object.keys(agg).sort()).toEqual(['budgets', 'categoriesByMonth', 'currency', 'dayOfMonth', 'daysInMonth', 'dismissed', 'findings', 'goals', 'month', 'monthState', 'opportunities', 'patterns', 'period', 'recurring', 'savingsSeries', 'summary', 'topMerchants', 'trips', 'verdict', 'version'])
         expect(agg.month).toBe('2026-11')
         expect(agg.dayOfMonth).toBe(20)
         expect(agg.summary).toMatchObject({ spent: 50, income: 2000, saved: 400 })
@@ -206,3 +206,20 @@ const monthTotalsSpent = (d, period) => {
     const t = monthTotals(d.transactions, period, { trips: d.trips, accounts: d.accounts })
     return t.spent + t.upcoming
 }
+
+import { buildAggregates as buildAgg2, hashAggregates as hash2 } from '../insightsAggregates';
+import { computePatterns as patterns2 } from '../patternInsights';
+import { ownerLike as owner2, TODAY as TODAY2 } from '../__fixtures__/ownerLike';
+import { currentCyclePeriod as cycle2, normalizeConfig as norm2 } from '../../utils/payCycle';
+describe('B-T4: the top patterns go into the aggregates, under the size cap', () => {
+    const d = owner2();
+    const period = cycle2(norm2(d.config), new Date(`${TODAY2}T12:00:00Z`));
+    const top = patterns2({ ...d, period }).top;
+    const agg2 = buildAgg2({ ...d, month: period, today: TODAY2, patterns: top });
+    it('adds P-ids, kinds and figures, no record ids', () => {
+        expect(agg2.patterns).toEqual([expect.objectContaining({ id: 'P1', patternKind: 'merchant_cadence', merchant: 'Tabaccheria Centrale', everyDays: 5.9 })]);
+        expect(JSON.stringify(agg2.patterns)).not.toMatch(/"s\d+"/);
+        expect(Buffer.byteLength(JSON.stringify(agg2))).toBeLessThan(120 * 1024);
+        expect(hash2(agg2)).not.toBe(hash2({ ...agg2, patterns: [] }));
+    });
+});

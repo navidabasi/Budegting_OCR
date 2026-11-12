@@ -1,5 +1,6 @@
 import { subcategoryLabel } from '../receipts/subcategoryLabel';
 import { opportunityText } from '../../services/opportunityText';
+import { patternText } from '../../services/patternText';
 
 const signed = (money, v) => `${v > 0 ? '+' : ''}${money(v)}`;
 
@@ -79,6 +80,11 @@ export function factText(f, { t, money, localizeCategory = (x) => x }) {
             return t('evidence.fact.glossary', { category: cat(f.category) });
         case 'app_feature':
             return t('evidence.fact.app_feature', { screen: t(`appMap.screen.${f.screen}`) });
+        case 'pattern': {
+            const { patternKind, severity, periodStart, periodEnd, ...params } = f;
+            const text = patternText({ kind: patternKind, params, severity, scope: { start: periodStart, end: periodEnd } }, { t, money, localizeCategory });
+            return `${text.title}. ${text.body}`;
+        }
         case 'app_screens':
             return t('evidence.fact.app_screens');
         default:

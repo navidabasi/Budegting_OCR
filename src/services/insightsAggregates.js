@@ -12,9 +12,11 @@ import { hashObject } from '../utils/stableHash';
 import { computeInsights, detectSubscriptions } from './insightsEngine';
 
 import { toModelDismissed, toModelOpportunities } from './savingsOpportunities';
+import { toModelPatterns } from './patternInsights';
 import { goalProgress } from '../utils/savingsMath';
 
-export const AGGREGATE_VERSION = 2; // v2 (pass 3): findings with ids, opportunities, dismissed suggestions, verdict figures
+export const AGGREGATE_VERSION = 2; // v2 (pass 3): findings with ids, opportunities, dismissed suggestions, verdict figures; + patterns (assistant v2)
+export const MAX_PATTERNS_SENT = 3;
 export const MAX_FINDINGS_SENT = 12;
 export { hashObject };
 
@@ -112,9 +114,10 @@ export function buildRefMap(findings = [], opportunities = []) {
  * buildAggregates({ transactions, budgets, goals, accounts, trips, groups, month, today, currency, opportunities, dismissed })
  *   opportunities  the cards shown (computeOpportunities().top); sent as numbers and names only (toModelOpportunities)
  *   dismissed      suggestions the owner marked "Not useful" (computeOpportunities().dismissed): kind and subject only
+ *   patterns       the habits shown under "Your patterns" (computePatterns().top): kind, figures and dates, ids P1.. (assistant v2, B-T4)
  * -> plain JSON-safe object; stable for the same inputs (see hashAggregates).
  */
-export function buildAggregates({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], groups = [], month, today = new Date(), currency = 'EUR', opportunities = [], dismissed = [] } = {}) {
+export function buildAggregates({ transactions = [], budgets = [], goals = [], accounts = [], trips = [], groups = [], month, today = new Date(), currency = 'EUR', opportunities = [], dismissed = [], patterns = [] } = {}) {
     // `month` is a calendar-month key or a period object (pay cycle, custom range); series are per period of the same kind
     const P = month || monthKey(today);
     const m = typeof P !== 'string' && P.kind === 'range' ? P.start.slice(0, 7) : periodKey(P); // the API wants a YYYY-MM; the exact dates are in `period`
@@ -200,6 +203,7 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
         verdict: verdictFigures({ transactions: txs, budgets, accounts, trips, period: P, today }),
         opportunities: toModelOpportunities(opportunities),
         dismissed: toModelDismissed(dismissed),
+        patterns: toModelPatterns(patterns.slice(0, MAX_PATTERNS_SENT)).map((x, i) => ({ id: `P${i + 1}`, ...x })),
     };
 }
 
@@ -209,7 +213,7 @@ export function buildAggregates({ transactions = [], budgets = [], goals = [], a
  * so the cache is invalidated by new data, not by the passage of a day.
  */
 export function hashAggregates(aggregates, extra = {}) {
-    const { dayOfMonth, findings, verdict, opportunities, ...core } = aggregates || {};
+    const { dayOfMonth, findings, verdict, opportunities, patterns, ...core } = aggregates || {};
     void dayOfMonth;
     void verdict;
     const stripped = {
@@ -217,6 +221,7 @@ export function hashAggregates(aggregates, extra = {}) {
         // which findings and suggestions there are decides whether a summary is still current; their day-to-day figures do not
         findings: (findings || []).map((f) => [f.type, f.category || null, f.merchant || null]),
         opportunities: (opportunities || []).map((o) => [o.oppKind, o.category || null, o.merchant || null]),
+        patterns: (patterns || []).map((x) => [x.patternKind, x.category || null, x.merchant || null]),
         budgets: (core.budgets || []).map(({ category, budget, spent }) => ({ category, budget, spent })),
         goals: (core.goals || []).map(({ asOfDay, ...g }) => {
             void asOfDay;

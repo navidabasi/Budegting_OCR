@@ -98,3 +98,24 @@ describe('A-T2 explain pack: the category the question names, its history and it
         expect(none.insufficient).toBeNull();
     });
 });
+
+describe('B-T2 patterns chat intent', () => {
+    it('routes habit questions in the app languages', () => {
+        for (const q of ['What are my spending habits?', 'Do I have any spending patterns?', 'When do I spend the most?', 'Quali sono le mie abitudini di spesa?', 'Was sind meine Gewohnheiten?', '¿Cuáles son mis hábitos?', 'Quelles sont mes habitudes ?', 'عادت‌های خرج من چیست؟', 'ما هي عاداتي؟']) expect(routeQuestion(q), q).toBe('patterns');
+        expect(routeQuestion('How can I save money?')).toBe('save_money');
+    });
+    it('"what are my spending habits?" answers from the computed pattern facts only', () => {
+        const d = ownerLike();
+        const period = currentCyclePeriod(normalizeConfig(d.config), new Date(`${TODAY}T12:00:00Z`));
+        const { pack, refs } = buildEvidencePack({ ...d, period, question: 'What are my spending habits?' });
+        expect(pack.intent).toBe('patterns');
+        const f = pack.facts.filter((x) => x.kind === 'pattern');
+        expect(f).toHaveLength(1);
+        expect(f[0]).toMatchObject({ patternKind: 'merchant_cadence', merchant: 'Tabaccheria Centrale', everyDays: 5.9, periodStart: '2026-04-27' });
+        expect(refs[f[0].refs[0]].txId).toBeTruthy();
+        expect(unsupportedFigures('You go to Tabaccheria Centrale about every 5.9 days, 30.15 a month.', pack)).toEqual([]);
+        expect(unsupportedFigures('That is 120.00 a month.', pack)).toEqual(['120.00']);
+        // hidden patterns are not offered; none at all is answered on the device
+        expect(buildEvidencePack({ ...d, period, question: 'my habits', dismissed: { 'pattern_merchant_cadence:tabaccheria centrale': TODAY } }).pack.insufficient).toBe('no_patterns');
+    });
+});

@@ -72,7 +72,7 @@ describe('finalizeNarrative: the server checks the model against its input', () 
     it('keeps an answer whose ids and numbers all come from the input', () => {
         const { payload, dropped } = run(NARRATIVE);
         expect(dropped).toEqual([]);
-        expect(payload).toEqual(NARRATIVE);
+        expect(payload).toEqual({ ...NARRATIVE, generalTips: [] });
     });
     it('drops opportunity ids that were not sent and duplicates', () => {
         const { payload, dropped } = run({ ...NARRATIVE, opportunities: [...NARRATIVE.opportunities, { id: 'O9', explanation: 'Cancel your gym.' }, { id: 'O1', explanation: 'Again.' }] });
@@ -119,7 +119,7 @@ describe('POST /api/insights', () => {
         expect(res.statusCode).toBe(200);
         expect(res.body).toMatchObject({ ...NARRATIVE, v: 2, headline: NARRATIVE.verdict, model: 'deepseek-chat', cached: false });
         expect(typeof res.body.generatedAt).toBe('string');
-        expect(Object.keys(res.body).sort()).toEqual(['cached', 'generatedAt', 'headline', 'model', 'opportunities', 'questions', 'summary', 'v', 'verdict', 'watchouts', 'wins']);
+        expect(Object.keys(res.body).sort()).toEqual(['cached', 'generalTips', 'generatedAt', 'headline', 'model', 'opportunities', 'questions', 'summary', 'v', 'verdict', 'watchouts', 'wins']);
 
         expect(consume).toHaveBeenCalledWith(client, 'u1', 'insights');
         const args = chat.mock.calls[0][0];
@@ -245,5 +245,20 @@ describe('POST /api/insights', () => {
         const res = await post({ aggregates: AGG });
         expect(res.statusCode).toBe(200);
         expect(res.body.cached).toBe(false);
+    });
+});
+
+describe('assistant v2 (B-T4): patterns in, labeled general tips out', () => {
+    const withPatterns = { ...AGG, patterns: [{ id: 'P1', patternKind: 'merchant_cadence', severity: 'info', merchant: 'Tabaccheria Centrale', everyDays: 5.9, visits: 34, perMonth: 30.15 }] };
+    it('accepts aggregates with patterns', () => {
+        expect(inputSchema.safeParse({ aggregates: withPatterns }).success).toBe(true);
+        expect(inputSchema.safeParse({ aggregates: { ...AGG, patterns: [{ id: 'X1', patternKind: 'x' }] } }).success).toBe(false);
+    });
+    it('a pattern figure in the summary is kept; a tip with a figure not in the input is dropped', () => {
+        const parsed = narrativeSchema.parse({ summary: 'You visit Tabaccheria Centrale about every 5.9 days, about 30.15 a month.', generalTips: ['Set a weekly cash amount for small buys.', 'You could save 45.50 a month.', 'Plan treats on purpose.', 'x', 'y'] });
+        const { payload, dropped } = finalizeNarrative(parsed, withPatterns);
+        expect(payload.summary).toMatch(/5\.9 days/);
+        expect(payload.generalTips).toEqual(['Set a weekly cash amount for small buys.', 'Plan treats on purpose.']);
+        expect(dropped.some((d) => d.where.startsWith('generalTips'))).toBe(true);
     });
 });

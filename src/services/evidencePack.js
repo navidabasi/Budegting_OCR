@@ -27,9 +27,10 @@ import { cycleIdForDate, cycleRange, normalizeConfig } from '../utils/payCycle';
 import { computeOpportunities, totalMonthlySaving } from './savingsOpportunities';
 import { glossaryFor } from './categoryGlossary';
 import { APP_SCREENS, matchFeatures } from './appMap';
+import { computePatterns, toModelPatterns } from './patternInsights';
 
 export const PACK_VERSION = 1;
-export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'general'];
+export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'patterns', 'general'];
 /** Intents whose answers may use general knowledge (concepts, app documentation) beside the owner's cited figures. */
 export const GUIDANCE_INTENTS = ['explain', 'app_help'];
 const MAX_EVIDENCE = 24;
@@ -82,12 +83,16 @@ const EXPLAIN_Q = new RegExp(
     'i'
 );
 
+// Habits and patterns (assistant v2, B-T2): answered from the deterministic pattern detectors
+const PATTERNS_Q = /(pattern|habit|spending behaviou?r|when do i (spend|shop)|which days|weekend spending|do i spend more on|abitudin|comportament|quando spendo|gewohnheit|muster|wann gebe ich|h[aá]bito|patr[oó]n|patrones|cu[aá]ndo gasto|habitude|comportement|quand est-ce que je d[ée]pense|quand je d[ée]pense|عادت|الگو|عادات|أنماط|نمط)/i;
+
 export function routeQuestion(question) {
     const q = String(question || '').toLowerCase();
     if (APP_HELP_Q.test(q)) return 'app_help';
     if (AFFORD_Q.test(q)) return 'afford';
     if (has(q, /\b(owe|owed|owing|settle|settlement|reimburs|debt|who pays|devo|mi devono|deve)\b/) && !EXPLAIN_Q.test(q)) return 'owed';
     if (SAVE_Q.test(q)) return 'save_money';
+    if (PATTERNS_Q.test(q)) return 'patterns';
     // before history ("why should I budget every month" is a concept, not an average) and before the bare budget|goal test
     if (EXPLAIN_Q.test(q)) return 'explain';
     if (HISTORY_Q.test(q)) return 'history';
@@ -644,7 +649,16 @@ function appHelp(book, ctx) {
     return { skipPeriod: true };
 }
 
-const BUILDERS = { history, explain, app_help: appHelp, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
+/** "What are my spending habits?": the patterns the app detected (the same as the "Your patterns" cards, minus hidden ones). */
+function patterns(book, ctx) {
+    const { top } = computePatterns({ transactions: ctx.transactions, trips: ctx.trips, groups: ctx.groups, accounts: ctx.accounts, period: ctx.period, today: ctx.today, dismissed: ctx.dismissed });
+    if (top.length === 0) return { insufficient: 'no_patterns' };
+    const byId = new Map(ctx.transactions.map((t) => [t.id, t]));
+    toModelPatterns(top).forEach((m, i) => book.fact('pattern', m, top[i].evidence.slice(0, 3).map((id) => byId.get(id)).filter(Boolean).map((tx) => receiptRef(book, tx, 'share'))));
+    return {};
+}
+
+const BUILDERS = { history, explain, app_help: appHelp, patterns, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
 
 // ---------------------------------------------------------------------------
 // Public

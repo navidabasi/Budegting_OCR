@@ -31,5 +31,6 @@ export function normalizeNarrative(json = {}) {
         watchouts: notes(json.watchouts ?? json.concerns),
         opportunities: (Array.isArray(json.opportunities) ? json.opportunities : []).filter((o) => o && typeof o.id === 'string' && typeof o.explanation === 'string'),
         questions: Array.isArray(json.questions) ? json.questions.filter((q) => typeof q === 'string') : [],
+        generalTips: Array.isArray(json.generalTips) ? json.generalTips.filter((g) => typeof g === 'string' && g.trim()).slice(0, 3) : [],
     };
 }

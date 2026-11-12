@@ -4,6 +4,8 @@ import { PeriodSwitcher } from '../components/ui';
 import VerdictStrip from '../components/insights/VerdictStrip';
 import WhereMoneyWent from '../components/insights/WhereMoneyWent';
 import WaysToSave from '../components/insights/WaysToSave';
+import YourPatterns from '../components/insights/YourPatterns';
+import GeneralTips from '../components/insights/GeneralTips';
 import WinsWatchouts from '../components/insights/WinsWatchouts';
 import FindingsList from '../components/insights/FindingsList';
 import ChatPanel from '../components/insights/ChatPanel';
@@ -23,6 +25,7 @@ import { useTranslation } from '../languages/useTranslation';
 import { buildAggregates, buildRefMap, verdictFigures } from '../services/insightsAggregates';
 import { computeInsights } from '../services/insightsEngine';
 import { computeOpportunities } from '../services/savingsOpportunities';
+import { computePatterns } from '../services/patternInsights';
 import { explanationsFor, topCategories, winsAndWatchouts } from '../services/insightsView';
 import { findingHref, findingText } from '../services/insightText';
 
@@ -46,10 +49,15 @@ export default function InsightsPage() {
         () => (loading ? { top: [], all: [], dismissed: [] } : computeOpportunities({ transactions, budgets, goals, accounts, trips, groups, period: month, today: p.today, dismissed })),
         [loading, transactions, budgets, goals, accounts, trips, groups, month, p.today, dismissed]
     );
+    // habits in the owner's own records (assistant v2, B-T3); hidden with the same synced store as the opportunities
+    const patterns = useMemo(
+        () => (loading ? { top: [], all: [], dismissed: [] } : computePatterns({ transactions, accounts, trips, groups, period: month, today: p.today, dismissed })),
+        [loading, transactions, accounts, trips, groups, month, p.today, dismissed]
+    );
     const findings = useMemo(() => (loading ? [] : computeInsights({ transactions, budgets, goals, accounts, trips, groups, month, today, currency })), [loading, transactions, budgets, goals, accounts, trips, groups, month, today, currency]);
     const aggregates = useMemo(
-        () => (loading ? null : buildAggregates({ transactions, budgets, goals, accounts, trips, groups, month, today, currency, opportunities: opp.top, dismissed: opp.dismissed })),
-        [loading, transactions, budgets, goals, accounts, trips, groups, month, today, currency, opp]
+        () => (loading ? null : buildAggregates({ transactions, budgets, goals, accounts, trips, groups, month, today, currency, opportunities: opp.top, dismissed: opp.dismissed, patterns: patterns.top })),
+        [loading, transactions, budgets, goals, accounts, trips, groups, month, today, currency, opp, patterns]
     );
     const figures = useMemo(() => (loading ? null : verdictFigures({ transactions, budgets, accounts, trips, period: month, today: p.today })), [loading, transactions, budgets, accounts, trips, month, p.today]);
     const where = useMemo(() => (loading ? null : topCategories({ transactions, trips, period: month, today: p.today })), [loading, transactions, trips, month, p.today]);
@@ -118,6 +126,8 @@ export default function InsightsPage() {
                 <>
                     <VerdictStrip figures={figures} narrative={narrative} onRetry={narrative.retry} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} />
                     <WaysToSave opportunities={opp.top} explanations={explanations} transactions={transactions} accounts={accounts} goals={goals} periodSpec={p.spec} hiddenCount={opp.dismissed.length} onDismiss={dismiss} onRestore={(keys) => restore(keys || opp.dismissed.map((o) => o.key))} />
+                    <YourPatterns patterns={patterns.top} hiddenCount={patterns.dismissed.length} onDismiss={dismiss} onRestore={(keys) => restore(keys || patterns.dismissed.map((o) => o.key))} />
+                    {narrative.data?.generalTips?.length && !narrative.stale ? <GeneralTips tips={narrative.data.generalTips} /> : null}
                     {/* side by side from tablet width: where the money went | wins, watch-outs and every finding */}
                     <div className="grid gap-5 md:grid-cols-2 md:items-start">
                         <WhereMoneyWent view={where} periodSpec={p.spec} />

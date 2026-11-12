@@ -1,7 +1,7 @@
 // POST /api/insights
 // Body: { aggregates, language?, inputHash?, refresh? }  (aggregates from src/services/insightsAggregates.js, version 2)
 // Returns { v: 2, verdict, summary, wins: [{ text, ref }], watchouts: [{ text, ref }], opportunities: [{ id, explanation, howTo }],
-//           questions, generatedAt, model, cached }  (+ headline = verdict, for clients that still read it)
+//           questions, generalTips, generatedAt, model, cached }  (+ headline = verdict, for clients that still read it)
 //
 // The app computes, the model explains. Whatever the model returns is checked against the input before it is stored or sent on:
 //   - an opportunity explanation is kept only for an id that was sent (O1, O2, ...): the model cannot invent a suggestion;
@@ -32,6 +32,7 @@ export const inputSchema = z.object({
             findings: z.array(z.object({}).passthrough()).max(40).optional(),
             dismissed: z.array(z.object({ oppKind: z.string().max(40) }).passthrough()).max(60).optional(),
             verdict: z.object({}).passthrough().nullable().optional(),
+            patterns: z.array(z.object({ id: z.string().regex(/^P\d{1,2}$/), patternKind: z.string().max(40) }).passthrough()).max(6).optional(),
         })
         .passthrough(),
     language: z.string().regex(/^[a-z]{2}(-[A-Za-z]{2})?$/).optional().default('en'),
@@ -79,6 +80,8 @@ export const narrativeSchema = z.preprocess(
         watchouts: notes().optional().default([]),
         opportunities: z.preprocess((v) => (Array.isArray(v) ? v : []), z.array(z.any()).transform((arr) => arr.map((x) => explained.safeParse(x)).filter((r) => r.success).map((r) => r.data))).optional().default([]),
         questions: list(160, 3).optional().default([]),
+        // assistant v2 (B-T4): general advice not derived from the data, shown under a "General tips" label
+        generalTips: list(200, 3).optional().default([]),
     })
 );
 
@@ -123,6 +126,8 @@ export function finalizeNarrative(parsed, aggregates) {
             watchouts: cleanNotes(parsed.watchouts, 'watchouts'),
             opportunities,
             questions: parsed.questions.filter((q, i) => keep(q, `questions[${i}]`)),
+            // a general tip never states a figure: one with any number that is not in the input goes
+            generalTips: (parsed.generalTips || []).filter((g, i) => keep(g, `generalTips[${i}]`)),
         },
         dropped,
     };
@@ -139,6 +144,7 @@ const publicShape = (payload, row, cached) => ({
     watchouts: payload.watchouts || [],
     opportunities: payload.opportunities || [],
     questions: payload.questions || [],
+    generalTips: payload.generalTips || [],
     generatedAt: payload.generatedAt || row?.created_at || null,
     model: payload.model || row?.model || null,
     cached,
