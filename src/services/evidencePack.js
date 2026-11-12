@@ -30,7 +30,7 @@ import { APP_SCREENS, matchFeatures } from './appMap';
 import { computePatterns, toModelPatterns } from './patternInsights';
 
 export const PACK_VERSION = 1;
-export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'patterns', 'general'];
+export const INTENTS = ['history', 'receipt_items', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'patterns', 'general'];
 /** Intents whose answers may use general knowledge (concepts, app documentation) beside the owner's cited figures. */
 export const GUIDANCE_INTENTS = ['explain', 'app_help'];
 const MAX_EVIDENCE = 24;
@@ -87,6 +87,27 @@ const EXPLAIN_Q = new RegExp(
 // Habits and patterns (assistant v2, B-T2): answered from the deterministic pattern detectors
 const PATTERNS_Q = /(pattern|habit|spending behaviou?r|when do i (spend|shop)|which days|weekend spending|do i spend more on|abitudin|comportament|quando spendo|gewohnheit|muster|wann gebe ich|h[aá]bito|patr[oó]n|patrones|cu[aá]ndo gasto|habitude|comportement|quand est-ce que je d[ée]pense|quand je d[ée]pense|عادت|الگو|عادات|أنماط|نمط)/i;
 
+// "What did I buy on my last grocery shopping", "list the items on my Lidl receipt": one receipt, every line of it. Before
+// grocery_breakdown, which summarises a whole period and only keeps its biggest lines.
+const RECEIPT_ITEMS_Q = new RegExp(
+    [
+        "what (did|have|do) i (just )?(buy|bought|get|purchase)",
+        "what i (just )?(bought|purchased|got)",
+        "(items|lines|products|things) (on|in|from|of) (my|the|that|this|last|latest)",
+        "(list|show|tell|give|read|translate)( me)?( all| every)?( of)?( the| my| those| these)? (items|lines|products)",
+        "\\b(all|every) (the |of the )?(items|lines|products)\\b",
+        "what('s| is| was| were) (on|in) (my|the|that|this) (last |latest )?(receipt|shopping|basket|trip)",
+        "(last|latest|most recent|previous|recent) (grocery |groceries |supermarket |food )?(receipt|shopping|shop|trip|purchase|basket|spesa)",
+        "(che )?cosa ho (comprato|preso)|ultima spesa|ultimo scontrino|(articoli|prodotti|righe) (dello|nello|sullo|del) scontrino",
+        "was habe ich (gekauft|eingekauft)|letzte[nrs]? (einkauf|kassenbon|bon)|artikel (auf|im) (dem )?(kassen)?bon",
+        "qu[eé] (he )?compr[eé]|[uú]ltima compra|[uú]ltimo (ticket|recibo)|art[ií]culos del (ticket|recibo)",
+        "qu['’]?(ai-je|est-ce que j['’]ai) achet[eé]|ce que j['’]ai achet[eé]|derni[eè]res? courses|dernier ticket|articles du ticket",
+        "چی خریدم|چه خریدم|چه چیزهایی خریدم|آخرین خرید|اقلام (رسید|فاکتور)",
+        "ماذا اشتريت|آخر (مشتريات|تسوق|إيصال)|عناصر الإيصال",
+    ].join('|'),
+    'i'
+);
+
 export function routeQuestion(question) {
     const q = String(question || '').toLowerCase();
     if (APP_HELP_Q.test(q)) return 'app_help';
@@ -99,6 +120,7 @@ export function routeQuestion(question) {
     if (HISTORY_Q.test(q)) return 'history';
     if (has(q, /(per (kg|kilo|litre|liter|l\b|unit|piece)|unit price|price per|paying more|buying more|cost more|more expensive|prezzo al)/)) return 'unit_price';
     if (has(q, /(needs? (review|attention|checking)|to review|review queue|uncategori[sz]ed|duplicate|subscription|recurring|unclear|recategori[sz]e|re-?categori[sz]e|doppion)/)) return 'review';
+    if (RECEIPT_ITEMS_Q.test(q)) return 'receipt_items';
     if (has(q, /\b(budget|budgets|goal|goals|on track|afford|commitment|commitments|upcoming|savings?)\b/)) return 'budgets_goals';
     if (has(q, /\b(top|most|biggest|largest|highest)\b.*\b(supermarket|merchant|shop|store|place|vendor|supermercato|negozio)\b/) || has(q, /\bwhere (do|did) i (spend|shop)\b.*\bmost\b/)) return 'top_merchant';
     if (has(q, /(grocer|supermarket|supermercato|spesa|food shop|food spending|what drove|what drives|drove)/)) return 'grocery_breakdown';
@@ -109,6 +131,30 @@ export function routeQuestion(question) {
 
 /** Does the question narrow the merchant ranking to groceries? */
 const wantsGroceries = (question) => /(supermarket|grocer|supermercato|spesa)/i.test(String(question || ''));
+
+// A question that only makes sense after the previous answer: "list them all", "in English", "you missed some", "and the rest?"
+const FOLLOW_UP_Q = /(\b(them|those|these|it|that one|this one|the rest|the others|in there|on there|again|translate|in (english|italian|german|spanish|french|persian|farsi|arabic))\b|didn'?t|you missed|not all|missing|^(and|also|what about|how about)\b|tradu|übersetz|traduis|ترجمه|ترجم)/i;
+
+/** The receipt a receipt_items answer was about (its txId), read from the stored evidence of that answer. */
+export function focusOf(ev) {
+    const pack = ev?.pack;
+    if (!pack || pack.intent !== 'receipt_items') return null;
+    const rid = (pack.facts || []).find((f) => f.kind === 'receipt')?.refs?.[0];
+    return (rid && ev.refs?.[rid]?.txId) || null;
+}
+
+/**
+ * Route a question in the light of the previous answer ({ intent, focusTxId } or null): a follow-up that the router alone sends to
+ * the generic overview keeps the previous intent, and a receipt question keeps the receipt it was about unless it names another.
+ * -> { route, focusTxId }
+ */
+export function resolveRoute(question, previous = null) {
+    const route = routeQuestion(question);
+    const prev = previous?.intent && previous.intent !== 'app_help' ? previous : null;
+    if (prev && route === 'general' && FOLLOW_UP_Q.test(String(question || ''))) return { route: prev.intent, focusTxId: prev.focusTxId || null };
+    if (prev && route === 'receipt_items' && prev.intent === 'receipt_items') return { route, focusTxId: prev.focusTxId || null };
+    return { route, focusTxId: null };
+}
 
 // ---------------------------------------------------------------------------
 // Builders
@@ -384,6 +430,91 @@ function budgetsGoals(book, ctx) {
     for (const g of gs.slice(0, 4)) book.fact('goal', g);
     void basis;
     return {};
+}
+
+const dayKey = (d) => {
+    if (d instanceof Date) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return dateOf(d);
+};
+const shiftDay = (key, days) => {
+    const d = new Date(`${key}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    return dayKey(d);
+};
+const TODAY_Q = /\b(today|oggi|heute|hoy|aujourd['’]hui)\b|امروز|اليوم/i;
+const YESTERDAY_Q = /\b(yesterday|ieri|gestern|ayer|hier)\b|دیروز|أمس/i;
+const LATEST_Q = /\b(last|latest|most recent|newest|ultim[oa]|letzte[nrs]?|[uú]ltim[oa]|derni[eè]re?)\b|آخرین|آخر/i;
+
+/**
+ * "What did I buy on my last grocery shopping": one receipt and every line on it. The receipt is the one the question names
+ * (merchant, category, today / yesterday), else the one the previous answer was about (ctx.focusTxId), else the latest receipt
+ * with item lines. Newer receipts of the same selection that have no lines are named, so "last" is never silently skipped.
+ */
+function receiptItems(book, ctx) {
+    const { transactions, question, today, focusTxId, categoryNames } = ctx;
+    const todayKey = dayKey(today);
+    const live = transactions.filter((t) => typeOf(t) === 'expense' && !isPlanned(t) && dateOf(t.date) <= todayKey);
+    const q = String(question || '').toLowerCase();
+    const merchants = [...new Set(live.map((t) => displayName(t.merchant) || t.merchant).filter((m) => m && m.length >= 3))];
+    const merchant = merchants.filter((m) => q.includes(m.toLowerCase())).sort((a, b) => b.length - a.length)[0] || null;
+    // "my last (grocery) shopping" is a shopping trip, not the Shopping category ("clothes shopping" still finds it by "clothes")
+    const category = categoryFromQuestion(String(question || '').replace(/\bshopping\b/gi, ' '), categoryNames);
+    const day = TODAY_Q.test(q) ? todayKey : YESTERDAY_Q.test(q) ? shiftDay(todayKey, -1) : null;
+    const named = merchant || category || day || LATEST_Q.test(q);
+    const focus = !named && focusTxId ? live.find((t) => t.id === focusTxId) : null;
+    const pool = live
+        .filter((t) => !merchant || (displayName(t.merchant) || t.merchant) === merchant)
+        .filter((t) => !category || t.category === category)
+        .filter((t) => !day || dateOf(t.date) === day)
+        .sort((a, b) => dateOf(b.date).localeCompare(dateOf(a.date)) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const hasItems = (t) => normalizeItems(t.lineItems, t.category).length > 0;
+    const tx = focus || pool.find(hasItems);
+    if (!tx) {
+        if (pool[0]) receiptRef(book, pool[0], 'full');
+        return { insufficient: pool.length ? 'no_receipt_items' : 'no_receipts', skipPeriod: true };
+    }
+    const items = normalizeItems(tx.lineItems, tx.category);
+    const rec = reconcile(tx);
+    const rid = receiptRef(book, tx, 'full');
+    const total = round2(Number(tx.total) || 0);
+    const share = round2(shareAmount(tx));
+    book.fact(
+        'receipt',
+        {
+            merchant: displayName(tx.merchant) || tx.merchant || '',
+            date: dateOf(tx.date),
+            category: tx.category || null,
+            total,
+            ...(Math.abs(share - total) >= 0.01 ? { yourShare: share } : {}),
+            itemCount: items.length,
+            itemsSum: rec.itemsSum,
+            difference: rec.unallocated,
+            ...(rec.unknownCount ? { unreadableLines: rec.unknownCount } : {}),
+        },
+        [rid]
+    );
+    book.fact(
+        'receipt_items',
+        {
+            items: items.map((it, i) => ({
+                n: i + 1,
+                name: it.name || it.rawText || '',
+                amount: it.amount === null ? null : round2(it.amount),
+                ...(it.quantity && it.quantity !== 1 ? { quantity: it.quantity } : {}),
+                ...(it.unit ? { unit: it.unit } : {}),
+                ...(it.category && it.category !== tx.category ? { category: it.category } : {}),
+                ...(it.reviewStatus === 'needs_review' || it.amount === null ? { uncertain: true } : {}),
+            })),
+            extracted: true,
+        },
+        [rid]
+    );
+    // newer receipts of the same selection without lines ("my last shopping" was one of these)
+    if (!focus) {
+        const newer = pool.slice(0, pool.indexOf(tx)).filter((t) => !hasItems(t)).slice(0, 3);
+        if (newer.length) book.fact('newer_without_items', { receipts: newer.map((t) => ({ merchant: displayName(t.merchant) || t.merchant || '', date: dateOf(t.date), amount: round2(Number(t.total) || 0) })) }, newer.map((t) => receiptRef(book, t, 'full')));
+    }
+    return { skipPeriod: true };
 }
 
 function general(book, ctx) {
@@ -667,7 +798,7 @@ function patterns(book, ctx) {
     return {};
 }
 
-const BUILDERS = { history, explain, app_help: appHelp, patterns, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
+const BUILDERS = { history, receipt_items: receiptItems, explain, app_help: appHelp, patterns, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
 
 // ---------------------------------------------------------------------------
 // Public
@@ -683,26 +814,28 @@ export function inferBasis(question = '') {
     return FULL_BASIS.test(String(question || '')) ? 'full' : 'share';
 }
 
-export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], groups = [], dismissed = {}, period, config, today = new Date(), currency = 'EUR', basis: basisIn, categoryNames = [] } = {}) {
-    const basis = basisIn === 'full' || basisIn === 'share' ? basisIn : inferBasis(question);
+export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], groups = [], dismissed = {}, period, config, today = new Date(), currency = 'EUR', basis: basisIn, categoryNames = [], focusTxId = null } = {}) {
     const route = INTENTS.includes(intent) ? intent : routeQuestion(question);
+    // one receipt is read as printed: its lines add up to the whole bill (the user's share is given beside it)
+    const basis = route === 'receipt_items' ? 'full' : basisIn === 'full' || basisIn === 'share' ? basisIn : inferBasis(question);
     const txs = (transactions || []).filter((t) => t && !t.isDemo);
     const range = toRange(period);
     const progress = periodProgress(period, today);
     const cmp = range ? comparablePeriods(period, today, previousOfPeriod(period, config)) : null;
     const comparison = cmp && cmp.basis ? cmp : null;
-    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, groups, dismissed, period, config, today, basis, question, comparison, categoryNames };
+    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, groups, dismissed, period, config, today, basis, question, comparison, categoryNames, focusTxId };
     const book = new Book();
     const noData = route === 'app_help'; // app documentation only: nothing about the owner goes into this pack
-    if (route !== 'owed' && route !== 'history' && !noData) addPeriodSummary(book, ctx);
+    const oneReceipt = route === 'receipt_items'; // about one receipt, not the period: no period totals beside it
+    if (route !== 'owed' && route !== 'history' && !noData && !oneReceipt) addPeriodSummary(book, ctx);
     const result = BUILDERS[route](book, ctx) || {};
     // Both totals when shared expenses make them differ, so the model can answer either way and say what the gap is.
-    if (route !== 'owed' && route !== 'history' && !noData && range) {
+    if (route !== 'owed' && route !== 'history' && !noData && !oneReceipt && range) {
         const share = totalSpend(txs, period, 'share');
         const full = totalSpend(txs, period, 'full');
         if (Math.abs(full - share) >= 0.01) book.fact('basis_totals', { share, full, difference: round2(full - share), used: basis });
     }
-    const conv = noData ? { count: 0, byCurrency: {} } : pendingConversionCount(txs, period, currency);
+    const conv = noData || oneReceipt ? { count: 0, byCurrency: {} } : pendingConversionCount(txs, period, currency);
     const pack = {
         version: PACK_VERSION,
         intent: route,
@@ -722,9 +855,21 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
     return { pack, refs: book.refs };
 }
 
-/** Numbers that appear anywhere in the pack's facts (amounts, percentages, counts), rounded to 2 decimals. */
+/**
+ * Numbers that appear in the pack (amounts, percentages, counts), rounded to 2 decimals: the facts, coverage and period, the
+ * amounts of the evidence rows (a receipt total is real data even when no fact repeats it) and figures printed inside item names
+ * ("Patate 1,5kg"), which an answer may repeat or translate.
+ */
 export function packNumbers(pack) {
-    return collectNumbers([pack.facts, pack.coverage, pack.period], { strings: false });
+    const names = [];
+    const walk = (v) => {
+        if (Array.isArray(v)) v.forEach(walk);
+        else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) (k === 'name' && typeof x === 'string' ? names.push(x) : walk(x));
+    };
+    walk([pack.facts, pack.evidence]);
+    const out = collectNumbers([pack.facts, pack.coverage, pack.period, (pack.evidence || []).map((e) => e.amount)], { strings: false });
+    for (const n of collectNumbers(names)) out.add(n);
+    return out;
 }
 
 /** Amounts in an answer text that are not in the evidence ("12.40", "1,250.00" or any number >= 100): to warn that a figure is not backed by the facts. */

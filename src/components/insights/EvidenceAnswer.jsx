@@ -44,7 +44,7 @@ export default function EvidenceAnswer({ ev, onProposal }) {
                     <BookOpen size={13} className="shrink-0" aria-hidden="true" />
                     {t('evidence.appGuide')}
                 </p>
-            ) : pack.intent !== 'owed' ? (
+            ) : pack.intent === 'receipt_items' ? null : pack.intent !== 'owed' ? (
                 <p className="text-xs font-medium text-ink-muted" data-testid="evidence-meta">
                     {t('evidence.metaLine', { period, currency: pack.currency, basis: t(`evidence.basis.${pack.basis}`) })}
                 </p>

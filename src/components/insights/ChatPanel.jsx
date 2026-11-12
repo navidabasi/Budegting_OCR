@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight, Loader2, Plus, Sparkles } from 'lucide-react';
 import EvidenceAnswer from './EvidenceAnswer';
+import AnswerText, { answerBlocks } from './AnswerText';
+import ReceiptItemsList from './ReceiptItemsList';
 import GeneralTips from './GeneralTips';
 import AiLockedNotice from '../common/AiLockedNotice';
 import { useAiAccess } from '../../hooks/useAiAccess';
@@ -19,7 +21,7 @@ import { useChatActions, useConversation, useConversationMessages } from '../../
 import { useAppStore } from '../../store/appStore';
 import { captureAnchor, restoreAnchor } from '../../utils/scrollAnchor';
 import { chatTitle } from '../../data/repo';
-import { buildEvidencePack, routeQuestion } from '../../services/evidencePack';
+import { buildEvidencePack, focusOf, resolveRoute } from '../../services/evidencePack';
 import { localProposals, resolveProposals } from '../../services/aiActions';
 import { restoreAliases } from '../../services/aiOutbound';
 
@@ -170,8 +172,11 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
         setBusy(true);
         try {
             if (!retryOf) await post(convRef, userMsg);
-            const route = intent || routeQuestion(q);
-            const { pack, refs } = buildEvidencePack({ ...ctx, intent: route, question: q });
+            // a follow-up ("list them all", "in English") keeps the previous answer's intent and receipt
+            const lastEv = [...thread].reverse().find((m) => m.role === 'assistant' && m.ev?.pack)?.ev;
+            const routed = intent ? { route: intent, focusTxId: null } : resolveRoute(q, lastEv ? { intent: lastEv.pack.intent, focusTxId: focusOf(lastEv) } : null);
+            const route = routed.route;
+            const { pack, refs } = buildEvidencePack({ ...ctx, intent: route, question: q, focusTxId: routed.focusTxId });
             const locals = route === 'review' ? localProposals(ctx.transactions, { period: ctx.period, today: ctx.today, suggest: ctx.suggest, categories: ctx.categoryNames }) : [];
             if (pack.insufficient) {
                 // nothing to explain: answered here, no request is made
@@ -247,7 +252,10 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
                                     else itemRefs.current.delete(m.id);
                                 }}
                                 className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                <p className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-ee-md bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'rounded-es-md bg-warn-soft text-warn-ink' : 'rounded-es-md bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none'}`}>{m.content}</p>
+                                <div className={`max-w-[88%] break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-ee-md bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'rounded-es-md bg-warn-soft text-warn-ink' : 'rounded-es-md bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none'}`}>
+                                    {m.role === 'assistant' && !m.error ? <AnswerText text={m.content} /> : <p className="whitespace-pre-wrap">{m.content}</p>}
+                                </div>
+                                {m.role === 'assistant' && m.ev?.pack?.intent === 'receipt_items' ? <ReceiptItemsList ev={m.ev} listed={answerBlocks(m.content).some((b) => b.type === 'ul' || b.type === 'ol')} /> : null}
                                 {m.role === 'assistant' && m.ev?.generalTips?.length ? <GeneralTips tips={m.ev.generalTips} /> : null}
                                 {m.role === 'assistant' && m.ev ? <EvidenceAnswer ev={m.ev} onProposal={setProposal} /> : null}
                                 {m.error && m.retry && i === thread.length - 1 && !busy && m.content !== t('chat.error.rateLimit') ? (

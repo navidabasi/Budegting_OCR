@@ -109,7 +109,9 @@ export const GUIDANCE_INTENTS = ['explain', 'app_help'];
 export const TIP_INTENTS = ['save_money', 'explain', 'afford', 'patterns'];
 export const MAX_TIPS = 3;
 export const MAX_TIP_CHARS = 200;
-const answerCap = (intent) => (GUIDANCE_INTENTS.includes(intent) ? 2000 : 1500);
+// a receipt's lines listed one per line (translated, or a subset) can run long: 60+ lines fit
+const LIST_INTENTS = ['receipt_items'];
+const answerCap = (intent) => (LIST_INTENTS.includes(intent) ? 4000 : GUIDANCE_INTENTS.includes(intent) ? 2000 : 1500);
 
 /**
  * General tips (not derived from the data): trimmed, at most 3 of at most 200 chars, only for intents that allow them. A tip that
@@ -169,7 +171,7 @@ export async function answer(input, turns, { chatImpl = chat } = {}) {
         messages: [{ role: 'system', content: system }, { role: 'system', content: context }, ...turns],
         json: true,
         // the json answer, its citations and up to three proposals must fit: a cut-off answer is an unusable one
-        maxTokens: input.evidence ? 1500 : 700,
+        maxTokens: input.evidence ? (LIST_INTENTS.includes(input.evidence.intent) ? 3000 : 1500) : 700,
         temperature: 0.2,
     });
 

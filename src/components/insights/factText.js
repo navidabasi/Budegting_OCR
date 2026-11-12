@@ -87,6 +87,12 @@ export function factText(f, { t, money, localizeCategory = (x) => x }) {
         }
         case 'app_screens':
             return t('evidence.fact.app_screens');
+        case 'receipt':
+            return t('evidence.fact.receipt', { merchant: f.merchant, date: f.date, total: money(f.total), count: f.itemCount, sum: money(f.itemsSum) });
+        case 'receipt_items':
+            return t('evidence.fact.receipt_items', { count: (f.items || []).length });
+        case 'newer_without_items':
+            return t('evidence.fact.newer_without_items', { list: (f.receipts || []).map((r) => `${r.merchant} ${r.date} ${money(r.amount)}`).join(', ') });
         default:
             return f.kind;
     }
