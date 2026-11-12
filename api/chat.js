@@ -151,11 +151,21 @@ export const handle = async ({ req, body }) => {
 
     await consume(client, userId, 'chat');
 
+    const { output, usage } = await answer(input, turns);
+    await recordTokens(client, userId, 'chat', usage);
+    return output;
+};
+
+/**
+ * The model call and every check on its output, without auth or rate limits: shared by the endpoint and scripts/eval-chat.mjs so
+ * the eval grades exactly what users get. `turns`: the conversation, already trimmed. -> { output, usage }
+ */
+export async function answer(input, turns, { chatImpl = chat } = {}) {
     const system = fillPrompt(loadPrompt(input.evidence ? 'chat-evidence' : 'chat'), { LANGUAGE: input.language });
     const context = input.evidence
         ? `Evidence pack (json, read-only; every number was computed by the app):\n${JSON.stringify(input.evidence)}`
         : `Aggregates (json, read-only context):\n${JSON.stringify(input.aggregates)}`;
-    const result = await chat({
+    const result = await chatImpl({
         messages: [{ role: 'system', content: system }, { role: 'system', content: context }, ...turns],
         json: true,
         // the json answer, its citations and up to three proposals must fit: a cut-off answer is an unusable one
@@ -165,23 +175,25 @@ export const handle = async ({ req, body }) => {
 
     const parsed = outputSchema(input.evidence ? answerCap(input.evidence.intent) : 1500).safeParse(result.data);
     if (!parsed.success) throw new HttpError(502, 'The AI returned an unusable answer', 'invalid_output');
-    await recordTokens(client, userId, 'chat', result.usage);
 
     const citations = input.evidence ? sanitizeCitations(parsed.data.citations, input.evidence) : [];
     return {
-        answer: parsed.data.answer,
-        suggestedAction: sanitizeAction(parsed.data.suggestedAction),
-        ...(input.evidence
-            ? {
-                  citations,
-                  uncertain: sanitizeCitations(parsed.data.uncertain, input.evidence).filter((id) => citations.includes(id)),
-                  proposals: sanitizeProposals(parsed.data.proposals, input.evidence),
-                  grounded: citations.length > 0,
-                  generalTips: sanitizeGeneralTips(parsed.data.generalTips, input.evidence),
-              }
-            : {}),
-        model: result.model,
+        usage: result.usage,
+        output: {
+            answer: parsed.data.answer,
+            suggestedAction: sanitizeAction(parsed.data.suggestedAction),
+            ...(input.evidence
+                ? {
+                      citations,
+                      uncertain: sanitizeCitations(parsed.data.uncertain, input.evidence).filter((id) => citations.includes(id)),
+                      proposals: sanitizeProposals(parsed.data.proposals, input.evidence),
+                      grounded: citations.length > 0,
+                      generalTips: sanitizeGeneralTips(parsed.data.generalTips, input.evidence),
+                  }
+                : {}),
+            model: result.model,
+        },
     };
-};
+}
 
 export default route({ methods: ['POST'], handle });

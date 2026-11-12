@@ -67,7 +67,8 @@ const EXPLAIN_Q = new RegExp(
         'why do i (need|have to|want)',
         "why (is it|it's) (important|good|useful|worth|smart)",
         'do i (really |even )?need (a |an |to )',
-        'should i (set|have|use|make|create|keep|track|start|bother)',
+        'should i (set|have|use|make|create|keep|track|start|bother|buy|invest|sell)',
+        'invest(ing|ment)? in (stocks|shares|etf|bonds|crypto|gold)',
         'is it (worth|wise|smart|a good idea)',
         'does it make sense',
         `\\bexplain (to me )?(what|how|why (i|a|you)|the (concept|idea|point|difference)|${CONCEPTS})`,
@@ -636,6 +637,14 @@ function explain(book, ctx) {
     const cats = Object.entries(spentByCategory(transactions, period, { includeTrips: true })).sort((a, b) => b[1] - a[1]).slice(0, 4);
     for (const [c, amount] of cats) book.fact('category_total', { category: c, amount: round2(amount) });
     for (const r of categoryBudgets(ctx.budgets || [], transactions, period, ctx.trips || [], { today: ctx.today, accounts: ctx.accounts || [] }).slice(0, 4)) budgetFact(book, r);
+    // savings concepts (emergency fund, saving for a goal) can point at the owner's own goals
+    if (/(sav|goal|fund|emergenc|risparm|obiettiv|spar|ahorr|meta|épargn|objectif|پس‌انداز|هدف|ادخار)/i.test(String(question || ''))) {
+        const balances = accountBalances(ctx.accounts || [], transactions);
+        for (const g of (ctx.goals || []).filter((x) => x && !x.isArchived).slice(0, 3)) {
+            const saved = goalProgress(g, transactions, balances);
+            book.fact('goal', { name: g.name, target: round2(Number(g.targetAmount) || 0), saved, remaining: Math.max(0, round2((Number(g.targetAmount) || 0) - saved)), targetDate: g.targetDate ? dateOf(g.targetDate) : null });
+        }
+    }
     return {};
 }
 

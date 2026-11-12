@@ -1,6 +1,6 @@
 # Assistant v2 — general questions, app help, pattern insights
 
-Status: **v1 — decisions taken with the owner (2026-11-12), ready for implementation.**
+Status: **v1 — implemented 2026-11-12 (A-T1…A-T6, B-T1…B-T4, C-T1). Open: C-T2, the owner's live grading (`docs/ASSISTANT_EVAL.md`).**
 Audience: the implementer and the owner. Follow section 0 of `docs/IMPROVEMENT_PLAN.md` (one task at a time, acceptance criteria verified, small commits prefixed with the task ID, i18n in all 7 languages, no keys in the client).
 Written from a read of the live chat path: `src/services/evidencePack.js`, `src/components/insights/ChatPanel.jsx`, `src/components/insights/EvidenceAnswer.jsx`, `api/chat.js`, `api/_prompts/chat-evidence.md`, `src/services/savingsOpportunities.js`, `src/services/aiOutbound.js`.
 

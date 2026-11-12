@@ -11,6 +11,7 @@ describe('A-T1 router v2: conceptual and app-help questions', () => {
         // more explain
         ['Why should I budget every month?', 'explain'],
         ['Is it worth having an emergency fund?', 'explain'],
+        ['Should I buy Tesla shares with my savings?', 'explain'],
         ['What is inflation?', 'explain'],
         ['What does savings rate mean?', 'explain'],
         ['Do I really need a budget for rent?', 'explain'],
@@ -78,6 +79,12 @@ describe('A-T2 explain pack: the category the question names, its history and it
         const pack = build('Why should I have a budget for groceries?');
         expect(pack.facts.find((f) => f.kind === 'budget')).toMatchObject({ category: 'Groceries', budget: 260 });
         expect(pack.facts.some((f) => f.kind === 'budget_absent')).toBe(false);
+    });
+
+    it('a savings concept carries the owner\'s goals', () => {
+        const pack = build('Is it worth having an emergency fund?');
+        expect(pack.facts.find((f) => f.kind === 'goal')).toMatchObject({ name: 'Emergency fund', target: 2000 });
+        expect(build('what is budgeting').facts.some((f) => f.kind === 'goal')).toBe(false);
     });
 
     it('"what is budgeting" names no category: the biggest categories, never insufficient', () => {
