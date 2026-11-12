@@ -20,7 +20,7 @@ import { buildEvidencePack, routeQuestion } from '../../services/evidencePack';
 import { localProposals, resolveProposals } from '../../services/aiActions';
 import { restoreAliases } from '../../services/aiOutbound';
 
-const CHIPS = ['top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals'];
+const CHIPS = ['save_money', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals'];
 
 /**
  * "Ask about your money". Every question is answered from an evidence pack computed on the device (services/evidencePack.js); the

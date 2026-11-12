@@ -23,9 +23,11 @@ import { goalProgress } from './insightsAggregates';
 import { findDuplicates } from '../import/dedupe';
 import { pendingConversionCount } from '../utils/conversion';
 import { collectNumbers, figuresNotIn } from '../utils/numberGuard';
+import { cycleIdForDate, cycleRange, normalizeConfig } from '../utils/payCycle';
+import { computeOpportunities, totalMonthlySaving } from './savingsOpportunities';
 
 export const PACK_VERSION = 1;
-export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'general'];
+export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'general'];
 const MAX_EVIDENCE = 24;
 
 // ---------------------------------------------------------------------------
@@ -37,9 +39,18 @@ const has = (q, re) => re.test(q);
 // Questions about the whole history rather than the open period: averages, per-month figures, trends, "till now", "all my data".
 const HISTORY_Q = /(average|on average|avg\b|per month|a month\b|each month|every month|monthly|per cycle|each cycle|typical(ly)?|usually|normally|trend|over time|history|historic|all (my )?(data|time|history|months|transactions)|till now|until now|up to now|so far this year|this year|last (year|\d+ months)|since (i|the|january|start)|ever\b|in total|overall|media\b|in media|al mese|ogni mese|mensil|durchschnitt|pro monat|monatlich|promedio|al mes|mensual|moyenne|par mois|mensuel|میانگین|ماهانه|متوسط|شهري)/i;
 
+// "Can I afford X": answered from what is left of the period (pass 3, A5)
+const AFFORD_Q = /(can i afford|could i afford|afford\b|posso permetter|mi posso permettere|permettermi|kann ich mir .{0,40}leisten|mir leisten|puedo permitirme|permitirme|puis-je me permettre|me permettre|از پس.{0,20}برمی|می‌توانم بخرم|هل أستطيع (شراء|تحمل|تحمّل)|أتحمل|أتحمّل)/i;
+// "Where can I cut", "how to save", "spend better": answered from the savings opportunities the app computed
+const SAVE_Q = /((where|how) (can|could|do|should) i (cut|save|spend less|spend better|reduce)|how to (save|cut|spend less)|ways? to save|save (more |some )?money|spend (better|less|smarter)|cut (back|down|costs|my spending|spending)|reduce (my )?(spending|expenses|costs)|dove posso (risparmiare|tagliare)|come (posso )?risparmi|risparmiare|spendere (meno|meglio)|wo kann ich sparen|wie (kann ich )?spare|weniger ausgeben|geld sparen|d[oó]nde puedo (ahorrar|recortar)|c[oó]mo ahorr|gastar menos|o[uù] (puis-je )?[ée]conomiser|comment [ée]conomiser|d[ée]penser moins|صرفه‌جویی|کمتر خرج|کجا.{0,20}(کم|پس‌انداز)|أين (يمكنني )?(أوفر|التوفير|أوفّر)|كيف أوف|أنفق أقل|توفير المال)/i;
+// averages asked per pay cycle rather than per calendar month
+const CYCLE_Q = /((per|each|every|a) (pay ?)?(cycle|paycheck|pay ?period)|pay ?cycle|salary to salary|(per|a|ogni) ciclo|da stipendio a stipendio|pro (gehalts)?zyklus|gehaltszyklus|por ciclo|par cycle|هر دوره|كل دورة)/i;
+
 export function routeQuestion(question) {
     const q = String(question || '').toLowerCase();
+    if (AFFORD_Q.test(q)) return 'afford';
     if (has(q, /\b(owe|owed|owing|settle|settlement|reimburs|debt|who pays|devo|mi devono|deve)\b/)) return 'owed';
+    if (SAVE_Q.test(q)) return 'save_money';
     if (HISTORY_Q.test(q)) return 'history';
     if (has(q, /(per (kg|kilo|litre|liter|l\b|unit|piece)|unit price|price per|paying more|buying more|cost more|more expensive|prezzo al)/)) return 'unit_price';
     if (has(q, /(needs? (review|attention|checking)|to review|review queue|uncategori[sz]ed|duplicate|subscription|recurring|unclear|recategori[sz]e|re-?categori[sz]e|doppion)/)) return 'review';
@@ -421,10 +432,107 @@ function history(book, ctx) {
         }
         [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([c, total]) => book.fact('history_category', { category: c, averagePerMonth: round2(total / complete.length), total: round2(total) }));
     }
+    // Per pay cycle (salary to salary) when the owner works in cycles or asks for it: same rules, the running cycle is kept apart
+    const cfg = ctx.config ? normalizeConfig(ctx.config) : null;
+    const perCycle = CYCLE_Q.test(String(question || ''));
+    if (cfg && (cfg.configured || perCycle)) {
+        const firstDay = expenses.map((t) => dateOf(t.date)).filter(Boolean).sort()[0];
+        const firstCycle = cycleIdForDate(firstDay, cfg);
+        const currentCycle = cycleIdForDate(todayKey, cfg);
+        const ids = [];
+        for (let c = firstCycle; c <= currentCycle && ids.length < 240; c = nextMonth(c)) ids.push(c);
+        const byCycle = new Map(ids.map((c) => [c, { total: 0, count: 0 }]));
+        for (const tx of all) {
+            const row = byCycle.get(cycleIdForDate(dateOf(tx.date), cfg));
+            if (!row) continue;
+            row.total += basisAmount(tx, basis);
+            row.count += 1;
+        }
+        const done = ids.filter((c) => c < currentCycle);
+        const totals = done.map((c) => round2(byCycle.get(c).total));
+        const sorted2 = [...totals].sort((a, b) => a - b);
+        const range = (c) => cycleRange(c, cfg);
+        const pick = (cmp) => done.filter((c) => byCycle.get(c).count > 0).reduce((a, c) => (!a || cmp(byCycle.get(c).total, byCycle.get(a).total) ? c : a), null);
+        const hiC = pick((x, y) => x > y);
+        const loC = pick((x, y) => x < y);
+        const row = (c) => (c ? { cycle: c, start: range(c).start, end: range(c).end, amount: round2(byCycle.get(c).total) } : null);
+        book.fact('history_cycle_average', {
+            category: category || 'all spending',
+            unit: 'pay cycle',
+            averagePerCycle: done.length ? round2(totals.reduce((a, b) => a + b, 0) / done.length) : null,
+            medianPerCycle: sorted2.length ? round2(sorted2.length % 2 ? sorted2[(sorted2.length - 1) / 2] : (sorted2[sorted2.length / 2 - 1] + sorted2[sorted2.length / 2]) / 2) : null,
+            cycles: ids.length,
+            completeCycles: done.length,
+            from: range(firstCycle).start,
+            to: todayKey,
+            highest: row(hiC),
+            lowest: row(loC),
+            runningCycleSoFar: round2(byCycle.get(currentCycle)?.total || 0),
+            asked: perCycle,
+            note: 'average over complete pay cycles (salary to salary), cycles with no spending count as 0, the running cycle is not included',
+        });
+        if (perCycle) for (const c of ids.slice(-12)) book.fact('history_cycle', { ...row(c), count: byCycle.get(c).count, ...(c === currentCycle ? { running: true } : {}) });
+    }
     return { skipPeriod: true, history: { start: `${first}-01`, end: todayKey } };
 }
 
-const BUILDERS = { history, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, general };
+/** An opportunity as a fact: its figures and names, plus the receipts behind it (largest first). */
+function opportunityFact(book, ctx, o) {
+    const byId = new Map(ctx.transactions.map((t) => [t.id, t]));
+    const refs = o.evidence.slice(0, 3).map((id) => byId.get(id)).filter(Boolean).map((tx) => receiptRef(book, tx, 'share'));
+    return book.fact('opportunity', { oppKind: o.kind, category: o.category, merchant: o.merchantName, monthlySaving: o.monthlySaving, yearlySaving: o.yearlySaving, confidence: o.level, action: o.action?.type || null, periodStart: o.scope?.start || null, periodEnd: o.scope?.end || null, ...o.params }, refs);
+}
+
+/**
+ * "Where can I cut", "how can I save", "spend better": the savings opportunities the app computed for the open period (the same
+ * cards as on Insights, without the ones marked "Not useful"). The model explains them; it cannot add one.
+ */
+function saveMoney(book, ctx) {
+    const { top } = computeOpportunities({ transactions: ctx.transactions, budgets: ctx.budgets, goals: ctx.goals, accounts: ctx.accounts, trips: ctx.trips, groups: ctx.groups, period: ctx.period, today: ctx.today, dismissed: ctx.dismissed });
+    if (top.length === 0) return { insufficient: 'no_opportunities' };
+    for (const o of top) opportunityFact(book, ctx, o);
+    const monthly = totalMonthlySaving(top);
+    if (monthly > 0) book.fact('saving_total', { monthly, yearly: round2(monthly * 12), count: top.filter((o) => o.monthlySaving > 0).length });
+    return {};
+}
+
+/** The amount in "can I afford 250", "posso permettermi 1.200 €": the first figure of the question, or null. */
+export function amountFromQuestion(question) {
+    const m = /(\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)/.exec(String(question || '').replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)));
+    if (!m) return null;
+    const n = Number(m[1].replace(/\s/g, '').replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? round2(n) : null;
+}
+
+/**
+ * "Can I afford X": what is left of the running period after what is spent and still to pay (from the income logged for the
+ * period and, when there is one, the whole-period budget: the tighter of the two decides), the amount asked about, what would be
+ * left per day afterwards and the app's verdict (fits / tight / exceeds). The best savings are added as ways to make room.
+ */
+function afford(book, ctx) {
+    const { transactions, trips, accounts, budgets, period, today, question } = ctx;
+    const progress = periodProgress(period, today);
+    if (progress.state !== 'current') return { insufficient: 'afford_closed' };
+    const t = monthTotals(transactions, period, { trips, accounts });
+    const whole = categoryBudgets(budgets, transactions, period, trips, { today, accounts }).find((r) => r.category === '*');
+    if (!(t.income > 0) && !whole) return { insufficient: 'afford_unknown' };
+    const incomeLeft = t.income > 0 ? round2(t.income - t.spent - t.upcoming) : null;
+    const budgetLeft = whole ? round2(whole.amount - t.spent - t.upcoming) : null;
+    const left = Math.min(...[incomeLeft, budgetLeft].filter((x) => x !== null));
+    const perDay = round2(Math.max(0, left) / progress.daysLeft);
+    if (incomeLeft !== null) book.fact('afford_room', { income: t.income, spent: t.spent, upcoming: t.upcoming, left: incomeLeft, daysLeft: progress.daysLeft, perDay: round2(Math.max(0, incomeLeft) / progress.daysLeft) });
+    if (whole) book.fact('afford_budget', { budget: whole.amount, budgetLeft, spent: t.spent, upcoming: t.upcoming, daysLeft: progress.daysLeft });
+    const amount = amountFromQuestion(question);
+    if (amount !== null) {
+        const leftAfter = round2(left - amount);
+        book.fact('afford_request', { amount, left: round2(left), leftAfter, short: leftAfter < 0 ? round2(-leftAfter) : 0, perDayBefore: perDay, perDayAfter: round2(Math.max(0, leftAfter) / progress.daysLeft), daysLeft: progress.daysLeft, limitedBy: budgetLeft !== null && budgetLeft === left ? 'budget' : 'income', verdict: leftAfter < 0 ? 'exceeds' : leftAfter < left * 0.25 ? 'tight' : 'fits' });
+    }
+    const { top } = computeOpportunities({ transactions, budgets, goals: ctx.goals, accounts, trips, groups: ctx.groups, period, today, dismissed: ctx.dismissed });
+    for (const o of top.filter((x) => x.monthlySaving > 0).slice(0, 2)) opportunityFact(book, ctx, o);
+    return {};
+}
+
+const BUILDERS = { history, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
 
 // ---------------------------------------------------------------------------
 // Public
@@ -440,7 +548,7 @@ export function inferBasis(question = '') {
     return FULL_BASIS.test(String(question || '')) ? 'full' : 'share';
 }
 
-export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], period, config, today = new Date(), currency = 'EUR', basis: basisIn, categoryNames = [] } = {}) {
+export function buildEvidencePack({ intent, question = '', transactions = [], trips = [], accounts = [], budgets = [], goals = [], people = [], groups = [], dismissed = {}, period, config, today = new Date(), currency = 'EUR', basis: basisIn, categoryNames = [] } = {}) {
     const basis = basisIn === 'full' || basisIn === 'share' ? basisIn : inferBasis(question);
     const route = INTENTS.includes(intent) ? intent : routeQuestion(question);
     const txs = (transactions || []).filter((t) => t && !t.isDemo);
@@ -448,7 +556,7 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
     const progress = periodProgress(period, today);
     const cmp = range ? comparablePeriods(period, today, previousOfPeriod(period, config)) : null;
     const comparison = cmp && cmp.basis ? cmp : null;
-    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, period, today, basis, question, comparison, categoryNames };
+    const ctx = { transactions: txs, trips, accounts, budgets, goals, people, groups, dismissed, period, config, today, basis, question, comparison, categoryNames };
     const book = new Book();
     if (route !== 'owed' && route !== 'history') addPeriodSummary(book, ctx);
     const result = BUILDERS[route](book, ctx) || {};

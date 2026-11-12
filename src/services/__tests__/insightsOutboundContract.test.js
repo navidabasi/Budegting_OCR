@@ -145,3 +145,35 @@ describe('insights v2 request survives the outbound filter (owner-like data)', (
         expect(map[payload.opportunities[0].id]).toBe(opp.top[0].key);
     });
 });
+
+describe('new chat intents survive the outbound filter (owner-like data)', () => {
+    const d = ownerLike();
+    const period = currentCyclePeriod(normalizeConfig(d.config), new Date(`${TODAY}T12:00:00Z`));
+    const send = async (question) => {
+        const { pack } = buildEvidencePack({ ...d, period, question });
+        let sent;
+        const fetchImpl = vi.fn(async (_u, init) => {
+            sent = JSON.parse(init.body);
+            return { ok: true, status: 200, json: async () => ({ answer: 'ok', citations: [], uncertain: [], proposals: [], model: 'm' }) };
+        });
+        await sendEvidenceChat({ pack, thread: [{ role: 'user', content: question }], getToken: async () => 't', fetchImpl });
+        return { pack, sent };
+    };
+    it.each([
+        ['save_money', 'Where can I cut this period?'],
+        ['afford', 'Can I afford 200?'],
+        ['history', 'What do I spend on groceries per cycle on average?'],
+    ])('%s passes the server schema with its facts intact', async (intent, question) => {
+        const { pack, sent } = await send(question);
+        expect(pack.intent).toBe(intent);
+        expect(pack.insufficient).toBeNull();
+        const parsed = chatSchema.safeParse(sent);
+        expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+        expect(sent.evidence.intent).toBe(intent);
+        // facts arrive as built: kinds, figures, opportunity kinds and dates
+        expect(sent.evidence.facts.map((f) => f.id)).toEqual(pack.facts.map((f) => f.id));
+        expect(sent.evidence.facts.map((f) => [f.kind, f.oppKind, f.monthlySaving, f.amount, f.verdict, f.periodStart])).toEqual(pack.facts.map((f) => [f.kind, f.oppKind, f.monthlySaving, f.amount, f.verdict, f.periodStart]));
+        const text = JSON.stringify(sent);
+        for (const t of d.transactions) expect(text.includes(`"${t.id}"`)).toBe(false);
+    });
+});

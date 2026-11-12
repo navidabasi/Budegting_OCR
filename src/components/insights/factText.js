@@ -1,4 +1,5 @@
 import { subcategoryLabel } from '../receipts/subcategoryLabel';
+import { opportunityText } from '../../services/opportunityText';
 
 const signed = (money, v) => `${v > 0 ? '+' : ''}${money(v)}`;
 
@@ -47,6 +48,30 @@ export function factText(f, { t, money, localizeCategory = (x) => x }) {
             return t('evidence.fact.commitments', { upcoming: money(f.upcoming), saved: money(f.saved), income: money(f.income) });
         case 'goal':
             return t('evidence.fact.goal', { name: f.name, saved: money(f.saved), target: money(f.target), remaining: money(f.remaining) });
+        case 'opportunity': {
+            const text = opportunityText({ kind: f.oppKind, params: f, monthlySaving: f.monthlySaving, action: { type: f.action } }, { t, money, localizeCategory });
+            return t('evidence.fact.opportunity', { title: text.title, body: text.body });
+        }
+        case 'saving_total':
+            return t('evidence.fact.saving_total', { monthly: money(f.monthly), yearly: money(f.yearly) });
+        case 'afford_room':
+            return t('evidence.fact.afford_room', { income: money(f.income), spent: money(f.spent), upcoming: money(f.upcoming), left: money(f.left), daysLeft: f.daysLeft, perDay: money(f.perDay) });
+        case 'afford_budget':
+            return t('evidence.fact.afford_budget', { budget: money(f.budget), budgetLeft: money(f.budgetLeft) });
+        case 'afford_request':
+            return t(`evidence.fact.afford_request.${f.verdict}`, { amount: money(f.amount), leftAfter: money(f.leftAfter), perDayAfter: money(f.perDayAfter), short: money(f.short) });
+        case 'history_scope':
+            return t('evidence.fact.history_scope', { category: f.category === 'all spending' ? t('evidence.fact.allSpending') : cat(f.category), from: f.from, to: f.to, completeMonths: f.completeMonths });
+        case 'history_average':
+            return t('evidence.fact.history_average', { average: money(f.averagePerMonth ?? 0), median: money(f.medianPerMonth ?? 0), running: money(f.runningMonthSoFar) });
+        case 'history_cycle_average':
+            return [t('evidence.fact.history_scope_cycle', { category: f.category === 'all spending' ? t('evidence.fact.allSpending') : cat(f.category), from: f.from, to: f.to, completeCycles: f.completeCycles }), t('evidence.fact.history_cycle_average', { average: money(f.averagePerCycle ?? 0), median: money(f.medianPerCycle ?? 0), running: money(f.runningCycleSoFar) })].join(' ');
+        case 'history_month':
+            return t('evidence.fact.history_month', { month: f.month, amount: money(f.amount), count: f.count });
+        case 'history_cycle':
+            return t('evidence.fact.history_month', { month: `${f.start} – ${f.end}`, amount: money(f.amount), count: f.count });
+        case 'history_category':
+            return t('evidence.fact.history_category', { category: cat(f.category), average: money(f.averagePerMonth) });
         default:
             return f.kind;
     }

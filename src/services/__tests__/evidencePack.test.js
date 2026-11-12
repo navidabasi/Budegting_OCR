@@ -273,3 +273,106 @@ describe('history questions use the whole record, not the open period', () => {
         expect(cats).toContain('Groceries');
     });
 });
+
+// ---- pass 3 (A5): save_money, afford, per-cycle history ------------------------------------------
+import { amountFromQuestion, routeQuestion as route3, buildEvidencePack as pack3, unsupportedFigures as unsupported3 } from '../evidencePack';
+import { ownerLike as owner3, TODAY as TODAY3 } from '../__fixtures__/ownerLike';
+import { currentCyclePeriod as cycle3, normalizeConfig as norm3 } from '../../utils/payCycle';
+import { computeOpportunities as opp3 } from '../savingsOpportunities';
+
+describe('routing: saving and afford questions in the app languages', () => {
+    it('routes "where can I cut / how to save / spend better" to save_money', () => {
+        for (const q of ['Where can I cut?', 'How can I save more money?', 'how to save', 'I want to spend better', 'ways to save this month', 'Dove posso risparmiare?', 'Come posso spendere meno?', 'Wo kann ich sparen?', '¿Dónde puedo ahorrar?', 'Où puis-je économiser ?', 'کجا می‌توانم صرفه‌جویی کنم؟', 'أين يمكنني التوفير؟']) expect(route3(q), q).toBe('save_money');
+    });
+    it('routes "can I afford X" to afford, also when a budget word is in the question', () => {
+        for (const q of ['Can I afford 200?', 'can i afford a €1,200 laptop on my budget', 'Posso permettermi 150 €?', 'Kann ich mir 300 leisten?', '¿Puedo permitirme 90?', 'Puis-je me permettre 250 € ?', 'هل أستطيع تحمل 100؟']) expect(route3(q), q).toBe('afford');
+    });
+    it('leaves the other intents alone', () => {
+        expect(route3('What is my average grocery spend per month?')).toBe('history');
+        expect(route3('What do I owe?')).toBe('owed');
+        expect(route3('Am I on track with my budgets?')).toBe('budgets_goals');
+        expect(route3('What changed compared with last cycle?')).toBe('change');
+    });
+    it('reads the amount asked about', () => {
+        expect(amountFromQuestion('Can I afford 200?')).toBe(200);
+        expect(amountFromQuestion('posso permettermi 1.250,50 €')).toBe(1250.5);
+        expect(amountFromQuestion('a $1,200 laptop')).toBe(1200);
+        expect(amountFromQuestion('can I afford a holiday')).toBeNull();
+    });
+});
+
+describe('save_money and afford packs (owner-like data)', () => {
+    const d = owner3();
+    const period = cycle3(norm3(d.config), new Date(`${TODAY3}T12:00:00Z`));
+    const build = (question, extra = {}) => pack3({ ...d, period, question, ...extra });
+    it('save_money carries the same opportunities as the Insights cards, with receipts behind them', () => {
+        const { pack, refs } = build('Where can I cut?');
+        const top = opp3({ ...d, period }).top;
+        const facts = pack.facts.filter((f) => f.kind === 'opportunity');
+        expect(pack.intent).toBe('save_money');
+        expect(facts.map((f) => f.oppKind)).toEqual(top.map((o) => o.kind));
+        expect(facts[0]).toMatchObject({ category: 'Dining', monthlySaving: 79, yearlySaving: 948, confidence: 'high', current: 100.5, baseline: 21.5, periodStart: '2026-10-27', periodEnd: '2026-11-12' });
+        expect(facts[0].refs.length).toBeGreaterThan(0);
+        expect(refs[facts[0].refs[0]].txId).toBeTruthy();
+        expect(pack.facts.find((f) => f.kind === 'saving_total')).toMatchObject({ monthly: 129.67, yearly: 1556.04 });
+        expect(pack.period).toMatchObject({ start: '2026-10-27', end: '2026-11-26', state: 'current' });
+        // an answer quoting the facts is clean; one inventing a saving is flagged
+        expect(unsupported3('Dining is €79 above your usual €21.50; a budget of €35 would hold it. Together about €129.67 a month.', pack)).toEqual([]);
+        expect(unsupported3('You could save €250 a month.', pack)).toEqual(['250']);
+    });
+    it('dismissed suggestions are not offered by the chat either; nothing to cut is answered on the device', () => {
+        const { pack } = build('Where can I cut?', { dismissed: { 'category_above_baseline:Dining': '2026-11-01' } });
+        expect(pack.facts.some((f) => f.kind === 'opportunity' && f.category === 'Dining' && f.oppKind === 'category_above_baseline')).toBe(false);
+        const empty = pack3({ transactions: [{ id: 'x', merchant: 'Lidl', total: 20, category: 'Groceries', date: '2026-11-03', transactionType: 'expense' }], period: '2026-11', today: '2026-11-10', question: 'how to save' });
+        expect(empty.pack.insufficient).toBe('no_opportunities');
+    });
+    it('afford: what is left, the amount asked about and the verdict are computed by the app', () => {
+        const { pack } = build('Can I afford 200?');
+        const room = pack.facts.find((f) => f.kind === 'afford_room');
+        expect(pack.intent).toBe('afford');
+        expect(room.daysLeft).toBe(15);
+        expect(room.left).toBeCloseTo(room.income - room.spent - room.upcoming, 2);
+        const req = pack.facts.find((f) => f.kind === 'afford_request');
+        expect(req).toMatchObject({ amount: 200, verdict: 'fits', limitedBy: 'income', short: 0 });
+        expect(req.leftAfter).toBeCloseTo(room.left - 200, 2);
+        expect(req.perDayAfter).toBeCloseTo((room.left - 200) / 15, 1);
+        expect(pack.facts.filter((f) => f.kind === 'opportunity').length).toBeLessThanOrEqual(2);
+        expect(build('Can I afford 400?').pack.facts.find((f) => f.kind === 'afford_request').verdict).toBe('tight');
+        expect(build('Can I afford 2000?').pack.facts.find((f) => f.kind === 'afford_request')).toMatchObject({ verdict: 'exceeds', short: Math.round((2000 - room.left) * 100) / 100 });
+    });
+    it('afford: a whole-period budget that is tighter than the income decides; no amount, no verdict', () => {
+        const budgets = [{ id: 'w', category: '*', amount: 900, currency: 'EUR', startsOn: '2026-01-01' }];
+        const { pack } = build('Can I afford 150?', { budgets });
+        expect(pack.facts.find((f) => f.kind === 'afford_budget')).toMatchObject({ budget: 900 });
+        expect(pack.facts.find((f) => f.kind === 'afford_request')).toMatchObject({ limitedBy: 'budget', verdict: 'exceeds' });
+        expect(build('Can I afford a holiday?').pack.facts.some((f) => f.kind === 'afford_request')).toBe(false);
+    });
+    it('afford: needs income or a budget, and a running period', () => {
+        const txs = [{ id: 'x', merchant: 'Lidl', total: 20, category: 'Groceries', date: '2026-11-03', transactionType: 'expense' }];
+        expect(pack3({ transactions: txs, period: '2026-11', today: '2026-11-10', question: 'Can I afford 50?' }).pack.insufficient).toBe('afford_unknown');
+        expect(pack3({ ...d, period: '2026-09', question: 'Can I afford 50?' }).pack.insufficient).toBe('afford_closed');
+    });
+    it('history learns per-cycle averages: complete pay cycles only, the running cycle kept apart', () => {
+        const { pack } = build('What do I spend on groceries per cycle on average?');
+        expect(pack.intent).toBe('history');
+        const avg = pack.facts.find((f) => f.kind === 'history_cycle_average');
+        expect(avg).toMatchObject({ category: 'Groceries', unit: 'pay cycle', asked: true, to: TODAY3 });
+        const groceries = (start, end) => d.transactions.filter((t) => t.category === 'Groceries' && t.date >= start && t.date <= end).reduce((s, t) => s + t.total, 0);
+        expect(avg.runningCycleSoFar).toBeCloseTo(groceries('2026-10-27', '2026-11-12'), 2);
+        expect(avg.highest.amount).toBeGreaterThanOrEqual(avg.medianPerCycle);
+        const rows = pack.facts.filter((f) => f.kind === 'history_cycle');
+        expect(rows.at(-1)).toMatchObject({ cycle: '2026-10', start: '2026-10-27', end: '2026-11-26', running: true });
+        const done = rows.filter((r) => !r.running);
+        expect(done.at(-1).amount).toBeCloseTo(groceries('2026-09-27', '2026-10-26'), 2);
+        expect(avg.completeCycles).toBe(avg.cycles - 1);
+        // the calendar-month facts are still there, and the pack still covers the whole record
+        expect(pack.facts.some((f) => f.kind === 'history_average')).toBe(true);
+        expect(pack.period).toMatchObject({ kind: 'history', end: TODAY3 });
+        // asked per month by someone who works in cycles: the cycle average is offered, without the per-cycle rows
+        const monthly = build('average groceries per month').pack;
+        expect(monthly.facts.find((f) => f.kind === 'history_cycle_average').asked).toBe(false);
+        expect(monthly.facts.some((f) => f.kind === 'history_cycle')).toBe(false);
+        // no pay cycle set and not asked for: calendar months only
+        expect(pack3({ ...d, config: undefined, period: '2026-11', question: 'average groceries per month' }).pack.facts.some((f) => f.kind === 'history_cycle_average')).toBe(false);
+    });
+});

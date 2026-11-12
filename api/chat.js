@@ -128,7 +128,7 @@ export const handle = async ({ req, body }) => {
         messages: [{ role: 'system', content: system }, { role: 'system', content: context }, ...turns],
         json: true,
         // the json answer, its citations and up to three proposals must fit: a cut-off answer is an unusable one
-        maxTokens: input.evidence ? 1200 : 700,
+        maxTokens: input.evidence ? 1500 : 700,
         temperature: 0.2,
     });
 
