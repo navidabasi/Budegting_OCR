@@ -79,6 +79,7 @@ beforeEach(async () => {
     server.failAfterStore = false;
     server.tick = 0;
     server.uploads = [];
+    localStorage.setItem('wmw.scanPrefs', JSON.stringify({ saveImages: true, photosOffV1: true })); // this file covers kept photos
     vi.clearAllMocks();
     setOnline(true);
 });

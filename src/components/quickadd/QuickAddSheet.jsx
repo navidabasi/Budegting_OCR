@@ -23,6 +23,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { DEFAULT_CATEGORY } from '../../utils/constants';
 import { suggestForMerchant } from '../../services/categorizer';
 import { merchantKey } from '../../utils/merchant';
+import { getScanPrefs } from '../../utils/scanPrefs';
 import { useTranslation } from '../../languages/useTranslation';
 import { decimalSeparator, formatAmount, formatMoney, localeFor } from '../../utils/format';
 import { displayExpression, evaluate, expressionFromNumber, keyFromEvent, pressKey } from '../../utils/amountInput';
@@ -257,7 +258,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                 await updateTransaction(editing.id, record);
                 showToast(t('quickAdd.savedEdit'), 'success');
             } else {
-                const attach = image || null;
+                const attach = getScanPrefs().saveImages ? image || null : null; // only the extracted data is kept unless photos are kept
                 const newTxId = txIdRef.current;
                 // The photo is stored on the device before the record, the record before "saved" is shown
                 const imagePath = attach ? await queueImage({ userId: currentUser.userId, transactionId: newTxId, blob: attach }) : undefined;
@@ -365,7 +366,7 @@ export default function QuickAddSheet({ open, onClose, preset, onScan }) {
                             </p>
                         ) : null}
 
-                        {image ? <p className="rounded-[14px] bg-mint px-3.5 py-2 text-sm text-forest-ink">{t('quickAdd.photoAttached')}</p> : null}
+                        {image && getScanPrefs().saveImages ? <p className="rounded-[14px] bg-mint px-3.5 py-2 text-sm text-forest-ink">{t('quickAdd.photoAttached')}</p> : null}
 
                         {isTransfer ? (
                             accounts.length >= 2 ? (
