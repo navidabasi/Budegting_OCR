@@ -2381,4 +2381,13 @@ export const fa = {
         },
     },
     // @i18n:end scan
+    // @i18n:begin appVersion
+    appVersion: {
+        label: "نسخه {{version}} · ساخته‌شده {{built}}",
+        check: "بررسی به‌روزرسانی",
+        checking: "در حال بررسی…",
+        latest: "آخرین نسخه را دارید.",
+        failed: "بررسی به‌روزرسانی ممکن نشد. اتصال را بررسی کنید.",
+    },
+    // @i18n:end appVersion
 };

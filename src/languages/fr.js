@@ -2218,4 +2218,13 @@ export const fr = {
         },
     },
     // @i18n:end scan
+    // @i18n:begin appVersion
+    appVersion: {
+        label: "Version {{version}} · compilée {{built}}",
+        check: "Rechercher des mises à jour",
+        checking: "Vérification…",
+        latest: "Vous avez la dernière version.",
+        failed: "Impossible de vérifier. Vérifiez votre connexion.",
+    },
+    // @i18n:end appVersion
 };

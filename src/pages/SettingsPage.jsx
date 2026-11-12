@@ -30,6 +30,7 @@ import DeleteAllChatSheet from '../components/insights/DeleteAllChatSheet';
 import { useKeepChatHistory } from '../services/chatPrefs';
 import MotionSettings from '../components/settings/MotionSettings';
 import AiAccessSettings from '../components/settings/AiAccessSettings';
+import AppVersion from '../components/settings/AppVersion';
 import AiBoundarySettings from '../components/settings/AiBoundarySettings';
 import { LogOut, Upload, Database, Key, Download, Info, Landmark, DollarSign, Cloud, Tag, Plus, Trash2, Edit2, Moon, Sun, Globe, Bell, ChevronDown, RefreshCw } from 'lucide-react';
 import { detectDeviceLanguage, LANGUAGE_OPTIONS, normalizeLanguageCode } from '../languages';
@@ -993,6 +994,7 @@ export default function SettingsPage() {
                 title={t('prefs.about.title')}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400">{t('prefs.about.name')}</p>
+                <AppVersion />
                 <div className="mt-2 flex gap-4 text-sm">
                     <a href="/privacy.html" className="inline-flex min-h-[44px] items-center text-primary-600 hover:underline dark:text-primary-400">{t('prefs.about.privacy')}</a>
                     <a href="/terms.html" className="inline-flex min-h-[44px] items-center text-primary-600 hover:underline dark:text-primary-400">{t('prefs.about.terms')}</a>

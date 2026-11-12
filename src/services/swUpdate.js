@@ -80,15 +80,35 @@ export function startUpdates({ workbox, doc = document, win = window, now = () =
     });
 
     workbox.register({ immediate: true }).catch((err) => console.warn('[sw] registration failed', err));
-    return { check };
+
+    /** Settings > About: look for a new version now. -> 'updating' (a reload follows) | 'latest' | 'failed'. */
+    const checkNow = async ({ waitMs = 4000 } = {}) => {
+        try {
+            lastCheck = now();
+            await workbox.update();
+        } catch {
+            return 'failed';
+        }
+        // a new worker installs, takes control and the reload above runs; give it a moment before saying there is none
+        await new Promise((r) => setTimeout(r, waitMs));
+        return reloaded || pendingReload ? 'updating' : 'latest';
+    };
+    return { check, checkNow };
 }
+
+let current = null;
+/** The running update handle (null in dev, without service workers, or before registration). */
+export const updateHandle = () => current;
+export const APP_VERSION = typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__; // eslint-disable-line no-undef
+export const BUILD_TIME = typeof __BUILD_TIME__ === 'undefined' ? null : __BUILD_TIME__; // eslint-disable-line no-undef
 
 /** Production only: register /sw.js with update checks. Never throws. */
 export async function registerServiceWorker() {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
     try {
         const { Workbox } = await import('workbox-window');
-        return startUpdates({ workbox: new Workbox('/sw.js', { scope: '/' }) });
+        current = startUpdates({ workbox: new Workbox('/sw.js', { scope: '/' }) });
+        return current;
     } catch (err) {
         console.warn('[sw] could not start', err);
         return null;

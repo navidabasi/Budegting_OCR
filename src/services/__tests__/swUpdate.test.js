@@ -101,3 +101,18 @@ describe('service worker updates', () => {
         expect(win.location.reload).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('Check for updates (Settings > About)', () => {
+    it('says "latest" when no new version takes over, "updating" when one does, "failed" when offline', async () => {
+        const { wb, handle } = setup();
+        expect(await handle.checkNow({ waitMs: 0 })).toBe('latest');
+        expect(wb.update).toHaveBeenCalled();
+        wb.update = vi.fn(async () => wb.emit('controlling', { isUpdate: true }));
+        expect(await handle.checkNow({ waitMs: 0 })).toBe('updating');
+        const off = setup();
+        off.wb.update = vi.fn(async () => {
+            throw new Error('offline');
+        });
+        expect(await off.handle.checkNow({ waitMs: 0 })).toBe('failed');
+    });
+});

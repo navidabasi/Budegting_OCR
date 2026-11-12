@@ -2331,4 +2331,13 @@ export const de = {
         },
     },
     // @i18n:end scan
+    // @i18n:begin appVersion
+    appVersion: {
+        label: "Version {{version}} · erstellt {{built}}",
+        check: "Nach Updates suchen",
+        checking: "Wird geprüft…",
+        latest: "Du hast die neueste Version.",
+        failed: "Updates konnten nicht geprüft werden. Prüfe die Verbindung.",
+    },
+    // @i18n:end appVersion
 };

@@ -2363,4 +2363,13 @@ export const ar = {
         },
     },
     // @i18n:end scan
+    // @i18n:begin appVersion
+    appVersion: {
+        label: "الإصدار {{version}} · بُني {{built}}",
+        check: "التحقق من التحديثات",
+        checking: "جارٍ التحقق…",
+        latest: "لديك أحدث إصدار.",
+        failed: "تعذّر التحقق من التحديثات. تحقق من الاتصال.",
+    },
+    // @i18n:end appVersion
 };

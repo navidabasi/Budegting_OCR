@@ -2487,4 +2487,13 @@ export const en = {
         },
     },
     // @i18n:end scan
+    // @i18n:begin appVersion
+    appVersion: {
+        label: "Version {{version}} · built {{built}}",
+        check: "Check for updates",
+        checking: "Checking…",
+        latest: "You have the latest version.",
+        failed: "Couldn’t check for updates. Check your connection.",
+    },
+    // @i18n:end appVersion
 };
