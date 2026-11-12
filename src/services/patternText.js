@@ -1,14 +1,14 @@
 // Text and links for a spending pattern (assistant v2, B-T3). Pure: the figures are the ones patternInsights.js computed.
-// ctx: { t, money(v), localizeCategory(name), number(v) }
+// ctx: { t, money(v), short(v)?, localizeCategory(name), number(v) }
 
 /** -> { title, body } in the app language. */
-export function patternText(p, { t, money, localizeCategory = (x) => x, number = (v) => String(v) }) {
+export function patternText(p, { t, money, short = money, localizeCategory = (x) => x, number = (v) => String(v) }) {
     const q = p?.params || {};
     switch (p?.kind) {
         case 'weekend_heavy':
             return { title: t('pattern.weekend_heavy.title', { weekend: money(q.weekendPerDay), weekday: money(q.weekdayPerDay) }), body: t('pattern.weekend_heavy.body', { days: q.days, pct: q.weekendPct }) };
         case 'small_purchases':
-            return { title: t('pattern.small_purchases.title', { count: q.count, under: money(q.under), total: money(q.total) }), body: t('pattern.small_purchases.body', { baseline: money(q.baselineTotal), extra: money(q.extra) }) };
+            return { title: t('pattern.small_purchases.title', { count: q.count, under: short(q.under), total: money(q.total) }), body: t('pattern.small_purchases.body', { baseline: money(q.baselineTotal), extra: money(q.extra) }) };
         case 'first_week_spike':
             return { title: t('pattern.first_week_spike.title', { pct: q.firstWeekPct, days: q.days }), body: t('pattern.first_week_spike.body', { periods: q.periods, first: money(q.perDayFirstWeek), rest: money(q.perDayRest) }) };
         case 'merchant_cadence':

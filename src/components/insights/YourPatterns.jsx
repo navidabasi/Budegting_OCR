@@ -49,7 +49,7 @@ function Bars({ bars, money, highlightLast }) {
  */
 export default function YourPatterns({ patterns = [], hiddenCount = 0, onDismiss, onRestore }) {
     const { t, localizeCategory, languageCode } = useTranslation();
-    const { money } = useMoney();
+    const { money, short } = useMoney();
     const showToast = useAppStore((s) => s.showToast);
     const [busy, setBusy] = useState(null);
     const number = (v) => new Intl.NumberFormat(`${languageCode}-u-nu-latn`, { maximumFractionDigits: 1 }).format(v);
@@ -76,7 +76,7 @@ export default function YourPatterns({ patterns = [], hiddenCount = 0, onDismiss
             {patterns.length > 0 ? (
                 <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line">
                     {patterns.map((p) => {
-                        const text = patternText(p, { t, money, localizeCategory, number });
+                        const text = patternText(p, { t, money, short, localizeCategory, number });
                         const Icon = p.kind === 'category_streak' && p.params?.direction === 'down' ? TrendingDown : ICON[p.kind] || Repeat;
                         const bars = barsOf(p, t);
                         const href = patternHref(p);
