@@ -170,6 +170,8 @@ export function sanitizeValue(value, ctx = context, key = '') {
     }
     if (typeof value === 'string') {
         if (PROTOCOL_KEYS.has(key) && /^[\w.:-]{1,80}$/.test(value)) return value;
+        // assistant v2: an app-map route (`path` of an app_feature fact) is app documentation, never user data
+        if (key === 'path' && /^\/[a-z0-9/?=&-]{0,60}$/.test(value)) return value;
         if (ISO_DATETIME.test(value)) return value.slice(0, 10);
         if (/^\d{4}-\d{2}(-\d{2})?$/.test(value) || key === 'language' || key === 'mime' || key === 'currency' || key === 'category' || key === 'subcategory') return value;
         return scrubText(value, ctx);

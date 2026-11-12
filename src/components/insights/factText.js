@@ -18,6 +18,7 @@ export function factText(f, { t, money, localizeCategory = (x) => x }) {
         case 'spend_total':
             return t('evidence.fact.spend_total', { amount: money(f.amount) });
         case 'category_total':
+            if (f.sharePct !== undefined && f.sharePct !== null) return t('evidence.fact.category_share', { category: cat(f.category), amount: money(f.amount), pct: f.sharePct });
             if (f.count === undefined) return t('evidence.fact.category_simple', { category: cat(f.category), amount: money(f.amount) });
             return [t('evidence.fact.category_total', { category: cat(f.category), amount: money(f.amount), count: f.count }), f.otherCategoryLines > 0 ? t('evidence.fact.category_other', { amount: money(f.otherCategoryLines) }) : ''].filter(Boolean).join(' ');
         case 'subcategory':
@@ -72,6 +73,14 @@ export function factText(f, { t, money, localizeCategory = (x) => x }) {
             return t('evidence.fact.history_month', { month: `${f.start} – ${f.end}`, amount: money(f.amount), count: f.count });
         case 'history_category':
             return t('evidence.fact.history_category', { category: cat(f.category), average: money(f.averagePerMonth) });
+        case 'budget_absent':
+            return f.suggestion ? t('evidence.fact.budget_absent', { category: cat(f.category), months: f.basedOnMonths, amount: money(f.suggestion) }) : t('evidence.fact.budget_absentNone', { category: cat(f.category) });
+        case 'glossary':
+            return t('evidence.fact.glossary', { category: cat(f.category) });
+        case 'app_feature':
+            return t('evidence.fact.app_feature', { screen: t(`appMap.screen.${f.screen}`) });
+        case 'app_screens':
+            return t('evidence.fact.app_screens');
         default:
             return f.kind;
     }

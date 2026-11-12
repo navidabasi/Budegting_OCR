@@ -45,3 +45,56 @@ describe('A-T1 router v2: conceptual and app-help questions', () => {
         expect(routeQuestion('Posso permettermi 150 €?')).toBe('afford');
     });
 });
+
+import { packNumbers, unsupportedFigures } from '../evidencePack';
+import { ownerLike, TODAY } from '../__fixtures__/ownerLike';
+import { currentCyclePeriod, normalizeConfig } from '../../utils/payCycle';
+
+describe('A-T2 explain pack: the category the question names, its history and its budget or absence', () => {
+    const d = ownerLike();
+    const period = currentCyclePeriod(normalizeConfig(d.config), new Date(`${TODAY}T12:00:00Z`));
+    const build = (question, extra = {}) => buildEvidencePack({ ...d, period, question, ...extra }).pack;
+
+    it('"why do I need a budget for housing" carries Housing total, history, budget_absent and the glossary', () => {
+        const pack = build('why do i need to set a budget for housing');
+        expect(pack.intent).toBe('explain');
+        expect(pack.insufficient).toBeNull();
+        const kinds = pack.facts.map((f) => f.kind);
+        expect(kinds).toEqual(expect.arrayContaining(['period_summary', 'category_total', 'history_average', 'budget_absent', 'glossary']));
+        const total = pack.facts.find((f) => f.kind === 'category_total');
+        expect(total).toMatchObject({ category: 'Housing', amount: 380 });
+        expect(total.sharePct).toBeGreaterThan(0);
+        const avg = pack.facts.find((f) => f.kind === 'history_average');
+        expect(avg).toMatchObject({ category: 'Housing', last3MonthsAverage: 380 });
+        expect(pack.facts.find((f) => f.kind === 'budget_absent')).toMatchObject({ category: 'Housing', suggestion: 380, basedOnMonths: 3 });
+        expect(pack.facts.find((f) => f.kind === 'glossary').contains).toMatch(/rent/);
+        // every figure an answer should quote is in the pack
+        const nums = packNumbers(pack);
+        for (const n of [380, total.sharePct, avg.averagePerMonth]) expect(nums.has(n)).toBe(true);
+        expect(unsupportedFigures('Your rent is 380 € a month, about ' + total.sharePct + ' % of your spending.', pack)).toEqual([]);
+    });
+
+    it('a budgeted category gets its budget row instead of budget_absent', () => {
+        const pack = build('Why should I have a budget for groceries?');
+        expect(pack.facts.find((f) => f.kind === 'budget')).toMatchObject({ category: 'Groceries', budget: 260 });
+        expect(pack.facts.some((f) => f.kind === 'budget_absent')).toBe(false);
+    });
+
+    it('"what is budgeting" names no category: the biggest categories, never insufficient', () => {
+        const pack = build('what is budgeting');
+        expect(pack.intent).toBe('explain');
+        expect(pack.insufficient).toBeNull();
+        expect(pack.facts.filter((f) => f.kind === 'category_total').length).toBeGreaterThan(0);
+        expect(pack.facts.some((f) => f.kind === 'glossary')).toBe(false);
+        const empty = buildEvidencePack({ question: 'what is budgeting', period: '2026-11', today: '2026-11-10' }).pack;
+        expect(empty.insufficient).toBeNull();
+    });
+
+    it('budgets_goals also carries a named category it has no budget for', () => {
+        const pack = build('How is my budget for dining?', { intent: 'budgets_goals' });
+        expect(pack.facts.find((f) => f.kind === 'category_total')).toMatchObject({ category: 'Dining' });
+        expect(pack.facts.find((f) => f.kind === 'budget_absent')).toMatchObject({ category: 'Dining' });
+        const none = buildEvidencePack({ transactions: d.transactions, period, today: TODAY, question: 'budget for housing', intent: 'budgets_goals' }).pack;
+        expect(none.insufficient).toBeNull();
+    });
+});

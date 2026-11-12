@@ -2,12 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom';
 import { ArrowUp, ArrowUpRight, Loader2, Plus, Sparkles } from 'lucide-react';
 import EvidenceAnswer from './EvidenceAnswer';
+import GeneralTips from './GeneralTips';
 import ProposalSheet from './ProposalSheet';
 import AiHistory from './AiHistory';
 import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
 import { useKeyboardOpen } from '../../hooks/useKeyboardOpen';
 import { getAccessToken } from '../../services/accessToken';
+import { screenOfPath } from '../../services/appMap';
 import { actionHref, loadThread, saveThread, sendEvidenceChat, STORAGE_KEY } from '../../services/chatApi';
 import { packMeta, unpackMessage } from '../../services/chatMeta';
 import { useKeepChatHistory, useOpenConversation } from '../../services/chatPrefs';
@@ -26,7 +28,7 @@ import { restoreAliases } from '../../services/aiOutbound';
  * `ctx`: { transactions, trips, accounts, budgets, goals, people, period, config, today, currency, categoryNames, suggest }.
  */
 // Shown once, before the first question of a conversation
-const STARTERS = ['save_money', 'change', 'grocery_breakdown', 'top_merchant'];
+const STARTERS = ['save_money', 'change', 'explain', 'grocery_breakdown', 'top_merchant', 'app_help'];
 
 export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = getAccessToken }) {
     const { t } = useTranslation();
@@ -176,7 +178,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
                 const out = await sendEvidenceChat({ pack, thread: next, language, getToken, fetchImpl });
                 const resolved = resolveProposals(out.proposals, refs, ctx.transactions, { categories: ctx.categoryNames || [] });
                 const proposals = [...resolved, ...locals.filter((l) => !resolved.some((r) => r.type === l.type && JSON.stringify(r.records || r.remove) === JSON.stringify(l.records || l.remove)))];
-                await post(convRef, { role: 'assistant', content: restoreAliases(out.answer), ...(out.suggestedAction ? { action: out.suggestedAction } : {}), ev: { pack, refs, citations: out.citations, uncertain: out.uncertain, grounded: out.grounded, unsupported: out.unsupported, proposals, state: 'ok' } });
+                await post(convRef, { role: 'assistant', content: restoreAliases(out.answer), ...(out.suggestedAction ? { action: out.suggestedAction } : {}), ev: { pack, refs, citations: out.citations, uncertain: out.uncertain, grounded: out.grounded, unsupported: out.unsupported, proposals, ...(out.generalTips?.length ? { generalTips: out.generalTips.map((tip) => restoreAliases(tip)) } : {}), state: 'ok' } });
             } catch (err) {
                 // the facts were computed here, so they are still worth showing when the explanation fails
                 await post(convRef, { role: 'assistant', content: t(`chat.error.${errorKey(err)}`), error: true, retry: q, intent: route, ev: { pack, refs, citations: [], uncertain: [], grounded: true, unsupported: [], proposals: locals, state: err?.kind === 'offline' ? 'offline' : 'failed' } });
@@ -198,6 +200,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
         const p = a.payload || {};
         if (a.type === 'set_budget') return t('chat.action.setBudget', { category: /^(total|whole month)$/i.test(p.category) ? t('budgets.wholeMonth') : p.category, amount: short(p.amount) });
         if (a.type === 'add_goal') return t('chat.action.addGoal', { name: p.name, amount: short(p.targetAmount) });
+        if (a.type === 'open_screen') return t('chat.action.openScreen', { screen: t(`appMap.screen.${screenOfPath(p.path) || 'home'}`) });
         return t('chat.action.openFilter');
     };
 
@@ -241,6 +244,7 @@ export default function ChatPanel({ ctx, month, language, fetchImpl, getToken = 
                                 }}
                                 className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                                 <p className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-ee-md bg-ink text-ground dark:bg-forest dark:text-white' : m.error ? 'rounded-es-md bg-warn-soft text-warn-ink' : 'rounded-es-md bg-surface text-ink shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line desk:bg-ground desk:shadow-none'}`}>{m.content}</p>
+                                {m.role === 'assistant' && m.ev?.generalTips?.length ? <GeneralTips tips={m.ev.generalTips} /> : null}
                                 {m.role === 'assistant' && m.ev ? <EvidenceAnswer ev={m.ev} onProposal={setProposal} /> : null}
                                 {m.error && m.retry && i === thread.length - 1 && !busy && m.content !== t('chat.error.rateLimit') ? (
                                     <button type="button" onClick={() => retry(m)} className="h-11 rounded-xl px-3 text-sm font-semibold text-forest-ink">

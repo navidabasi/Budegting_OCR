@@ -57,7 +57,7 @@ describe('ChatPanel with evidence', () => {
         const fetchImpl = reply({ answer: 'Conad leads.', citations: ['F2'], uncertain: [], proposals: [], model: 'm' });
         mount(fetchImpl);
         const starters = screen.getByTestId('chat-starters');
-        expect(within(starters).getAllByTestId('chat-starter').map((b) => b.textContent)).toEqual(['Where can I save?', 'What changed vs last period?', 'Where did grocery money go?', 'Top supermarket this cycle']);
+        expect(within(starters).getAllByTestId('chat-starter').map((b) => b.textContent)).toEqual(['Where can I save?', 'What changed vs last period?', 'Why should I set budgets?', 'Where did grocery money go?', 'Top supermarket this cycle', 'Where do I find my subscriptions?']);
         expect(within(screen.getByTestId('chat-bar')).queryAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Send']);
         fireEvent.click(screen.getByRole('button', { name: 'Top supermarket this cycle' }));
         await screen.findByText('Conad leads.');
@@ -261,5 +261,57 @@ describe('ChatPanel history', () => {
         fireEvent.click(await screen.findByTestId('chat-earlier'));
         await screen.findByText('message 5');
         expect(screen.queryByTestId('chat-earlier')).toBeNull();
+    });
+});
+
+describe('ChatPanel, assistant v2 (A-T5): grounded data answer, explain answer with tips, app_help answer with open_screen', () => {
+    it('a grounded data answer keeps the evidence, no guidance chip and no tips', async () => {
+        mount(reply({ answer: 'Groceries were 100.00 so far.', citations: ['F2'], uncertain: [], proposals: [], generalTips: ['Ignored tip'], model: 'm' }));
+        askQuestion('Where did grocery money go?');
+        await screen.findByText('Groceries were 100.00 so far.');
+        expect(screen.queryByTestId('evidence-guidance')).toBeNull();
+        expect(screen.queryByTestId('evidence-ungrounded')).toBeNull();
+        // the client renders what the server allowed; this server reply carried a tip for a data intent, the server drops it in production
+    });
+
+    it('an uncited data answer still warns', async () => {
+        mount(reply({ answer: 'Something vague.', citations: [], uncertain: [], proposals: [], model: 'm' }));
+        askQuestion('Where did grocery money go?');
+        await screen.findByText('Something vague.');
+        expect(screen.getByTestId('evidence-ungrounded')).toBeTruthy();
+    });
+
+    it('an explain answer shows the general-guidance chip (no warning triangle) and the labeled tips', async () => {
+        const fetchImpl = reply({ answer: 'A budget is a plan for each period’s money. Groceries were 100.00 so far.', citations: [], uncertain: [], proposals: [], generalTips: ['Move savings on payday, before spending starts.', 'Review fixed costs once a year.'], model: 'm' });
+        mount(fetchImpl);
+        askQuestion('What is budgeting?');
+        await screen.findByText(/A budget is a plan/);
+        expect(JSON.parse(fetchImpl.mock.calls[0][1].body).evidence.intent).toBe('explain');
+        expect(screen.getByTestId('evidence-guidance').textContent).toMatch(/general guidance/i);
+        expect(screen.queryByTestId('evidence-ungrounded')).toBeNull();
+        const tips = screen.getByTestId('general-tips');
+        expect(within(tips).getByText('General tips — not from your data')).toBeTruthy();
+        expect(within(tips).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Move savings on payday, before spending starts.', 'Review fixed costs once a year.']);
+    });
+
+    it('an app_help answer names the guide and renders open_screen as a link to the screen', async () => {
+        const fetchImpl = reply({ answer: 'Open Insights → Ways to save.', citations: ['F1'], uncertain: [], proposals: [], suggestedAction: { type: 'open_screen', payload: { path: '/insights' } }, model: 'm' });
+        mount(fetchImpl);
+        askQuestion('Where do I find my subscriptions?');
+        await screen.findByText('Open Insights → Ways to save.');
+        const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(body.evidence.intent).toBe('app_help');
+        expect(body.evidence.facts.some((f) => f.kind === 'period_summary')).toBe(false);
+        expect(screen.getByTestId('evidence-meta').textContent).toBe('From the app guide');
+        const link = screen.getByRole('link', { name: /Open Insights/ });
+        expect(link.getAttribute('href')).toBe('/insights');
+        expect(screen.queryByTestId('evidence-ungrounded')).toBeNull();
+    });
+
+    it('an open_screen to an unknown route is not rendered', async () => {
+        mount(reply({ answer: 'Go there.', citations: ['F1'], suggestedAction: { type: 'open_screen', payload: { path: '/nowhere' } }, model: 'm' }));
+        askQuestion('Where do I find my subscriptions?');
+        await screen.findByText('Go there.');
+        expect(screen.queryByRole('link', { name: /Open/ })).toBeNull();
     });
 });

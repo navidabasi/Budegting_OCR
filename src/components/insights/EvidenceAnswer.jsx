@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../languages/useTranslation';
 import { useMoney } from '../../hooks/useMoney';
 import { formatRange } from '../../utils/period';
 import { factText } from './factText';
+import { GUIDANCE_INTENTS } from '../../services/evidencePack';
 
 const recordHref = (ref) => (ref ? `/receipts/${ref.txId}${ref.itemId ? `?item=${encodeURIComponent(ref.itemId)}` : ''}` : null);
 
@@ -32,10 +33,18 @@ export default function EvidenceAnswer({ ev, onProposal }) {
     const evById = new Map(pack.evidence.map((e) => [e.id, e]));
     const date = (d) => (d ? new Intl.DateTimeFormat(`${languageCode}-u-ca-gregory-nu-latn`, { day: 'numeric', month: 'short' }).format(new Date(`${d}T00:00:00`)) : '');
     const conv = pack.conversion?.count || 0;
+    // explain / app_help answers may use general knowledge: an answer that cites nothing is not a warning there
+    const guidance = GUIDANCE_INTENTS.includes(pack.intent);
+    const appHelp = pack.intent === 'app_help';
 
     return (
         <div className="flex w-full flex-col gap-2 rounded-2xl border border-line bg-surface px-3.5 py-3" data-testid="evidence">
-            {pack.intent !== 'owed' ? (
+            {appHelp ? (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-ink-muted" data-testid="evidence-meta">
+                    <BookOpen size={13} className="shrink-0" aria-hidden="true" />
+                    {t('evidence.appGuide')}
+                </p>
+            ) : pack.intent !== 'owed' ? (
                 <p className="text-xs font-medium text-ink-muted" data-testid="evidence-meta">
                     {t('evidence.metaLine', { period, currency: pack.currency, basis: t(`evidence.basis.${pack.basis}`) })}
                 </p>
@@ -56,7 +65,13 @@ export default function EvidenceAnswer({ ev, onProposal }) {
                     {conv === 1 ? t('evidence.notConverted1') : t('evidence.notConverted', { count: conv })}
                 </p>
             ) : null}
-            {state === 'ok' && !grounded ? (
+            {state === 'ok' && guidance && (!grounded || pack.intent === 'explain') ? (
+                <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-medium text-ink-muted" data-testid="evidence-guidance">
+                    <BookOpen size={13} className="shrink-0" aria-hidden="true" />
+                    {t('evidence.generalGuidance')}
+                </p>
+            ) : null}
+            {state === 'ok' && !grounded && !guidance ? (
                 <p className="flex items-start gap-1.5 text-xs font-medium text-warn-ink" data-testid="evidence-ungrounded">
                     <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
                     {t('evidence.notCited')}

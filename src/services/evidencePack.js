@@ -25,6 +25,8 @@ import { pendingConversionCount } from '../utils/conversion';
 import { collectNumbers, figuresNotIn } from '../utils/numberGuard';
 import { cycleIdForDate, cycleRange, normalizeConfig } from '../utils/payCycle';
 import { computeOpportunities, totalMonthlySaving } from './savingsOpportunities';
+import { glossaryFor } from './categoryGlossary';
+import { APP_SCREENS, matchFeatures } from './appMap';
 
 export const PACK_VERSION = 1;
 export const INTENTS = ['history', 'top_merchant', 'grocery_breakdown', 'change', 'unit_price', 'owed', 'review', 'budgets_goals', 'save_money', 'afford', 'explain', 'app_help', 'general'];
@@ -367,8 +369,11 @@ function budgetsGoals(book, ctx) {
         const saved = goalProgress(g, transactions, balances);
         return { name: g.name, target: round2(Number(g.targetAmount) || 0), saved, remaining: Math.max(0, round2((Number(g.targetAmount) || 0) - saved)), targetDate: g.targetDate ? dateOf(g.targetDate) : null };
     });
-    if (rows.length === 0 && gs.length === 0) return { insufficient: 'no_budgets_goals' };
+    const named = categoryFromQuestion(ctx.question, ctx.categoryNames);
+    if (rows.length === 0 && gs.length === 0 && !named) return { insufficient: 'no_budgets_goals' };
     for (const r of rows.slice(0, 6)) book.fact('budget', { category: r.category === '*' ? 'Total' : r.category, budget: r.amount, spent: r.spent, status: r.status, projected: r.projected, pacePct: Math.round(r.pacePct) });
+    // a category the question names: its spend and its budget, or the fact that it has none (with a suggestion)
+    if (named) addCategoryFacts(book, ctx, named, { budgetRows: rows, skipBudgetRow: rows.slice(0, 6).some((r) => r.category === named) });
     book.fact('commitments', { upcoming: t.upcoming, saved: t.saved, income: t.income });
     for (const g of gs.slice(0, 4)) book.fact('goal', g);
     void basis;
@@ -424,13 +429,17 @@ const nextMonth = (m) => {
  * expense to today, the average over complete months (the running month is reported separately, never averaged in),
  * highest and lowest month, and the top categories by monthly average when no category is named.
  */
-function history(book, ctx) {
-    const { transactions, basis, question, today, categoryNames } = ctx;
-    const category = categoryFromQuestion(question, categoryNames);
-    const all = periodExpenses(transactions).filter((tx) => (category ? tx.category === category : true));
+const todayKeyOf = (today) => (typeof today === 'string' ? today.slice(0, 10) : new Date(today).toISOString().slice(0, 10));
+
+/**
+ * Per calendar month from the first recorded expense to today (optionally one category): totals, the average and median over
+ * complete months (empty months count 0, the running month is kept apart), highest and lowest month. null without expenses.
+ */
+export function monthlyHistory(transactions, { category = null, basis = 'share', today = new Date() } = {}) {
     const expenses = periodExpenses(transactions);
-    if (!expenses.length) return { insufficient: 'no_history', skipPeriod: true };
-    const todayKey = typeof today === 'string' ? today.slice(0, 10) : new Date(today).toISOString().slice(0, 10);
+    if (!expenses.length) return null;
+    const all = expenses.filter((tx) => (category ? tx.category === category : true));
+    const todayKey = todayKeyOf(today);
     const current = monthOf(todayKey);
     const first = expenses.map((t) => monthOf(t.date)).filter(Boolean).sort()[0];
     const months = [];
@@ -451,6 +460,17 @@ function history(book, ctx) {
     const withData = complete.filter((m) => byMonth.get(m).count > 0);
     const hi = withData.reduce((a, m) => (!a || byMonth.get(m).total > byMonth.get(a).total ? m : a), null);
     const lo = withData.reduce((a, m) => (!a || byMonth.get(m).total < byMonth.get(a).total ? m : a), null);
+    const last3 = completeTotals.slice(-3);
+    const avg3 = last3.length ? round2(last3.reduce((a, b) => a + b, 0) / last3.length) : null;
+    return { expenses, all, todayKey, current, first, months, byMonth, complete, sum, avg, median, withData, hi, lo, avg3, last3Months: last3.length };
+}
+
+function history(book, ctx) {
+    const { transactions, basis, question, today, categoryNames } = ctx;
+    const category = categoryFromQuestion(question, categoryNames);
+    const h = monthlyHistory(transactions, { category, basis, today });
+    if (!h) return { insufficient: 'no_history', skipPeriod: true };
+    const { expenses, all, todayKey, current, first, months, byMonth, complete, sum, avg, median, withData, hi, lo } = h;
     const byId = new Map(all.map((t) => [t.id, t]));
     const biggest = all.slice().sort((a, b) => basisAmount(b, basis) - basisAmount(a, basis)).slice(0, 3).map((tx) => receiptRef(book, byId.get(tx.id), basis));
     book.fact('history_scope', { category: category || 'all spending', from: first, to: current, months: months.length, completeMonths: complete.length, monthsWithSpending: withData.length, unit: 'calendar month', runningMonth: current });
@@ -569,7 +589,62 @@ function afford(book, ctx) {
     return {};
 }
 
-const BUILDERS = { history, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
+const budgetFact = (book, r) => book.fact('budget', { category: r.category === '*' ? 'Total' : r.category, budget: r.amount, spent: r.spent, status: r.status, projected: r.projected, pacePct: Math.round(r.pacePct) });
+
+/**
+ * The facts about one category that a conceptual or budget question needs: what it cost in the open period (and its share of all
+ * spending), its monthly history average, its budget or `budget_absent` with a suggestion (the average of the last 3 complete
+ * months) and what the category contains (glossary).
+ */
+function addCategoryFacts(book, ctx, category, { budgetRows, skipBudgetRow = false } = {}) {
+    const { transactions, period, basis, today, trips } = ctx;
+    const byCat = spentByCategory(transactions, period, { includeTrips: true });
+    const total = round2(Object.values(byCat).reduce((a, b) => a + b, 0));
+    const amount = round2(byCat[category] || 0);
+    const inPeriod = periodExpenses(transactions, period).filter((tx) => tx.category === category);
+    const refs = inPeriod.sort((a, b) => basisAmount(b, basis) - basisAmount(a, basis)).slice(0, 3).map((tx) => receiptRef(book, tx, basis));
+    book.fact('category_total', { category, amount, count: inPeriod.length, sharePct: pct(amount, total), periodTotal: total }, refs);
+    const h = monthlyHistory(transactions, { category, basis, today });
+    if (h && h.complete.length) {
+        book.fact('history_average', { category, averagePerMonth: h.avg, medianPerMonth: h.median, completeMonths: h.complete.length, from: h.first, last3MonthsAverage: h.avg3, runningMonthSoFar: round2(h.byMonth.get(h.current)?.total || 0), note: 'average over complete calendar months, months with no spending count as 0' });
+    }
+    const rows = budgetRows || categoryBudgets(ctx.budgets || [], transactions, period, trips || [], { today, accounts: ctx.accounts || [] });
+    const row = rows.find((r) => r.category === category);
+    if (row && !skipBudgetRow) budgetFact(book, row);
+    if (!row) book.fact('budget_absent', { category, suggestion: h?.avg3 && h.avg3 > 0 ? Math.ceil(h.avg3) : null, basedOnMonths: h?.last3Months || 0 });
+    const contains = glossaryFor(category);
+    if (contains) book.fact('glossary', { category, contains });
+}
+
+/**
+ * A conceptual question ("why do I need a budget for housing", "what is budgeting"): the model may teach the concept from general
+ * knowledge, and uses these facts for anything it says about the owner. With a named category: its spend, share, history,
+ * budget-or-absent and glossary; otherwise the biggest categories of the period. Never insufficient: a concept needs no data.
+ */
+function explain(book, ctx) {
+    const { transactions, period, question, categoryNames } = ctx;
+    const category = categoryFromQuestion(question, categoryNames);
+    if (category) {
+        addCategoryFacts(book, ctx, category);
+        return {};
+    }
+    const cats = Object.entries(spentByCategory(transactions, period, { includeTrips: true })).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    for (const [c, amount] of cats) book.fact('category_total', { category: c, amount: round2(amount) });
+    for (const r of categoryBudgets(ctx.budgets || [], transactions, period, ctx.trips || [], { today: ctx.today, accounts: ctx.accounts || [] }).slice(0, 4)) budgetFact(book, r);
+    return {};
+}
+
+/**
+ * "Where do I find X / how do I do X": the matching entries of the static app map, plus the list of screens. No user data and
+ * no period: the answer names the screen and the steps and may offer open_screen.
+ */
+function appHelp(book, ctx) {
+    for (const e of matchFeatures(ctx.question)) book.fact('app_feature', { feature: e.id, screen: e.screen, path: e.path, steps: e.steps });
+    book.fact('app_screens', { screens: APP_SCREENS.map((s) => `${s.screen} (${s.path}): ${s.what}`) });
+    return { skipPeriod: true };
+}
+
+const BUILDERS = { history, explain, app_help: appHelp, top_merchant: topMerchant, grocery_breakdown: groceryBreakdown, change, unit_price: unitPrice, owed, review, budgets_goals: budgetsGoals, save_money: saveMoney, afford, general };
 
 // ---------------------------------------------------------------------------
 // Public
@@ -595,15 +670,16 @@ export function buildEvidencePack({ intent, question = '', transactions = [], tr
     const comparison = cmp && cmp.basis ? cmp : null;
     const ctx = { transactions: txs, trips, accounts, budgets, goals, people, groups, dismissed, period, config, today, basis, question, comparison, categoryNames };
     const book = new Book();
-    if (route !== 'owed' && route !== 'history') addPeriodSummary(book, ctx);
+    const noData = route === 'app_help'; // app documentation only: nothing about the owner goes into this pack
+    if (route !== 'owed' && route !== 'history' && !noData) addPeriodSummary(book, ctx);
     const result = BUILDERS[route](book, ctx) || {};
     // Both totals when shared expenses make them differ, so the model can answer either way and say what the gap is.
-    if (route !== 'owed' && route !== 'history' && range) {
+    if (route !== 'owed' && route !== 'history' && !noData && range) {
         const share = totalSpend(txs, period, 'share');
         const full = totalSpend(txs, period, 'full');
         if (Math.abs(full - share) >= 0.01) book.fact('basis_totals', { share, full, difference: round2(full - share), used: basis });
     }
-    const conv = pendingConversionCount(txs, period, currency);
+    const conv = noData ? { count: 0, byCurrency: {} } : pendingConversionCount(txs, period, currency);
     const pack = {
         version: PACK_VERSION,
         intent: route,

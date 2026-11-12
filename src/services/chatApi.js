@@ -1,6 +1,7 @@
 // Client for POST /api/chat (plan P7-T1). Pure thread helpers + the request. The assistant never writes data:
 // a suggestedAction only becomes a link to a prefilled screen (actionHref).
 import { postAi } from './aiClient';
+import { isAppPath } from './appMap';
 
 export const CHAT_ENDPOINT = '/api/chat';
 export const MAX_TURNS = 10;
@@ -94,12 +95,19 @@ export function actionHref(action, month, period) {
         if (p.merchant) q.set('merchant', p.merchant);
         return `/activity?${q.toString()}`;
     }
+    // assistant v2: a deep link to one of the app's own screens (unknown routes are dropped)
+    if (action.type === 'open_screen') return isAppPath(p.path) ? p.path : null;
     return null;
+}
+
+/** General tips as the server returned them, defensively re-checked: at most 3 non-empty strings of at most 200 chars. */
+export function cleanTips(raw) {
+    return (Array.isArray(raw) ? raw : []).filter((t) => typeof t === 'string' && t.trim() && t.length <= 200).map((t) => t.trim()).slice(0, 3);
 }
 
 /**
  * Ask a question answered from an evidence pack (src/services/evidencePack.js). The pack's facts were computed on the device; the
- * model explains them and must cite fact ids. -> { answer, citations, uncertain, grounded, unsupported, proposals, suggestedAction, model }
+ * model explains them and must cite fact ids. -> { answer, citations, uncertain, grounded, unsupported, proposals, generalTips, suggestedAction, model }
  * An insufficient pack is answered locally (no request, no tokens): see insufficientAnswer.
  */
 export async function sendEvidenceChat({ pack, thread, language = 'en', getToken, fetchImpl }) {
@@ -109,5 +117,5 @@ export async function sendEvidenceChat({ pack, thread, language = 'en', getToken
         throw new AiError('server', 502);
     }
     const { validateAnswer } = await import('./evidencePack');
-    return { ...validateAnswer(json, pack), suggestedAction: json.suggestedAction || null, model: json.model || null };
+    return { ...validateAnswer(json, pack), generalTips: cleanTips(json.generalTips), suggestedAction: json.suggestedAction || null, model: json.model || null };
 }
