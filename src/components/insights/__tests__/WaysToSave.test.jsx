@@ -22,16 +22,21 @@ const cards = (props = {}) => show(<WaysToSave opportunities={opp.top} explanati
 afterEach(cleanup);
 
 describe('Ways to save', () => {
-    it('shows at most five cards, each with its saving, one action and Not useful', () => {
+    const openRow = (c) => fireEvent.click(within(c).getByTestId('opportunity-toggle'));
+    it('one compact list: each row shows only its title and saving; the top one is open, one at a time', () => {
         cards();
         const list = screen.getAllByTestId('opportunity');
         expect(list.map((c) => c.dataset.kind)).toEqual(opp.top.map((o) => o.kind));
         expect(list.length).toBeLessThanOrEqual(5);
-        for (const c of list) {
-            expect(within(c).getAllByTestId('opportunity-action')).toHaveLength(1);
-            expect(within(c).getByTestId('opportunity-dismiss').textContent).toBe('Not useful');
-        }
-        expect(within(list[0]).getByRole('heading').textContent).toMatch(/^79[.,]00\s€ more on Dining than usual$/);
+        expect(list.map((c) => c.dataset.open)).toEqual(['true', 'false', 'false', 'false', 'false']);
+        expect(within(list[1]).queryByTestId('opportunity-action')).toBeNull();
+        expect(within(list[0]).getByTestId('opportunity-title').textContent).toMatch(/^79[.,]00\s€ more on Dining than usual$/);
+        openRow(list[2]);
+        expect(screen.getAllByTestId('opportunity').map((c) => c.dataset.open)).toEqual(['false', 'false', 'true', 'false', 'false']);
+        expect(within(list[2]).getAllByTestId('opportunity-action')).toHaveLength(1);
+        expect(within(list[2]).getByTestId('opportunity-dismiss').textContent).toBe('Hide');
+        openRow(list[2]);
+        expect(screen.getAllByTestId('opportunity').every((c) => c.dataset.open === 'false')).toBe(true);
         expect(within(list[0]).getByTestId('opportunity-monthly').textContent).toMatch(/79[.,]00/);
         expect(screen.getByTestId('save-total').textContent).toMatch(/^up to 129[.,]67\s€ a month$/);
     });
@@ -39,7 +44,11 @@ describe('Ways to save', () => {
         const openQuickAdd = vi.fn();
         useAppStore.setState({ openQuickAdd });
         cards();
-        const byKind = (k) => screen.getAllByTestId('opportunity').find((c) => c.dataset.kind === k);
+        const byKind = (k) => {
+            const c = screen.getAllByTestId('opportunity').find((x) => x.dataset.kind === k);
+            if (c.dataset.open !== 'true') openRow(c);
+            return c;
+        };
         expect(within(byKind('category_above_baseline')).getByTestId('opportunity-action').getAttribute('href')).toBe('/plan?m=c%3A2026-10&budget=Dining&amount=35');
         expect(within(byKind('merchant_frequency')).getByTestId('opportunity-action').getAttribute('href')).toBe('/activity?m=r%3A2026-10-27..2026-11-12&merchant=tabaccheria+centrale');
         expect(within(byKind('uncategorised_blind_spot')).getByTestId('opportunity-action').getAttribute('href')).toBe('/activity?m=r%3A2026-10-27..2026-11-12&uncat=1');
@@ -57,19 +66,25 @@ describe('Ways to save', () => {
         const details = within(card).getByTestId('opportunity-details');
         expect(details.textContent).toContain('middle value of your last 3 periods');
         expect(details.textContent).toContain('High confidence');
+        expect(within(details).getByTestId('opportunity-hide-hint').textContent).toContain('comes back in 60 days');
         const records = within(details).getAllByTestId('opportunity-record');
         expect(records).toHaveLength(5);
         expect(records[0].getAttribute('href')).toMatch(/^\/receipts\/s\d+$/);
         fireEvent.click(why);
         expect(within(card).queryByTestId('opportunity-details')).toBeNull();
     });
-    it('"Not useful" reports the key once; the hidden ones can be shown again', async () => {
+    it('"Hide" reports the key once, offers Undo for that one; all hidden ones can be shown again', async () => {
         const onDismiss = vi.fn(async () => {});
         const onRestore = vi.fn();
+        const showToast = vi.fn();
+        useAppStore.setState({ showToast });
         cards({ onDismiss, onRestore, hiddenCount: 2 });
         fireEvent.click(within(screen.getAllByTestId('opportunity')[0]).getByTestId('opportunity-dismiss'));
         await waitFor(() => expect(onDismiss).toHaveBeenCalledWith('category_above_baseline:Dining'));
-        expect(screen.getByTestId('save-hidden').textContent).toContain('2 hidden as not useful');
+        expect(showToast).toHaveBeenCalledWith('Hidden for 60 days', 'success', { action: { label: 'Undo', onClick: expect.any(Function) } });
+        showToast.mock.calls[0][2].action.onClick();
+        expect(onRestore).toHaveBeenCalledWith(['category_above_baseline:Dining']);
+        expect(screen.getByTestId('save-hidden').textContent).toContain('2 hidden');
         fireEvent.click(screen.getByRole('button', { name: 'Show again' }));
         expect(onRestore).toHaveBeenCalled();
     });
@@ -80,8 +95,11 @@ describe('Ways to save', () => {
         expect([...explanations.keys()]).toEqual([opp.top[0].key]);
         cards({ explanations });
         const list = screen.getAllByTestId('opportunity');
+        fireEvent.click(within(list[2]).getByTestId('opportunity-toggle'));
+        fireEvent.click(within(list[0]).getByTestId('opportunity-toggle')); // both stay readable in turn: reopen the first
         expect(within(list[0]).getByTestId('opportunity-explanation').textContent).toBe('Dining is €79 above your usual €21.50 so far.');
         expect(within(list[0]).getByTestId('opportunity-ai')).toBeTruthy();
+        fireEvent.click(within(list[2]).getByTestId('opportunity-toggle'));
         expect(within(list[2]).getByTestId('opportunity-explanation').textContent).toMatch(/^About 6[.,]00\s€ each time\. One fewer visit a week adds up to 24[.,]00\s€ a month\.$/);
         expect(within(list[2]).queryByTestId('opportunity-ai')).toBeNull();
     });

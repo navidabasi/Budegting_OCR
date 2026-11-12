@@ -117,7 +117,7 @@ export default function InsightsPage() {
             ) : (
                 <>
                     <VerdictStrip figures={figures} narrative={narrative} onRetry={narrative.retry} onUpdate={narrative.refresh} canUpdate={!busy && narrative.online} />
-                    <WaysToSave opportunities={opp.top} explanations={explanations} transactions={transactions} accounts={accounts} goals={goals} periodSpec={p.spec} hiddenCount={opp.dismissed.length} onDismiss={dismiss} onRestore={() => restore(opp.dismissed.map((o) => o.key))} />
+                    <WaysToSave opportunities={opp.top} explanations={explanations} transactions={transactions} accounts={accounts} goals={goals} periodSpec={p.spec} hiddenCount={opp.dismissed.length} onDismiss={dismiss} onRestore={(keys) => restore(keys || opp.dismissed.map((o) => o.key))} />
                     {/* side by side from tablet width: where the money went | wins, watch-outs and every finding */}
                     <div className="grid gap-5 md:grid-cols-2 md:items-start">
                         <WhereMoneyWent view={where} periodSpec={p.spec} />

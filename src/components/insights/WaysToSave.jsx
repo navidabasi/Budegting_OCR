@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import OpportunityCard from './OpportunityCard';
 import ProposalSheet from './ProposalSheet';
 import { useTranslation } from '../../languages/useTranslation';
@@ -17,7 +17,8 @@ const brief = (tx) => ({ id: tx.id, merchant: displayName(tx.merchant) || tx.mer
  *   open_filter / review_subscription / categorise   Activity filtered to the exact dates and subject of the card
  *   mark_recurring      a preview sheet; the change is applied on confirm and can be undone from the AI history
  *   add_goal            the prefilled transfer to the goal (nothing is saved until the owner saves it)
- * "Not useful" hides a card for 60 days (synced) and the model is told it was dismissed.
+ * "Hide" hides a suggestion for 60 days (synced), with Undo, and the model is told it was dismissed.
+ * The suggestions are one compact list: one row each (title and saving per month); the top one starts open, one is open at a time.
  */
 export default function WaysToSave({ opportunities, explanations, transactions, accounts = [], goals = [], periodSpec, hiddenCount = 0, onDismiss, onRestore }) {
     const { t } = useTranslation();
@@ -26,6 +27,10 @@ export default function WaysToSave({ opportunities, explanations, transactions, 
     const showToast = useAppStore((s) => s.showToast);
     const [proposal, setProposal] = useState(null);
     const [busy, setBusy] = useState(null);
+    const firstKey = opportunities[0]?.key || null;
+    const [openKey, setOpenKey] = useState(firstKey);
+    // a new period (or a hidden suggestion) brings a new top suggestion: open that one
+    useEffect(() => setOpenKey((k) => (opportunities.some((o) => o.key === k) ? k : firstKey)), [firstKey]); // eslint-disable-line react-hooks/exhaustive-deps
     const byId = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
     const total = totalMonthlySaving(opportunities);
 
@@ -49,7 +54,7 @@ export default function WaysToSave({ opportunities, explanations, transactions, 
         setBusy(o.key);
         try {
             await onDismiss(o.key);
-            showToast(t('insights.save.dismissed'), 'success');
+            showToast(t('insights.save.dismissed'), 'success', { action: { label: t('insights.save.undo'), onClick: () => onRestore([o.key]) } });
         } catch {
             showToast(t('insights.save.failed'), 'error');
         } finally {
@@ -66,20 +71,22 @@ export default function WaysToSave({ opportunities, explanations, transactions, 
             {opportunities.length === 0 ? (
                 <p className="rounded-[14px] bg-tint px-3.5 py-3 text-sm leading-relaxed text-ink-muted" data-testid="save-empty">{t('insights.save.empty')}</p>
             ) : (
-                // two cards a row from tablet width; each keeps its own height so an opened "Why?" never stretches its neighbour
-                <div className="grid gap-3 md:grid-cols-2 md:items-start">
+                <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(16,33,27,.06)] dark:shadow-none dark:ring-1 dark:ring-line">
                     {opportunities.map((o) => (
-                        <OpportunityCard
-                            key={o.id}
-                            opportunity={o}
-                            ai={explanations?.get(o.key) || null}
-                            records={o.evidence.map((id) => byId.get(id)).filter(Boolean).map((tx) => ({ id: tx.id, merchant: displayName(tx.merchant) || tx.merchant || '', date: tx.date, amount: shareAmount(tx) }))}
-                            action={actionFor(o)}
-                            onDismiss={() => dismiss(o)}
-                            busy={busy === o.key}
-                        />
+                        <li key={o.id}>
+                            <OpportunityCard
+                                opportunity={o}
+                                open={openKey === o.key}
+                                onToggle={() => setOpenKey((k) => (k === o.key ? null : o.key))}
+                                ai={explanations?.get(o.key) || null}
+                                records={o.evidence.map((id) => byId.get(id)).filter(Boolean).map((tx) => ({ id: tx.id, merchant: displayName(tx.merchant) || tx.merchant || '', date: tx.date, amount: shareAmount(tx) }))}
+                                action={actionFor(o)}
+                                onDismiss={() => dismiss(o)}
+                                busy={busy === o.key}
+                            />
+                        </li>
                     ))}
-                </div>
+                </ul>
             )}
             {hiddenCount > 0 ? (
                 <p className="flex flex-wrap items-center gap-x-2 text-[13px] text-ink-muted" data-testid="save-hidden">
