@@ -99,14 +99,14 @@ describe('case 1: offline capture, restart, reconnect -> exactly one expense', (
 
         // durable before anything is shown as saved: the record, its photo bytes and the outbox entry are all in IndexedDB
         expect((await db.transactions.get(id)).total).toBe(4.72);
-        expect((await db.images.get(id)).blob).toBeTruthy();
+        expect((await db.images.get(id)).bytes.byteLength).toBeGreaterThan(0);
         const [entry] = await db.outbox.toArray();
         expect(entry).toMatchObject({ table: 'transactions', op: 'insert', recordId: id, status: 'pending' });
         expect(entry.opId).toMatch(/\S{8,}/);
 
         await restartApp();
         expect(await db.outbox.count()).toBe(1);
-        expect((await db.images.get(id)).blob).toBeTruthy();
+        expect((await db.images.get(id)).bytes.byteLength).toBeGreaterThan(0);
 
         // reconnect: the first send lands on the server but the response is lost
         setOnline(true);

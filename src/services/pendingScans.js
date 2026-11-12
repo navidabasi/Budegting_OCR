@@ -7,7 +7,7 @@ import { createTransaction, getTransaction, listRows, listTransactions, updateTr
 import { mergeExtraction } from '../utils/extractionMerge';
 import { itemsFromExtraction, serializeItems } from '../utils/receiptItems';
 import { applyItemRules } from '../utils/itemRules';
-import { queueImage, requestImageFlush, getSignedUrl } from '../data/images';
+import { queueImage, queuedImageBlob, requestImageFlush, getSignedUrl } from '../data/images';
 import { db, openDb } from '../data/db';
 import { ScanError, extractReceipt, isRetryable } from './receiptScan';
 import { getScanPrefs } from '../utils/scanPrefs';
@@ -37,7 +37,8 @@ export async function createPendingScan({ userId, file, label, accountId = null,
 async function blobFor(tx) {
     await openDb();
     const queued = await db.images.get(tx.id);
-    if (queued?.blob) return queued.blob instanceof Blob ? queued.blob : new Blob([queued.blob], { type: queued.mime || 'image/jpeg' }); // (fake-indexeddb clones lose the jsdom Blob class)
+    const local = queuedImageBlob(queued);
+    if (local) return local;
     const url = await getSignedUrl(tx.imagePath);
     if (!url) throw new ScanError('network', 'image not available');
     const res = await fetch(url);
