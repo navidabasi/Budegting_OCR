@@ -368,6 +368,10 @@ Use the `frontend-design` skill and the design canvas for every task. Tokens in 
 
 Push notifications for unpaid bills (Supabase Edge Function + Web Push); ESLint + Prettier in CI; delete dead code (`storage.js` stubs, demo seeding duplicates); translate `WidgetRegistry` names; remove `console.log` noise.
 
+### Phase 9 — Assistant v2 (after Phase 7)
+
+The chat answers only data questions today. Phase 9 adds conceptual answers ("what is budgeting, why budget a fixed cost like rent"), app help ("where do I find X"), labeled general saving tips and deterministic spending-pattern insights on both chat and the Insights page. Decisions taken with the owner 2026-11-12. **Tasks, decisions and acceptance criteria: `docs/ASSISTANT_V2_PLAN.md`.**
+
 ---
 
 ## 6. Decisions taken (from the owner, 2026-11-10)
