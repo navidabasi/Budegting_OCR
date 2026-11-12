@@ -27,10 +27,17 @@ describe('csv export', () => {
 });
 
 describe('scan prefs', () => {
-    it('defaults on and persists', () => {
+    it('photos are not kept by default; the choice persists', () => {
         localStorage.clear();
-        expect(getScanPrefs()).toEqual({ saveImages: true, readItems: true, sendPhotos: true, cropFirst: false });
-        setScanPrefs({ saveImages: false });
-        expect(getScanPrefs()).toEqual({ saveImages: false, readItems: true, sendPhotos: true, cropFirst: false });
+        expect(getScanPrefs()).toMatchObject({ saveImages: false, readItems: true, sendPhotos: true, cropFirst: false });
+        setScanPrefs({ saveImages: true });
+        expect(getScanPrefs()).toMatchObject({ saveImages: true, readItems: true, sendPhotos: true, cropFirst: false });
+    });
+
+    it('switches keeping photos off once on a device that had it on, then respects the user', () => {
+        localStorage.setItem('wmw.scanPrefs', JSON.stringify({ saveImages: true, readItems: false }));
+        expect(getScanPrefs()).toMatchObject({ saveImages: false, readItems: false });
+        setScanPrefs({ saveImages: true });
+        expect(getScanPrefs().saveImages).toBe(true);
     });
 });

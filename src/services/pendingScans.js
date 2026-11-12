@@ -7,7 +7,7 @@ import { createTransaction, getTransaction, listRows, listTransactions, updateTr
 import { mergeExtraction } from '../utils/extractionMerge';
 import { itemsFromExtraction, serializeItems } from '../utils/receiptItems';
 import { applyItemRules } from '../utils/itemRules';
-import { queueImage, queuedImageBlob, requestImageFlush, getSignedUrl } from '../data/images';
+import { dropLocalImage, queueImage, queuedImageBlob, requestImageFlush, getSignedUrl } from '../data/images';
 import { db, openDb } from '../data/db';
 import { ScanError, extractReceipt, isRetryable } from './receiptScan';
 import { getScanPrefs } from '../utils/scanPrefs';
@@ -15,10 +15,15 @@ import { dateKey } from '../utils/quickAdd';
 
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-/** Save the photo + a placeholder transaction. Returns the transaction id. */
+/**
+ * Save the photo + a placeholder transaction. Returns the transaction id. With "Keep receipt photos" off the photo stays on
+ * this device only until it has been read, and the transaction never points at a stored photo.
+ */
 export async function createPendingScan({ userId, file, label, accountId = null, currency = 'EUR' }) {
     const id = newId();
-    const imagePath = await queueImage({ userId, transactionId: id, blob: file, mime: file.type || 'image/jpeg' });
+    const keep = getScanPrefs().saveImages;
+    const path = await queueImage({ userId, transactionId: id, blob: file, mime: file.type || 'image/jpeg', localOnly: !keep });
+    const imagePath = keep ? path : null;
     await createTransaction({
         id,
         userId,
@@ -58,7 +63,9 @@ export function processPendingScans({ userId, getToken, getHints, fetchImpl }) {
             if (typeof navigator !== 'undefined' && navigator.onLine === false) return out;
             if (!getScanPrefs().sendPhotos) return out; // photos are not sent to the AI provider: the saved photos stay waiting, totals can be typed by hand
 
-            const pending = (await listTransactions(userId)).filter((tx) => tx.extraction?.pending && tx.imagePath);
+            await openDb();
+            const localPhotos = new Set((await db.images.filter((r) => r.status === 'local').toArray()).map((r) => r.transactionId));
+            const pending = (await listTransactions(userId)).filter((tx) => tx.extraction?.pending && (tx.imagePath || localPhotos.has(tx.id)));
             for (const tx of pending) {
                 try {
                     const blob = await blobFor(tx);
@@ -80,6 +87,7 @@ export function processPendingScans({ userId, getToken, getHints, fetchImpl }) {
                         { ...extraction, confidence: receipt.confidence, paymentMethod: receipt.paymentMethod, time: receipt.time, merchantRaw: receipt.merchantRaw, tax: receipt.tax }
                     );
                     await updateTransaction(tx.id, patch, { system: true });
+                    if (localPhotos.has(tx.id)) await dropLocalImage(tx.id); // read: the device-only photo is no longer needed
                     out.processed++;
                 } catch (err) {
                     if (isRetryable(err)) {

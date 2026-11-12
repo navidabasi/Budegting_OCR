@@ -9,13 +9,18 @@
  *  - `removeImage()` deletes the object together with its transaction (queued when offline).
  *
  * Queue rows: { id, transactionId, userId, kind: 'upload' | 'delete', path, bytes?, blob? (rows queued before bytes), mime?,
- * status, tries, lastError } (`id` is the transactionId for uploads and `del:<path>` for deletes).
+ * status: 'pending' | 'failed' | 'local', tries, lastError }. A 'local' row is never uploaded: it holds the photo of an
+ * offline scan until it has been read, when "Keep receipt photos" is off.
+ *
+ * With "Keep receipt photos" off (the default) nothing is uploaded: queued uploads are dropped and their transaction no
+ * longer points at a photo; only the extracted data is kept. (`id` is the transactionId for uploads and `del:<path>` for deletes).
  *
  * The photo is kept as an ArrayBuffer (`bytes`) and uploaded as a raw body. A Blob read back from IndexedDB on iOS Safari
  * went out as a multipart part with no file in it, and Storage answered 400 "No content provided" for every photo.
  */
 import { db, openDb } from './db';
 import { supabase } from '../services/supabaseService';
+import { getScanPrefs } from '../utils/scanPrefs';
 
 export const BUCKET = 'receipts';
 export const SIGNED_URL_SECONDS = 3600;
@@ -59,15 +64,25 @@ export function queuedImageBlob(row) {
 
 const EMPTY_PHOTO = 'The photo is empty';
 
-/** Queue an image for upload. Returns the storage path to store as `imagePath`. */
-export async function queueImage({ userId, transactionId, blob, mime }) {
+/**
+ * Queue an image for upload (or, with `localOnly`, only keep it on this device). Returns the storage path to store as
+ * `imagePath` (callers of a local-only photo store no path).
+ */
+export async function queueImage({ userId, transactionId, blob, mime, localOnly = false }) {
     if (!userId || !transactionId || !blob) throw new Error('userId, transactionId and blob are required');
     const bytes = await toBytes(blob);
     if (!bytes || bytes.byteLength === 0) throw new Error(EMPTY_PHOTO);
     const path = imagePathFor(userId, transactionId);
     await openDb();
-    await db.images.put({ id: transactionId, transactionId, userId, kind: 'upload', path, bytes, mime: mime || blob.type || 'image/jpeg', status: 'pending', tries: 0, lastError: null, createdAt: Date.now() });
+    await db.images.put({ id: transactionId, transactionId, userId, kind: 'upload', path, bytes, mime: mime || blob.type || 'image/jpeg', status: localOnly ? 'local' : 'pending', tries: 0, lastError: null, createdAt: Date.now() });
     return path;
+}
+
+/** Drop the device-only photo of a transaction (after an offline scan was read). */
+export async function dropLocalImage(transactionId) {
+    await openDb();
+    const row = await db.images.get(transactionId);
+    if (row?.status === 'local') await db.images.delete(transactionId);
 }
 
 async function uploadRow(row) {
@@ -93,6 +108,11 @@ export function flushImages(userId = null) {
         const out = { uploaded: 0, deleted: 0, failed: 0 };
         try {
             await openDb();
+            if (!getScanPrefs().saveImages) {
+                // Photos are not kept: drop every queued upload (device-only scan photos stay until they are read)
+                const drop = await db.images.filter((r) => r.kind === 'upload' && r.status !== 'local' && (!userId || !r.userId || r.userId === userId)).toArray();
+                for (const r of drop) await discardImage(r.id);
+            }
             // Photos rejected as empty before the raw-body fix get one more try
             const legacy = await db.images.filter((r) => r.status === 'failed' && /no content provided/i.test(r.lastError || '')).toArray();
             for (const r of legacy) await db.images.put({ ...r, status: 'pending', lastError: null });

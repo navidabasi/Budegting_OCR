@@ -28,6 +28,7 @@ vi.mock('../../services/supabaseService', () => ({
 }));
 
 import { db, openDb } from '../db';
+import { setScanPrefs } from '../../utils/scanPrefs';
 import { __resetImagesForTests, flushImages, getImageUrl, getSignedUrl, imagePathFor, queueImage, removeImage } from '../images';
 import { createTransaction, deleteTransaction } from '../repo';
 
@@ -40,6 +41,27 @@ beforeEach(async () => {
     Object.assign(storage, { uploads: [], removed: [], signed: [], failUpload: null });
     __resetImagesForTests();
     setOnline(true);
+    setScanPrefs({ saveImages: true });
+});
+
+describe('receipt images with "Keep receipt photos" off', () => {
+    it('uploads nothing, drops queued photos and unlinks them from the transaction', async () => {
+        const id = await createTransaction({ userId: 'u1', merchant: 'Lidl', total: 17.88, date: '2026-11-11', category: 'Groceries', imagePath: 'u1/pending.jpg' });
+        await db.images.put({ id, transactionId: id, userId: 'u1', kind: 'upload', path: 'u1/pending.jpg', bytes: new Uint8Array([1]).buffer, status: 'failed', tries: 1, lastError: 'No content provided', createdAt: 1 });
+        setScanPrefs({ saveImages: false });
+        await flushImages('u1');
+        expect(storage.uploads).toEqual([]);
+        expect(await db.images.get(id)).toBeUndefined();
+        expect((await db.transactions.get(id)).imagePath).toBeNull();
+    });
+
+    it('keeps a device-only photo (offline scan not read yet) and never uploads it', async () => {
+        setScanPrefs({ saveImages: false });
+        await queueImage({ userId: 'u1', transactionId: 'loc', blob: new Blob([new Uint8Array([1])], { type: 'image/jpeg' }), localOnly: true });
+        await flushImages('u1');
+        expect(storage.uploads).toEqual([]);
+        expect((await db.images.get('loc')).status).toBe('local');
+    });
 });
 
 describe('receipt images', () => {
